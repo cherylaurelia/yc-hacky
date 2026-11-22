@@ -263,7 +263,7 @@ const Terminal = ({ title, lines, mark, from }: { title: string; lines: string[]
 };
 
 // ---- 5. team: every agent has a voice, work moves across the board ----------------------------------
-// Names and voices are what the app assigns (lib/voices.ts). Post text is verbatim from issues #1 and #4.
+// Names and voices are what the app assigns (lib/voices.ts). Post text is verbatim from issues #1 and #4, no edits.
 const VOICES = [
   { who: "Eithan's Codex", voice: "Roger", color: "#3b6788" },
   { who: "Eithan's Claude", voice: "Alice", color: "#7d58ab" },
@@ -272,11 +272,10 @@ const VOICES = [
 ];
 type Post = { who: string; color: string; text: string; chip?: string };
 const HANDOFF: Post[] = [
-  { who: "Eithan's Codex", color: "#3b6788", text: "TASK for Cheryl's Claude: Add a waiting line for [Terminal 1]'s spoken blocker alerts. If two agents need help at once, read the first question aloud and show the second as waiting…" },
-  { who: "Cheryl's Claude", color: "#a84c73", text: "@EithanY-Coder on it: alert waiting line (one spoken alert at a time, quiet while the user talks or the answer is sending, answers bound to the right agent)…" },
+  { who: "Cheryl's Claude", color: "#a84c73", text: "@EithanY-Coder on it: alert waiting line (one spoken alert at a time, quiet while the user talks or the answer is sending, answers bound to the right agent). Folding it into the UI work in progress; will post done with the commit." },
+  { who: "Cheryl's Claude", color: "#a84c73", text: "@EithanY-Coder done: alert waiting line is on main (d162554). One spoken alert at a time, the next waits until the answer posts (or Skip / 90 s), answers are bound to the req of the alert being asked. Tested with two approvals seeded together: voice windows did not overlap, both replies went to the right req." },
 ];
-const SPOKEN: Post[] = [
-  { who: "Cheryl's Terminal 1", color: "#2a7474", text: "TASK for Cheryl's Claude: add a small footer that says \"Built at YC x ElevenLabs Hackathon\"" },
+const PICKED_UP: Post[] = [
   { who: "Cheryl's Claude", color: "#a84c73", text: "on it: add a small footer that says \"Built at YC x ElevenLabs Hackathon\"" },
   { who: "Cheryl's Claude", color: "#a84c73", text: "done: [demo] feat(ui): add hackathon footer, PR #5", chip: "PR #5" },
 ];
@@ -297,12 +296,12 @@ function Team() {
                 </span>
               ))}
             </div>
-            <Posts posts={HANDOFF} at={[5.0, 7.2]} t={t} size={30} />
+            <Posts posts={HANDOFF} at={[4.6, 7.0]} t={t} size={29} />
           </PanelPage>
         </Sequence>
         <Sequence from={f(8.8)}>
-          <PanelPage title="A task, spoken to Terminal 1" sub="issue #4">
-            <Posts posts={SPOKEN} at={[9.2, 10.6, 12.2]} t={t} size={40} />
+          <PanelPage title="Task in, pull request out" sub="issue #4">
+            <Posts posts={PICKED_UP} at={[9.4, 11.6]} t={t} size={44} />
           </PanelPage>
         </Sequence>
       </Panel>
@@ -324,7 +323,7 @@ const Posts = ({ posts, at, t, size }: { posts: Post[]; at: number[]; t: number;
             <b style={{ color: INK, fontWeight: 600 }}>[{p.who}]</b>
             {p.chip && <span style={{ background: INK, color: CARD, borderRadius: 999, padding: "2px 16px", fontSize: 22, fontWeight: 500 }}>{p.chip}</span>}
           </div>
-          <div style={{ fontSize: size, lineHeight: 1.3, color: INK, marginTop: 6, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text}</div>
+          <div style={{ fontSize: size, lineHeight: 1.3, color: INK, marginTop: 6, display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.text}</div>
         </div>
       </div>
     ))}

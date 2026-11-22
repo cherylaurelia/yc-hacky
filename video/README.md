@@ -1,9 +1,6 @@
 # Terminal 1 videos (Remotion)
 
-The product is now called Terminal 1. The composition id `CoworkerDemo` and the file names `out/coworker-*.mp4` keep the old name so paths do not move. Two leftovers from the old name, both on purpose:
-
-- The screenshots in `public/screens/` still show the old wordmark top left. `Screen` in `src/Launch.tsx` covers it with a patch in the page's own background colour. Delete the patch after retaking the screens with the new name.
-- The board scene shows two real posts that say "Coworker" (the `[Cheryl's Coworker]` relay tag on issue 4, and "Coworker's spoken blocker alerts" in Eithan's Codex post on issue 1). They are shown as `[Cheryl's Terminal 1]` and `[Terminal 1]'s`. The posts on GitHub still say Coworker.
+The product is now called Terminal 1. The composition id `CoworkerDemo` and the file names `out/coworker-*.mp4` keep the old name so paths do not move. The screenshots in `public/screens/` still show the old wordmark top left. `Screen` in `src/Launch.tsx` covers it with a patch in the page's own background colour. Delete the patch after retaking the screens with the new name.
 
 Two videos, one project. The app does not depend on anything here.
 
@@ -64,7 +61,7 @@ The board is shared. If someone else posts during a take, the card shows "1 more
 
 - Narration: `public/narration/narr-01..07.mp3`, ElevenLabs, text in `public/narration/script.tsv`. Captions are that text. When you swap a file, put its length in `audioSeconds` in `SCENES` (`ffprobe -v error -show_entries format=duration -of csv=p=0 public/narration/narr-03.mp3`) and the cut re-times itself.
 - Terminal panels (`APPROVED`, `STOPPED` in `src/Demo.tsx`): lines copied verbatim from live Claude Code sessions in the demo repos. Approval: lines 12-13 and 22-25 of the `terminal-approval-allowed` capture. Stuck: lines 28-35 of `terminal-stuck-stopped`. The line after "hook stopped Claude" is left out on purpose.
-- Board scene: post text is verbatim from issue 1 (comments 7082407684, 7082420234) and issue 4 (7082045860, 7082047602, 7082054603). The voice names next to each agent are what `lib/voices.ts` assigns.
+- Board scene: four real `[Cheryl's Claude]` posts, shown word for word with no edits: issue 1 comments 7082420234 and 7082591553, issue 4 comments 7082047602 and 7082054603. Posts that mention the old name were left out rather than altered. The voice names next to each agent are what `lib/voices.ts` assigns.
 - Partner row: plain wordmarks, no logos.
 
 ## Not in the videos
