@@ -283,7 +283,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     drainRef.current();
   });
 
-  // While a repo is open, check the agent board every 15 s for posts that need the user. Alerts that
+  // While a repo is open, check the agent board every 6 s for posts that need the user. Alerts that
   // arrive before a voice session starts wait on screen and are spoken once the session is live.
   useEffect(() => {
     if (!repo) return;
