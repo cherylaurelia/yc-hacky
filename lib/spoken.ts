@@ -41,3 +41,12 @@ export function clip(s: string, max: number): string {
   const cut = s.slice(0, max);
   return cut.slice(0, Math.max(cut.lastIndexOf(" "), max * 0.6)).trimEnd() + "...";
 }
+
+// CI state from a commit's combined status and check runs: failure beats pending beats success.
+export function ciState(combined: string | undefined, checks: { status: string; conclusion: string | null }[]): string {
+  const bad = ["failure", "timed_out", "cancelled", "action_required", "startup_failure"];
+  if (combined === "failure" || combined === "error" || checks.some((c) => c.conclusion && bad.includes(c.conclusion))) return "failing";
+  if (combined === "pending" || checks.some((c) => c.status !== "completed")) return "still running";
+  if (combined === "success" || checks.length) return "passing";
+  return "none";
+}
