@@ -48,7 +48,7 @@ export async function gh<T = unknown>(path: string, { token, method = "GET", bod
       return "";
     }
   })();
-  if (res.status === 401) throw new GhError("GitHub rejected the access token.", 502);
+  if (res.status === 401) throw new GhError("GitHub rejected the access token.", 503);
   if (res.status === 429 || (res.status === 403 && (res.headers.get("x-ratelimit-remaining") === "0" || /rate limit/i.test(apiMessage)))) {
     throw new GhError("GitHub is rate limiting us. Try again in a minute.", 429);
   }
@@ -57,5 +57,5 @@ export async function gh<T = unknown>(path: string, { token, method = "GET", bod
   if (res.status === 409) throw new GhError("That repo has no commits yet.", 409);
   if (res.status === 410) throw new GhError("Issues are turned off for this repo.", 410);
   if (res.status === 422) throw new GhError(`GitHub refused that. ${apiMessage}`.trim().slice(0, 200), 422);
-  throw new GhError(`GitHub returned an error ${res.status}.`, 502);
+  throw new GhError(`GitHub returned an error ${res.status}.`, 503);
 }

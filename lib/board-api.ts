@@ -1,6 +1,6 @@
 // GitHub side of the agent board: which issue is the board, who the token
 // belongs to, and the comment reads and writes the board tools and route use.
-import { type BoardAlert, type BoardCursor, type Comment, alertsFrom, answeredFrom, digest, parsePost } from "./board";
+import { type BoardAlert, type BoardCursor, type Comment, alertsFrom, answeredFrom, digest, openRequests, parsePost } from "./board";
 import { gh, GhError } from "./github";
 
 const boards = new Map<string, number>();
@@ -32,7 +32,7 @@ export async function boardNumber(repo: string, token: string | undefined, given
 // in the relay tag. env OWNER_NAME overrides it for the server token only (a signed-in user is
 // always themselves); no profile name falls back to the login.
 export async function tokenOwner(token: string | undefined): Promise<{ login: string; name: string }> {
-  if (!token) throw new GhError("The board needs a GitHub token on the server.", 502);
+  if (!token) throw new GhError("The board needs a GitHub token on the server.", 503);
   const hit = owners.get(token);
   if (hit) return hit;
   const u = await gh<{ login: string; name: string | null }>("/user", { token });
@@ -74,6 +74,15 @@ export async function boardPost(repo: string, token: string | undefined, board: 
 export async function boardUpdates(repo: string, token: string | undefined, board: number | undefined, cursor?: BoardCursor): Promise<{ cursor: BoardCursor; alerts: BoardAlert[]; answered: string[] }> {
   const n = await boardNumber(repo, token, board);
   if (!cursor) {
+    // A late tab still needs the requests that are open right now, so look back 10 minutes.
+    const [recent, user] = await Promise.all([
+      gh<Comment[]>(`/repos/${repo}/issues/${n}/comments?per_page=100&since=${encodeURIComponent(new Date(Date.now() - 10 * 60_000).toISOString())}`, { token }),
+      ownerOrNull(token),
+    ]);
+    if (recent.length) {
+      const last = recent[recent.length - 1];
+      return { cursor: { since: last.id, at: last.created_at }, alerts: openRequests(recent, user).slice(-5), answered: answeredFrom(recent) };
+    }
     const issue = await gh<{ comments: number }>(`/repos/${repo}/issues/${n}`, { token });
     if (!issue.comments) return { cursor: { since: 0, at: new Date(Date.now() - 60_000).toISOString() }, alerts: [], answered: [] };
     const [last] = await gh<Comment[]>(`/repos/${repo}/issues/${n}/comments?per_page=1&page=${issue.comments}`, { token });
