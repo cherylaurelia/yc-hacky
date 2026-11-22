@@ -11,6 +11,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     private let webView: WKWebView
     private var url: URL
     private var retry: DispatchWorkItem?
+    private var talkKey = ""
 
     var isVisible: Bool { panel.alphaValue > 0 }
 
@@ -61,6 +62,18 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         retry?.cancel()
         webView.load(URLRequest(url: url))
     }
+
+    /// Tells the page which key to hint: window event `coworker-ptt-key` with detail {key:"Right Option"}.
+    /// Sent on every change and again after each page load.
+    func sendTalkKey(_ name: String? = nil) {
+        if let name { talkKey = name }
+        guard !talkKey.isEmpty else { return }
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('coworker-ptt-key',{detail:{key:'\(talkKey)'}}))") { _, error in
+            if let error { NSLog("Coworker: could not deliver talk key: \(error.localizedDescription)") }
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { sendTalkKey() }
 
     func deliver(_ event: PttEvent) {
         let detail: String

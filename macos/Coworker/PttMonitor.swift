@@ -7,6 +7,12 @@ final class PttMonitor {
     var onEvent: ((PttEvent) -> Void)?
     private var machine = PttMachine()
     private var monitors: [Any] = []
+    private(set) var key = TalkKeySetting.current
+
+    func setKey(_ new: TalkKey) {
+        key = new
+        machine = PttMachine()
+    }
 
     func start() {
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
@@ -23,8 +29,8 @@ final class PttMonitor {
         let event: PttEvent?
         switch e.type {
         case .flagsChanged:
-            let others = e.modifierFlags.intersection([.command, .control, .option, .shift])
-            event = machine.flagsChanged(fn: e.modifierFlags.contains(.function), otherModifiers: !others.isEmpty, at: e.timestamp)
+            let s = key.sample(rawFlags: e.modifierFlags.rawValue)
+            event = machine.flagsChanged(fn: s.down, otherModifiers: s.others, at: e.timestamp)
         case .keyDown:
             event = machine.keyDown()
         default:
@@ -33,7 +39,7 @@ final class PttMonitor {
         if let event { onEvent?(event) }
     }
 
-    /// Debug: drives the same machine as a real fn press.
+    /// Debug: drives the same machine as a real press of the talk key.
     func simulateHold(seconds: TimeInterval) {
         send(fn: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in self?.send(fn: false) }
@@ -42,6 +48,40 @@ final class PttMonitor {
     private func send(fn: Bool) {
         if let e = machine.flagsChanged(fn: fn, otherModifiers: false, at: ProcessInfo.processInfo.systemUptime) { onEvent?(e) }
     }
+}
+
+/// The talk key choice, persisted in UserDefaults.
+enum TalkKeySetting {
+    private static let keyKey = "talkKey"
+    private static let notePendingKey = "talkKeyWisprNotePending"
+    private static let wisprBundleID = "com.electron.wispr-flow"
+
+    static var wisprInstalled: Bool {
+        if NSWorkspace.shared.urlForApplication(withBundleIdentifier: wisprBundleID) != nil { return true }
+        let fm = FileManager.default
+        return ["/Applications", fm.homeDirectoryForCurrentUser.appendingPathComponent("Applications").path]
+            .contains { fm.fileExists(atPath: "\($0)/Wispr Flow.app") }
+    }
+
+    /// First read decides the default and saves it, so installing Wispr later never changes the key.
+    static var current: TalkKey {
+        let d = UserDefaults.standard
+        if let raw = d.string(forKey: keyKey), let key = TalkKey(rawValue: raw) { return key }
+        let wispr = wisprInstalled
+        let key = TalkKey.defaultKey(wisprInstalled: wispr)
+        d.set(key.rawValue, forKey: keyKey)
+        if wispr { d.set(true, forKey: notePendingKey) }
+        return key
+    }
+
+    static func set(_ key: TalkKey) {
+        UserDefaults.standard.set(key.rawValue, forKey: keyKey)
+        UserDefaults.standard.set(false, forKey: notePendingKey)
+    }
+
+    static var notePending: Bool { UserDefaults.standard.bool(forKey: notePendingKey) }
+    static func noteShown() { UserDefaults.standard.set(false, forKey: notePendingKey) }
+    static let note = "Wispr Flow uses fn, so Coworker uses Right Option. Change in Talk key."
 }
 
 enum KeyboardAccess {
@@ -71,7 +111,7 @@ enum KeyboardAccess {
         UserDefaults.standard.set(true, forKey: promptedKey)
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
-        a.messageText = "Coworker needs keyboard access to hear the fn key"
+        a.messageText = "Coworker needs keyboard access to hear the \(TalkKeySetting.current.title) key"
         a.informativeText = "Turn Coworker on in Input Monitoring and in Accessibility (System Settings > Privacy & Security), then quit and reopen Coworker once."
         a.addButton(withTitle: "Open Input Monitoring")
         a.addButton(withTitle: "Open Accessibility")

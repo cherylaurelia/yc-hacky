@@ -1,6 +1,6 @@
 import Foundation
 
-// Build and run with macos/test.sh
+// Logic for every talk key. Build and run with macos/test.sh
 @main
 struct PttLogicTest {
     enum Step {
@@ -20,6 +20,58 @@ struct PttLogicTest {
             if let e { out.append(e) }
         }
         return out
+    }
+
+    // Raw modifier flags as a keyboard reports them: generic bit plus the device bit for the side.
+    static let shift: UInt = 1 << 17, lShift: UInt = 0x2
+    static let lControl: UInt = (1 << 18) | 0x1
+    static let lOption: UInt = (1 << 19) | 0x20
+    static let lCommand: UInt = (1 << 20) | 0x8
+
+    /// Every talk key runs the same flag-to-machine path as PttMonitor.
+    static func runKey(_ key: TalkKey, _ flagSteps: [(flags: UInt, t: TimeInterval)]) -> [PttEvent] {
+        var m = PttMachine()
+        return flagSteps.compactMap {
+            let s = key.sample(rawFlags: $0.flags)
+            return m.flagsChanged(fn: s.down, otherModifiers: s.others, at: $0.t)
+        }
+    }
+
+    static func keyCases() -> Int {
+        var failed = 0
+        func check(_ name: String, _ got: [PttEvent], _ want: [PttEvent]) {
+            if got == want { print("ok   \(name)") }
+            else { failed += 1; print("FAIL \(name)\n  want \(want)\n  got  \(got)") }
+        }
+        let codes: [TalkKey: UInt16] = [.fn: 63, .rightOption: 61, .rightCommand: 54, .rightControl: 62]
+        for key in TalkKey.allCases {
+            let me = key.downFlags
+            check("\(key.title): keyCode is \(codes[key]!)", [], key.keyCode == codes[key]! ? [] : [.down])
+            check("\(key.title): hold 1s", runKey(key, [(me, 10), (0, 11)]), [.down, .up(cancelled: false)])
+            check("\(key.title): 100ms tap is cancelled", runKey(key, [(me, 10), (0, 10.1)]), [.down, .up(cancelled: true)])
+            check("\(key.title): shift joins the hold, cancel then silent",
+                  runKey(key, [(me, 10), (me | shift | lShift, 10.5), (me, 10.6), (0, 11)]), [.down, .up(cancelled: true)])
+            check("\(key.title): shift already held is ignored", runKey(key, [(me | shift | lShift, 10), (0, 11)]), [])
+            if key != .rightOption {
+                check("\(key.title): left Option never triggers", runKey(key, [(lOption, 10), (0, 11)]), [])
+            }
+            if key != .rightCommand {
+                check("\(key.title): left Command never triggers", runKey(key, [(lCommand, 10), (0, 11)]), [])
+            }
+            if key != .rightControl {
+                check("\(key.title): left Control never triggers", runKey(key, [(lControl, 10), (0, 11)]), [])
+            }
+            if key != .fn {
+                check("\(key.title): fn alone never triggers", runKey(key, [(1 << 23, 10), (0, 11)]), [])
+                let left = key == .rightOption ? lOption : key == .rightCommand ? lCommand : lControl
+                check("\(key.title): left twin held first is ignored", runKey(key, [(left, 10), (left | me, 10.2), (left, 10.4), (0, 11)]), [])
+                check("\(key.title): left twin joins the hold, cancel", runKey(key, [(me, 10), (left | me, 10.5), (left, 10.6), (0, 11)]),
+                      [.down, .up(cancelled: true)])
+            }
+        }
+        check("default without Wispr is fn", [], TalkKey.defaultKey(wisprInstalled: false) == .fn ? [] : [.down])
+        check("default with Wispr is Right Option", [], TalkKey.defaultKey(wisprInstalled: true) == .rightOption ? [] : [.down])
+        return failed
     }
 
     static func main() {
@@ -45,12 +97,13 @@ struct PttLogicTest {
              [.down, .up(cancelled: false)]),
         ]
         var failed = 0
+        failed += keyCases()
         for (name, steps, want) in cases {
             let got = run(steps)
             if got == want { print("ok   \(name)") }
             else { failed += 1; print("FAIL \(name)\n  want \(want)\n  got  \(got)") }
         }
         if failed > 0 { print("\(failed) failed"); exit(1) }
-        print("all \(cases.count) passed")
+        print("all passed")
     }
 }

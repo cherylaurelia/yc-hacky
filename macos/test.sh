@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unit-checks the fn push-to-talk state machine (pure logic, no keyboard needed).
+# Unit-checks the push-to-talk state machine for every talk key (pure logic, no keyboard needed).
 set -euo pipefail
 cd "$(dirname "$0")"
 out="$(mktemp -d)"

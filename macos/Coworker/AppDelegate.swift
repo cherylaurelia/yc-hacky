@@ -30,8 +30,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return i
     }
     private lazy var toggleItem = item("", #selector(togglePanel))
-    private lazy var accessItem = item("Grant keyboard access (fn key)...", #selector(grantAccess))
-    private lazy var simulateItem = item("Simulate fn hold (1s)", #selector(simulate))
+    private lazy var accessItem = item("Grant keyboard access...", #selector(grantAccess))
+    private lazy var simulateItem = item("Simulate talk key hold (1s)", #selector(simulate))
+    private lazy var noteItem: NSMenuItem = {
+        let i = NSMenuItem(title: TalkKeySetting.note, action: nil, keyEquivalent: "")
+        i.isEnabled = false
+        return i
+    }()
+    private lazy var talkKeyItem: NSMenuItem = {
+        let i = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        i.submenu = NSMenu()
+        for key in TalkKey.allCases {
+            let k = item(key.title, #selector(pickTalkKey(_:)))
+            k.representedObject = key.rawValue
+            i.submenu?.addItem(k)
+        }
+        return i
+    }()
 
     private var configuredURL: URL {
         UserDefaults.standard.string(forKey: Self.urlKey).flatMap(URL.init(string:)) ?? URL(string: Self.defaultURL)!
@@ -46,10 +61,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        menu.items = [toggleItem, accessItem, item("Reload", #selector(reload), "r"), item("Set URL...", #selector(setURL)),
+        menu.items = [noteItem, toggleItem, accessItem, talkKeyItem, item("Reload", #selector(reload), "r"), item("Set URL...", #selector(setURL)),
                       simulateItem, .separator(), NSMenuItem(title: "Quit Coworker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
         statusItem.menu = menu
         render()
+        renderTalkKey()
 
         ptt.onEvent = { [weak self] event in
             guard let self else { return }
@@ -73,7 +89,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         toggleItem.title = panel.isVisible ? "Hide Panel" : "Show Panel"
         accessItem.isHidden = KeyboardAccess.granted
+        noteItem.isHidden = !TalkKeySetting.notePending
         simulateItem.isHidden = !(NSEvent.modifierFlags.contains(.option) || UserDefaults.standard.bool(forKey: "debug"))
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        if TalkKeySetting.notePending { TalkKeySetting.noteShown() }
+    }
+
+    private func renderTalkKey() {
+        talkKeyItem.title = "Talk key: \(ptt.key.title)"
+        for i in talkKeyItem.submenu?.items ?? [] { i.state = i.representedObject as? String == ptt.key.rawValue ? .on : .off }
+        panel.sendTalkKey(ptt.key.title)
+    }
+
+    @objc private func pickTalkKey(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let key = TalkKey(rawValue: raw) else { return }
+        TalkKeySetting.set(key)
+        ptt.setKey(key)
+        renderTalkKey()
     }
 
     private func render() {
