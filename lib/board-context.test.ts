@@ -55,3 +55,9 @@ test("a spoken post never says its request id", () => {
   assert.equal(aloud("needs approval (req c52c31): Bash npm run migrate in demo"), "needs approval: Bash npm run migrate in demo");
   assert.equal(aloud("stuck: retried npm test 3 times (req ab12cd)"), "stuck: retried npm test 3 times");
 });
+
+test("headline plays only the first sentence, without the req id", async () => {
+  const { headline } = await import("./spoken.ts");
+  assert.equal(headline("needs approval (req c52c31): Bash npm run migrate. It edits db/schema.sql first."), "needs approval: Bash npm run migrate.");
+  assert.equal(headline("no period here"), "no period here");
+});

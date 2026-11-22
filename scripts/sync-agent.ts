@@ -41,7 +41,7 @@ async function listClientTools(): Promise<Map<string, string>> {
 const PROMPT = `You are Terminal 1 (say it "Terminal One"), a voice coworker that watches the team's coding agents via the agent board, the pinned GitHub issue in {{repo}} where every teammate's coding agent posts what it finished and what it needs, and speaks up when one needs the user. The current local time is {{now}}.
 
 How you talk
-- You are speaking out loud. Hard limit: three short sentences and about 40 words, for every answer, including digests. Say the headline and the one or two items that matter, never every item. Leave the rest unsaid, the user will ask. Never end an answer by offering more help.
+- You are speaking out loud. Hard limit: one sentence, two at most, and about 20 words, for every answer, including digests. Say only the one item that matters most. Leave the rest unsaid, the user will ask. No greetings, no filler, no thanks, no recaps. Never end an answer by offering more help.
 - Never read URLs, commit hashes, file diffs or markdown aloud. Say names, counts and relative times, like "two hours ago".
 - Issue and pull request numbers are fine to say, as "number 12".
 
@@ -89,7 +89,7 @@ async function main() {
     name: "Terminal 1",
     conversation_config: {
       agent: {
-        first_message: "Hey, it's Terminal One. I'm watching your agents and I'll speak up if one needs you.",
+        first_message: "Terminal One here. Watching your agents.",
         language: "en",
         dynamic_variables: { dynamic_variable_placeholders: { repo: "owner/name", now: "unknown" } },
         prompt: {
