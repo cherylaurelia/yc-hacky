@@ -2,12 +2,12 @@
 
 import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
-import AccountControl from "@/components/AccountControl";
+import AccountControl, { useAccount } from "@/components/AccountControl";
+import RepoPicker, { RepoChip } from "@/components/RepoPicker";
 import Standup from "@/components/Standup";
 import { type Phase, useCoworker } from "@/components/useCoworker";
 import type { Alert } from "@/lib/alerts";
 import { diffRows } from "@/lib/diff";
-import { parseRepo } from "@/lib/repo";
 import { ago } from "@/lib/spoken";
 import { voiceFor } from "@/lib/voices";
 
@@ -47,56 +47,42 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     focus,
     standup,
     draft,
-    repo: { current: repo, ready, input: repoInput, error: repoError },
+    repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo, setRepoInput, setStandup, setFocus, answer, dismiss, endSession },
+    actions: { start, press, send, setDraft, setRepo, setStandup, setFocus, answer, dismiss, endSession },
   } = useCoworker({ initialRepo, board, embed });
 
+  const account = useAccount();
   const captions = msgs.slice(-2);
   const behind = card ? open.length - 1 : 0;
 
   return (
     <div className={`relative flex flex-col ${embed ? "h-screen overflow-hidden px-4 pb-4 pt-3" : "min-h-screen px-6 pb-8 pt-5 sm:px-10"}`}>
       <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
-        {repo ? (
-          <a href={`https://github.com/${repo}`} target="_blank" rel="noreferrer" className="truncate underline-offset-4 hover:text-ink hover:underline">
-            {repo}
-          </a>
-        ) : (
-          <span className="font-display text-base text-ink">Coworker</span>
-        )}
-        {boardError && <span className="text-stop">{boardError}</span>}
-        {!embed && (
-          <div className="account">
-            <AccountControl repo={repo} onRepo={setRepo} />
-          </div>
-        )}
+        <span className="shrink-0 font-display text-base text-ink">Coworker</span>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
+          {boardError && <span className="text-stop">{boardError}</span>}
+          {embed ? (
+            repo && (
+              <span className="max-w-[10rem] truncate" title={repo}>
+                {repo.split("/")[1]}
+              </span>
+            )
+          ) : (
+            <>
+              <RepoChip repo={repo} repos={account.repos} loading={account.loadingRepos} onPick={setRepo} />
+              <AccountControl account={account} />
+            </>
+          )}
+        </div>
       </header>
 
       <main className={`mx-auto flex w-full flex-1 flex-col items-center ${embed ? "min-h-0 max-w-sm justify-safe-center overflow-y-auto py-3" : "max-w-xl justify-center py-10"}`}>
         {ready && !repo ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const p = parseRepo(repoInput);
-              if (p.ok) setRepo(p.repo);
-            }}
-            className="flex w-full flex-col gap-4"
-          >
-            <label htmlFor="repo" className={`font-display text-balance leading-tight text-ink ${embed ? "text-2xl" : "text-4xl"}`}>
-              Which repo are your agents working in?
-            </label>
-            <input
-              id="repo"
-              autoFocus
-              value={repoInput}
-              onChange={(e) => setRepoInput(e.target.value)}
-              spellCheck={false}
-              placeholder="owner/name, then press Enter"
-              className="h-12 rounded-full border border-line bg-card px-5 text-base text-ink outline-none placeholder:text-faint focus:border-ink/40"
-            />
-            {repoError && !repoError.ok && <span className="px-2 text-sm text-stop">{repoError.error}</span>}
-          </form>
+          <div className="flex w-full flex-col gap-4">
+            <h1 className={`font-display text-balance leading-tight text-ink ${embed ? "text-2xl" : "text-4xl"}`}>Which repo are your agents working in?</h1>
+            <RepoPicker repos={account.repos} loading={account.loadingRepos} onPick={setRepo} />
+          </div>
         ) : card ? (
           <AlertCard
             key={card.seq}

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswered, nextUp, normReq, waiting } from "@/lib/alerts";
 import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/lib/board";
 import { localNow } from "@/lib/now";
-import { parseRepo } from "@/lib/repo";
+import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost } from "@/lib/speak-client";
 import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
 
@@ -43,9 +43,8 @@ function spokenAlerts(played: BoardAlert[], missed: BoardAlert[]): string {
 
 export function useCoworker({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const first = parseRepo(initialRepo);
-  const [repo, setRepo] = useState(first.ok ? first.repo : "");
+  const [repo, setRepoState] = useState(first.ok ? first.repo : "");
   const [ready, setReady] = useState(first.ok);
-  const [repoInput, setRepoInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -83,7 +82,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     try {
       const saved = parseRepo(localStorage.getItem(REPO_KEY));
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved.ok) setRepo(saved.repo);
+      if (saved.ok) setRepoState(saved.repo);
     } catch (e) {
       console.warn("Could not read the saved repo:", e);
     }
@@ -98,6 +97,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     } catch (e) {
       console.warn("Could not save the repo:", e);
     }
+    rememberRecent(repo);
   }, [repo]);
 
   // One generic client tool per spec. Reads the repo from a ref because the SDK
@@ -427,7 +427,6 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
             ? "Mic muted"
             : hint;
   const source = !live ? null : phase === "speaking" ? convo.getOutputByteFrequencyData : convo.getInputByteFrequencyData;
-  const repoError = repoInput.trim() ? parseRepo(repoInput) : null;
 
   const skip = (id: number) => setAlerts((all) => all.map((x) => (x.id === id && x.state === "asking" ? { ...x, state: "told" } : x)));
 
@@ -460,6 +459,29 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   }
   const dismiss = (id: number) => setHidden((h) => new Set(h).add(id));
 
+  // Pick another repo: drop the old repo's alerts and chat, end a live session, and put the repo in the address bar.
+  function switchRepo(next: string) {
+    if (next === repo) return;
+    if (live || connecting) void convo.endSession();
+    setRepoState(next);
+    setAlerts([]);
+    setHidden(new Set());
+    setFocus(null);
+    setMsgs([]);
+    setCalls([]);
+    setBoardError(null);
+    setError(null);
+    answeredReqs.current.clear();
+    try {
+      const url = new URL(window.location.href);
+      if (next) url.searchParams.set("repo", next);
+      else url.searchParams.delete("repo");
+      window.history.replaceState(null, "", url);
+    } catch (e) {
+      console.warn("Could not update the address bar:", e);
+    }
+  }
+
   return {
     status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError },
     transcript: msgs,
@@ -480,8 +502,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     focus: focused ?? null,
     standup,
     draft,
-    repo: { current: repo, ready, input: repoInput, error: repoError },
+    repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo, setRepoInput, setStandup, setFocus, skip, answer, dismiss, endSession: () => convo.endSession() },
+    actions: { start, press, send, setDraft, setRepo: switchRepo, setStandup, setFocus, skip, answer, dismiss, endSession: () => convo.endSession() },
   };
 }
