@@ -1,0 +1,28 @@
+{
+  "name": "terminal-1-video",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Remotion project for the Terminal 1 launch clip. Separate from the app: the app does not depend on any of this.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Launch out/terminal1-launch.mp4 --crf=18",
+    "render:demo": "remotion render src/index.ts Terminal1Demo out/terminal1-demo.mp4 --crf=18",
+    "still": "remotion still src/index.ts Launch out/poster.png --frame=300",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.545",
+    "@remotion/google-fonts": "4.0.545",
+    "qrcode": "^1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.545"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19",
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5"
+  }
+}
