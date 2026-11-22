@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Coworker",
+  "version": "0.1.0",
+  "description": "Your team's agent board in a pop-up: what needs you first, and a mic to answer.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Coworker"
+  }
+}
