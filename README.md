@@ -1,3 +1,4 @@
+<!-- Built at YC x ElevenLabs Hackathon -->
 # Coworker
 
 A voice coworker for people who run several AI coding agents. It watches your agents, speaks up when one needs approval, is blocked, or is stuck retrying a failing command, and you answer by holding a key and talking.
