@@ -50,7 +50,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   } = useCoworker({ initialRepo, board, embed });
 
   const account = useAccount();
-  const captions = msgs.slice(-2);
+  const captions = msgs.slice(-1);
   const behind = card ? open.length - 1 : 0;
 
   return (
