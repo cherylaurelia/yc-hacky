@@ -185,6 +185,16 @@ export const HANDLERS: Record<ToolName, Handler> = {
     if (to && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(to)) throw new GhError("That is not a GitHub username.", 400);
     return boardPost(repo, token, num(args.board, 0, 0, 1e9) || undefined, text, to);
   },
+
+  // The hooks/coworker-hook.sh poller waits for "req <id> allow|deny" from the gh user.
+  async answer_request({ repo, token }, args) {
+    const id = str(args.request_id).replace(/^req\s+/i, "").toLowerCase();
+    if (!/^[0-9a-f]{4,12}$/.test(id)) throw new GhError("That is not a request id.", 400);
+    const decision = args.decision === "deny" ? "deny" : "allow";
+    const note = str(args.note).replace(/\s+/g, " ").slice(0, 300);
+    await boardPost(repo, token, undefined, `req ${id} ${decision}${note ? ` ${note}` : ""}`, "");
+    return `Sent ${decision} for request ${id}.`;
+  },
 };
 
 // ---------- argument validation (boundary) ----------

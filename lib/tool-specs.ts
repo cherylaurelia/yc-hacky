@@ -166,6 +166,21 @@ export const TOOL_SPECS = [
       },
     },
   },
+  {
+    name: "answer_request",
+    description:
+      "Answer a coding agent's permission request from the board, an alert that says 'needs approval (req X)'. Posts your allow or deny so the agent proceeds or stops. WRITE ACTION: the spoken question 'Allow?' is the confirmation, so call it as soon as the user says allow or deny, without reading it back first. Afterwards say the decision word.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["request_id", "decision"],
+      properties: {
+        request_id: { type: "string", description: "The id after 'req' in the alert, for example 3fa9c1." },
+        decision: { type: "string", enum: ["allow", "deny"], description: "allow to let the agent run it, deny to stop it." },
+        note: { type: "string", description: "Short reason to pass to the agent, for example 'wrong folder'. Optional." },
+      },
+    },
+  },
 ] as const;
 
 export type ToolSpec = (typeof TOOL_SPECS)[number];
