@@ -25,6 +25,7 @@ const REPO_KEY = "coworker.repo";
 const TAP_MS = 350; // a hold shorter than this is a tap: nothing to answer, so no "thinking"
 const PLAY_GAP_MS = 4_000; // after an alert is injected, wait for the agent to start talking before the next one
 const ANSWER_GAP_MS = 2_500; // after an answer is posted, let the agent say "Allowed." before the next alert
+const TALK_GAP_MS = 8_000; // an alert never cuts into a conversation: wait this long after the last message or tool call
 const ASK_TIMEOUT_MS = 90_000; // an unanswered question stops holding the line after this much silence
 
 const soon = (ms: number) => Date.now() + ms;
@@ -250,6 +251,11 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       if (stale && Date.now() - lastActive.current > ASK_TIMEOUT_MS && !held && !working) return mark(stale.id, "told");
       const a = nextUp(alerts);
       if (!a || draining.current || !live || held || convo.isSpeaking || working || awaiting || Date.now() < quietUntil.current) return;
+      const talking = TALK_GAP_MS - (Date.now() - lastActive.current);
+      if (talking > 0) {
+        setTimeout(() => drainRef.current(), talking + 100);
+        return;
+      }
       draining.current = true;
       try {
         mark(a.id, "playing");
@@ -374,6 +380,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     const now = sources.current.size > 0;
     if (now === was) return;
     setHeld(now);
+    lastActive.current = Date.now(); // the user talking counts as conversation, so no alert cuts in right after
     clearTimeout(awaitTimer.current);
     if (now) {
       pressedAt.current = Date.now();
