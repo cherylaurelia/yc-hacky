@@ -1,0 +1,12 @@
+diff --git a/db/schema.sql b/db/schema.sql
+index 6631eb2..4a74c9d 100644
+--- a/db/schema.sql
++++ b/db/schema.sql
+@@ -1,5 +1,6 @@
+ CREATE TABLE orders (
+   id INTEGER PRIMARY KEY,
+   customer TEXT NOT NULL,
+-  total_cents INTEGER NOT NULL
++  total_cents INTEGER NOT NULL,
++  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+ );

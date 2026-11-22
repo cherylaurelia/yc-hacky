@@ -35,3 +35,7 @@ next-env.d.ts
 
 # macOS menu-bar app build output
 macos/build/
+
+# launch video (Remotion project in video/)
+video/out/
+video/node_modules/

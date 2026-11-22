@@ -1,0 +1,23 @@
+{
+  "name": "coworker-launch-video",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Remotion project for the Coworker launch clip. Separate from the app: the app does not depend on any of this.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Launch out/coworker-launch.mp4 --crf=18",
+    "still": "remotion still src/index.ts Launch out/poster.png --frame=100",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.545",
+    "@remotion/google-fonts": "4.0.545",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.545"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}
