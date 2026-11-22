@@ -1,5 +1,7 @@
 # Terminal 1
 
+**Try it live:** https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh (hosted on Maritime)
+
 A voice coworker for people who run several AI coding agents. It watches your agents, speaks up when one needs approval, is blocked, or is stuck retrying a failing command, and you answer by holding a key and talking.
 
 ![20-second demo: an agent asks, you answer by voice, the agent continues](docs/demo.gif)

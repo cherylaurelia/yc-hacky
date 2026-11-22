@@ -36,10 +36,9 @@ Other tools, not necessarily partners.
 
 - Project: https://github.com/cherylaurelia/yc-hacky
 - Demo video: TODO(operator) record the video from `docs/video.md`, upload it, and paste the link.
-- Live demo: TODO(operator) none yet. The app runs on `localhost`. Add a hosted URL only if you deploy one.
+- Live demo: https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh (hosted on Maritime)
 - Try it: the README has the one-command hook install and the local run steps.
 
-TODO(operator): the repo is private today. The project link, the install command, and the "stranger" bonus all fail for anyone without read access. Make it public, or add the judges and the stranger as collaborators.
 
 ## Team
 
