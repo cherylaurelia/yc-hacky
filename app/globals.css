@@ -1,38 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: dark;
-  --ink: #12110f;
-  --panel: #1a1916;
-  --raise: #23211d;
-  --line: #2f2c27;
-  --text: #f2eee6;
-  --dim: #a9a397;
-  --signal: #ff6a3d;
-  --ok: #8fd694;
-  --warn: #f2b84b;
-  --bad: #ff6b6b;
+  color-scheme: light;
+  --paper: #f3eee6;
+  --card: #fbf8f3;
+  --chip: #efe8dd;
+  --ink: #221d17;
+  --soft: #5f564b;
+  --faint: #73695d;
+  --line: #ddd3c5;
+  --stop: #a3382a;
+  --stoptint: #f6e2da;
+  --add: #2e6542;
+  --addtint: #e3ede0;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-chip: var(--chip);
   --color-ink: var(--ink);
-  --color-panel: var(--panel);
-  --color-raise: var(--raise);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
   --color-line: var(--line);
-  --color-text: var(--text);
-  --color-dim: var(--dim);
-  --color-signal: var(--signal);
-  --color-ok: var(--ok);
-  --color-warn: var(--warn);
-  --color-bad: var(--bad);
+  --color-stop: var(--stop);
+  --color-stoptint: var(--stoptint);
+  --color-add: var(--add);
+  --color-addtint: var(--addtint);
   --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-newsreader), ui-serif, Georgia, serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 body {
-  background: var(--ink);
-  color: var(--text);
+  background: radial-gradient(120% 80% at 50% 0%, #f7f2ea 0%, var(--paper) 60%) fixed, var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans);
+}
+
+.font-display {
+  font-optical-sizing: auto;
+  font-weight: 420;
 }
 
 p {
@@ -40,17 +49,119 @@ p {
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--signal) 45%, transparent);
-  color: var(--text);
+  background: color-mix(in oklab, var(--ink) 16%, transparent);
+  color: var(--ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--signal);
-  outline-offset: 2px;
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
 }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
-  caret-color: var(--signal);
+  caret-color: var(--ink);
+}
+
+/* The one card that needs you, and the ones queued behind it. */
+.card-rise {
+  box-shadow:
+    0 1px 2px rgb(60 40 20 / 0.06),
+    0 28px 56px -28px rgb(60 40 20 / 0.28);
+  animation: rise 250ms var(--ease-out) both;
+}
+.stack-layer {
+  background: color-mix(in oklab, var(--card) 70%, var(--paper));
+  box-shadow: 0 12px 30px -20px rgb(60 40 20 / 0.25);
+}
+.diff-open {
+  animation: unfold 250ms var(--ease-out) both;
+}
+.calm-in {
+  animation: settle 400ms var(--ease-out) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+}
+@keyframes unfold {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0 round 16px);
+  }
+}
+@keyframes settle {
+  from {
+    opacity: 0.4;
+    filter: blur(2px);
+  }
+}
+
+/* The push-to-talk pill: still at rest, a soft lift while the mic or a voice is live. */
+.pill {
+  box-shadow: 0 10px 24px -14px rgb(34 29 23 / 0.6);
+  transition:
+    transform 240ms var(--ease-out),
+    box-shadow 240ms var(--ease-out),
+    padding 240ms var(--ease-out),
+    width 240ms var(--ease-out);
+}
+.pill-on {
+  transform: scale(1.04);
+  box-shadow: 0 16px 34px -14px rgb(34 29 23 / 0.7);
+}
+
+/* AccountControl ships unstyled; this keeps it small in the top-right corner. */
+.account > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 0.75rem;
+  max-width: 22rem;
+  font-size: 13px;
+  color: var(--soft);
+}
+.account img {
+  border-radius: 9999px;
+}
+.account button {
+  color: var(--ink);
+  font-weight: 600;
+  text-underline-offset: 4px;
+}
+.account button:hover {
+  text-decoration: underline;
+}
+.account p:not([role="alert"]) {
+  display: none;
+}
+.account [role="alert"] {
+  color: var(--stop);
+}
+.account select {
+  max-width: 12rem;
+  margin-left: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 0.2rem 0.6rem;
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-rise,
+  .diff-open,
+  .calm-in {
+    animation: none;
+  }
+  .pill,
+  .pill-on {
+    transition: none;
+    transform: none;
+  }
 }
