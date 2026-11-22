@@ -4,14 +4,20 @@ import { GhError } from "@/lib/github";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
+import { type Audit, audited, clipValues } from "@/lib/trace";
 import { HANDLERS, isToolName, isWriteTool, validateArgs } from "@/lib/tools";
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
 
+// One span per call: which tool, which repo, who was signed in, the decision for answer_request, and how it ended.
 export async function POST(req: Request, { params }: { params: Promise<{ name: string }> }) {
+  const { name } = await params;
+  return audited(`tool.${isToolName(name) ? name : "unknown"}`, { tool: isToolName(name) ? name : "unknown" }, (a) => handle(req, name, a));
+}
+
+async function handle(req: Request, name: string, audit: Audit) {
   const limited = rateLimit(req, "tool");
   if (limited) return limited;
-  const { name } = await params;
   if (!isToolName(name)) return fail(404, `I don't have a tool called ${name.slice(0, 40)}.`);
 
   const read = await readJson(req, 16_384);
@@ -23,6 +29,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ name: s
   if (!checked.ok) return fail(400, checked.error);
 
   const { token, session } = await resolveToken(req);
+  const { decision, request_id: reqId } = checked.args;
+  audit.set({ input: clipValues(checked.args), attrs: { repo: parsed.repo, user: session?.login, write: isWriteTool(name), decision: typeof decision === "string" ? decision : undefined, request_id: typeof reqId === "string" ? reqId : undefined } });
   if (session && isWriteTool(name) && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Coworker page.");
   if (isWriteTool(name)) {
     const slowDown = rateLimit(req, "write");
