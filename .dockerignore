@@ -13,3 +13,6 @@ hooks
 Dockerfile
 .dockerignore
 *.md
+qa
+demo
+design
