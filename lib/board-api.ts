@@ -69,6 +69,8 @@ export async function boardUpdates(repo: string, token: string | undefined, boar
     const issue = await gh<{ comments: number }>(`/repos/${repo}/issues/${n}`, { token });
     if (!issue.comments) return { cursor: { since: 0, at: new Date(Date.now() - 60_000).toISOString() }, alerts: [], answered: [] };
     const [last] = await gh<Comment[]>(`/repos/${repo}/issues/${n}/comments?per_page=1&page=${issue.comments}`, { token });
+    // GitHub returns an empty page past its pagination cap (very long threads): start from now instead.
+    if (!last) return { cursor: { since: 0, at: new Date().toISOString() }, alerts: [], answered: [] };
     return { cursor: { since: last.id, at: last.created_at }, alerts: [], answered: [] };
   }
   const [rows, user] = await Promise.all([
