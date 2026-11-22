@@ -2,13 +2,20 @@
 // client tools the browser does, against the local /api/tool route.
 //   node scripts/text-chat.ts owner/name "what happened recently?" ["follow up" ...]
 // Needs `npm run dev` (with GITHUB_TOKEN) on TOOL_BASE (default http://localhost:3000).
+// It also runs the browser's board alert poll (every POLL_MS, default 15000) and injects
+// each alert into the conversation. The step "/alert [seconds]" waits for the next alert
+// and for the agent's spoken reaction to it. ALERT_VIA=context sends the alert with
+// sendContextualUpdate instead of sendUserMessage, to compare whether the agent speaks.
 import { readFileSync } from "node:fs";
 import { Conversation } from "@elevenlabs/react";
+import { type BoardCursor, alertMessage, pollBoard } from "../lib/board.ts";
 import { localNow } from "../lib/now.ts";
 import { parseRepo } from "../lib/repo.ts";
 import { TOOL_SPECS } from "../lib/tool-specs.ts";
 
 const BASE = process.env.TOOL_BASE ?? "http://localhost:3000";
+const POLL_MS = Number(process.env.POLL_MS ?? 15_000);
+const VIA = process.env.ALERT_VIA === "context" ? "context" : "message";
 const [, , repoArg, ...messages] = process.argv;
 const parsed = parseRepo(repoArg);
 if (!parsed.ok || messages.length === 0) {
@@ -80,14 +87,47 @@ const conv = await Conversation.startSession({
   onUnhandledClientToolCall: (c) => console.log(`  [unhandled tool call] ${c.tool_name}`),
 });
 
+// Same loop as components/Coworker.tsx: baseline cursor first, then alerts for newer posts.
+let cursor: BoardCursor | undefined;
+let delivered = 0;
+async function tick() {
+  try {
+    const r = await pollBoard(repo, cursor, BASE);
+    cursor = r.cursor;
+    if (!r.alerts.length) return;
+    const text = alertMessage(r.alerts);
+    console.log(`  [board alert via ${VIA}] ${text.replace(/\s+/g, " ")}`);
+    if (VIA === "context") conv.sendContextualUpdate(text);
+    else conv.sendUserMessage(text);
+    delivered++;
+    touch();
+  } catch (e) {
+    console.log(`  [board] poll failed: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 try {
   await waitIdle(1); // greeting
+  await tick();
+  console.log(`  [board] watching, cursor ${JSON.stringify(cursor)}`);
+  const timer = setInterval(tick, POLL_MS);
   for (const m of messages) {
     const before = agentMessages;
-    conv.sendUserMessage(m);
-    touch();
-    await waitIdle(before + 1);
+    const wait = m.match(/^\/alert(?:\s+(\d+))?$/);
+    if (wait) {
+      const seen = delivered;
+      const limit = Date.now() + Number(wait[1] ?? 90) * 1000;
+      while (delivered === seen && Date.now() < limit) await new Promise((r) => setTimeout(r, 250));
+      if (delivered === seen) throw new Error("no board alert arrived in time");
+      touch();
+      await waitIdle(before + 1, 3000, 25_000).catch(() => console.log("  [board] the agent said nothing after the alert"));
+    } else {
+      conv.sendUserMessage(m);
+      touch();
+      await waitIdle(before + 1);
+    }
   }
+  clearInterval(timer);
 } finally {
   await conv.endSession();
 }
