@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var panel: CoworkerPanel!
     private var activity: NSObjectProtocol?
     private var alertExpiry: DispatchWorkItem?
+    private var alertCollapse: DispatchWorkItem?
+    private var hoverWork: DispatchWorkItem?
     private var pill = PillState() { didSet { render() } }
 
     private func item(_ title: String, _ action: Selector, _ key: String = "") -> NSMenuItem {
@@ -54,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.onPageMessage = { [weak self] in self?.apply(.page($0)) }
         panel.onVisibilityChange = { [weak self] in self?.apply(.panelOpen($0)) }
         pillWindow.onClick = { [weak self] in self?.panel.setVisible(true) }
+        pillWindow.onHover = { [weak self] in self?.hover($0) }
         notifier.onOpen = { [weak self] in self?.panel.setVisible(true) }
         notifier.requestAuthorization()
         mic.onLevel = { [weak self] in self?.pillWindow.setLevel($0) }
@@ -86,6 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             if !granted { NSLog("Coworker: microphone access denied; enable it in System Settings > Privacy & Security > Microphone") }
         }
+
+        if let dir = UserDefaults.standard.string(forKey: "pillSnapshots") { snapshotRun(dir) }  // -pillSnapshots /tmp/dir
 
         let after = UserDefaults.standard.double(forKey: "simulateAfter")  // launch args for scripted checks: -simulateAfter 5 -simulateSeconds 3
         if after > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.simulate() } }
@@ -126,10 +131,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let alert = pill.notify { notifier.post(alert) }
         guard pill.alert != hadAlert else { return }
         alertExpiry?.cancel()
+        alertCollapse?.cancel()
         guard pill.alert != nil else { return }
         let work = DispatchWorkItem { [weak self] in self?.apply(.alertExpired) }  // never leave a stale alert on screen
         alertExpiry = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 120, execute: work)
+        let collapse = DispatchWorkItem { [weak self] in self?.apply(.alertCollapsed) }  // the pill shrinks back; the alert stays in the panel
+        alertCollapse = collapse
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: collapse)
+    }
+
+    /// Entering waits 300 ms so a mouse passing over the capsule does not flash it open; leaving is immediate.
+    private func hover(_ inside: Bool) {
+        hoverWork?.cancel()
+        guard inside else { apply(.hover(false)); return }
+        let work = DispatchWorkItem { [weak self] in self?.apply(.hover(true)) }
+        hoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     private func render() {
@@ -153,6 +171,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         simulatedAlerts += 1
         let alert = BoardAlert(agent: "Eithan's Claude", text: "Needs your call on the migration plan (#\(simulatedAlerts))", id: "sim-\(simulatedAlerts)")
         apply(.page(PageMessage(phase: nil, alert: .set(alert))))
+    }
+
+    /// Debug only: walks idle, hover, hold and alert, saving the pill's pixels after each settles.
+    private func snapshotRun(_ dir: String) {
+        let steps: [(String, () -> Void)] = [
+            ("idle", {}),
+            ("hover", { self.apply(.hover(true)) }),
+            ("hold", { self.apply(.hover(false)); self.apply(.talkDown); self.pillWindow.setLevel(0.7) }),
+            ("release", { self.apply(.talkUp(cancelled: false)) }),
+            ("alert", { self.simulateAlert() }),
+            ("alert-collapsed", {}),
+        ]
+        var t = 1.0
+        for (name, act) in steps {
+            DispatchQueue.main.asyncAfter(deadline: .now() + t) { act() }
+            t += name == "alert" ? 8.5 : 0.6
+            DispatchQueue.main.asyncAfter(deadline: .now() + t) { [weak self] in self?.pillWindow.snapshot(to: "\(dir)/\(name).png") }
+            t += 0.3
+        }
     }
 
     @objc private func grantAccess() {
