@@ -384,5 +384,5 @@ function Partners() {
 
 // ---- 7. close ---------------------------------------------------------------------------------------
 function Close() {
-  return <End shot={{ title: "Coworker", line: "Your agents tap you on the shoulder.", url: "github.com/cherylaurelia/yc-hacky" }} />;
+  return <End shot={{ title: "Coworker", line: "Your agents tap you on the shoulder." }} />;
 }

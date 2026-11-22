@@ -1,7 +1,12 @@
 import { loadFont as loadSans } from "@remotion/google-fonts/HankenGrotesk";
 import { loadFont as loadMono } from "@remotion/google-fonts/JetBrainsMono";
 import { loadFont as loadSerif } from "@remotion/google-fonts/Newsreader";
+import QRCode from "qrcode";
 import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+
+// Where people go. Both end cards and the QR code come from these two lines.
+export const LIVE_URL = "https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh";
+export const GITHUB = "github.com/cherylaurelia/yc-hacky";
 
 export const FPS = 30;
 export const WIDTH = 1920;
@@ -18,7 +23,7 @@ export const HEIGHT = 1080;
 // ---------------------------------------------------------------------------------------------------
 export type Cam = [scale: number, x: number, y: number];
 export type ScreenShot = { kind: "screen"; file: string; seconds: number; caption: string; camera: [Cam, Cam] };
-export type EndCard = { kind: "end"; seconds: number; title: string; line: string; url: string };
+export type EndCard = { kind: "end"; seconds: number; title: string; line: string };
 export type Shot = ScreenShot | EndCard;
 
 export const SHOTS: Shot[] = [
@@ -26,7 +31,7 @@ export const SHOTS: Shot[] = [
   { kind: "screen", file: "screens/02-approval.png", seconds: 4.5, caption: "One needs your OK.", camera: [[1.3, 50, 46], [1.55, 50, 46]] },
   { kind: "screen", file: "screens/03-diff.png", seconds: 5, caption: "Ask to see what it changed.", camera: [[1.3, 50, 46], [1.4, 50, 46]] },
   { kind: "screen", file: "screens/04-stuck.png", seconds: 4.5, caption: "Another is stuck in a loop.", camera: [[1.3, 50, 46], [1.55, 50, 46]] },
-  { kind: "end", seconds: 4.5, title: "Coworker", line: "A voice coworker for your coding agents.", url: "github.com/cherylaurelia/yc-hacky" },
+  { kind: "end", seconds: 4.5, title: "Coworker", line: "Your agents tap you on the shoulder." },
 ];
 
 // ---- look: the app's own tokens (app/globals.css) -------------------------------------------------
@@ -122,40 +127,44 @@ const Caption = ({ text, dur }: { text: string; dur: number }) => {
   );
 };
 
-// The pill from the app, with its voice bars, carrying the link.
-const BARS = [0.25, 0.4, 0.6, 0.35, 0.8, 0.5, 0.3, 0.65, 0.45, 0.25];
+// A QR code for the live app, drawn as one SVG path from the module matrix (no image file, no async).
+const QR = QRCode.create(LIVE_URL, { errorCorrectionLevel: "M" }).modules;
+const QUIET = 4; // modules of white around the code, as the spec asks
 
-export const End = ({ shot }: { shot: Pick<EndCard, "title" | "line" | "url"> }) => {
+const QrCode = ({ size }: { size: number }) => {
+  const total = QR.size + QUIET * 2;
+  let d = "";
+  for (let r = 0; r < QR.size; r++) for (let c = 0; c < QR.size; c++) if (QR.get(r, c)) d += `M${c + QUIET} ${r + QUIET}h1v1h-1z`;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${total} ${total}`} shapeRendering="crispEdges" role="img" aria-label={`QR code for ${LIVE_URL}`}>
+      <rect width={total} height={total} fill="#ffffff" />
+      <path d={d} fill={INK} />
+    </svg>
+  );
+};
+
+// Name, tagline, "Try it" with the live link and its QR code, the repo small underneath.
+export const End = ({ shot }: { shot: Pick<EndCard, "title" | "line"> }) => {
   const f = useCurrentFrame();
   const rise = (start: number) => ({
     opacity: interpolate(f, [start, start + 16], [0, 1], { extrapolateRight: "clamp" }),
     transform: `translateY(${interpolate(f, [start, start + 22], [18, 0], { easing: Easing.out(Easing.cubic), extrapolateRight: "clamp" })}px)`,
   });
   return (
-    <AbsoluteFill style={{ background: `radial-gradient(120% 80% at 50% 0%, #f7f2ea 0%, ${PAPER} 60%)`, alignItems: "center", justifyContent: "center", opacity: interpolate(f, [0, FADE], [0, 1], { extrapolateRight: "clamp" }) }}>
-      <div style={{ ...rise(6), fontFamily: serif, fontSize: 230, lineHeight: 1, letterSpacing: "-0.02em", color: INK }}>{shot.title}</div>
-      <div style={{ ...rise(16), marginTop: 26, fontSize: 44, color: SOFT }}>{shot.line}</div>
-      <div
-        style={{
-          ...rise(28),
-          marginTop: 64,
-          display: "flex",
-          alignItems: "center",
-          gap: 22,
-          background: INK,
-          color: CARD,
-          borderRadius: 999,
-          padding: "0 46px 0 40px",
-          height: 104,
-          boxShadow: "0 22px 44px -22px rgba(34,29,23,0.7)",
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 6, height: 40 }}>
-          {BARS.map((h, i) => (
-            <span key={i} style={{ width: 6, height: "100%", borderRadius: 3, background: CARD, transform: `scaleY(${h * (0.9 + 0.1 * Math.sin(f / 5 + i))})` }} />
-          ))}
-        </span>
-        <span style={{ fontFamily: mono, fontWeight: 500, fontSize: 44, letterSpacing: "0.01em" }}>{shot.url}</span>
+    <AbsoluteFill style={{ background: `radial-gradient(120% 80% at 50% 0%, #f7f2ea 0%, ${PAPER} 60%)`, opacity: interpolate(f, [0, FADE], [0, 1], { extrapolateRight: "clamp" }) }}>
+      <div style={{ height: 880, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...rise(6), fontFamily: serif, fontSize: 150, lineHeight: 1, letterSpacing: "-0.02em", color: INK }}>{shot.title}</div>
+        <div style={{ ...rise(14), marginTop: 18, fontSize: 40, color: SOFT }}>{shot.line}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 90, marginTop: 44 }}>
+          <div style={rise(24)}>
+            <div style={{ fontFamily: serif, fontSize: 200, lineHeight: 1, letterSpacing: "-0.02em", color: INK }}>Try it</div>
+            <div style={{ marginTop: 24, display: "inline-block", background: INK, color: CARD, borderRadius: 999, padding: "0 38px", lineHeight: "80px", fontFamily: mono, fontWeight: 500, fontSize: 27, boxShadow: "0 22px 44px -22px rgba(34,29,23,0.7)" }}>{LIVE_URL}</div>
+          </div>
+          <div style={{ ...rise(30), background: "#ffffff", borderRadius: 28, padding: 22, boxShadow: "0 2px 4px rgba(60,40,20,0.08), 0 30px 60px -28px rgba(60,40,20,0.4)" }}>
+            <QrCode size={380} />
+          </div>
+        </div>
+        <div style={{ ...rise(40), marginTop: 34, fontFamily: mono, fontSize: 28, color: SOFT }}>{GITHUB}</div>
       </div>
     </AbsoluteFill>
   );

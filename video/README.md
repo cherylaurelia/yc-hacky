@@ -23,6 +23,15 @@ npm run typecheck
 
 Each render takes about 10 s (Launch) and 20 s (CoworkerDemo) on an M-series Mac. Fonts (Newsreader, Hanken Grotesk, JetBrains Mono) load from Google Fonts at render time, so you need a network.
 
+## End card
+
+Both videos end on the same card: "Coworker", "Your agents tap you on the shoulder.", a big "Try it" with the live URL and its QR code, and the GitHub link small underneath. `LIVE_URL` and `GITHUB` are the first lines of `src/Launch.tsx`; the QR code is drawn from `LIVE_URL` (npm `qrcode`, video/ only), so changing the URL changes the code. Check that a rendered video still scans:
+
+```
+ffmpeg -ss 21.5 -i out/coworker-launch.mp4 -frames:v 1 /tmp/end.png   # demo: -ss 79
+node scripts/check-qr.mjs /tmp/end.png https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh
+```
+
 ## Retake the screens
 
 `public/screens/` holds four real screenshots of the app (1400x900 at 1.5x). The app must be a production build, so the Next.js dev indicator is not in the shot. No paid keys are involved: the server runs with an empty environment, so voice, text to speech and tracing fail closed.
