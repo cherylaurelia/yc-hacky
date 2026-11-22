@@ -3,15 +3,18 @@
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import agent from "@/agent.json";
+import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/lib/board";
 import { localNow } from "@/lib/now";
 import { parseRepo } from "@/lib/repo";
 import { TOOL_SPECS } from "@/lib/tool-specs";
 
 type Msg = { id: number; role: "user" | "agent"; text: string };
+type Alert = BoardAlert & { seq: number };
 type Call = { id: number; name: string; args: Record<string, unknown>; state: "running" | "ok" | "error"; text: string; ms?: number };
 
 const EXAMPLES = ["azizu06/hackathon-agent-board", "vercel/next.js"];
-const SUGGESTIONS = ["What did my team push in the last day?", "Any open pull requests?", "File an issue for the login bug"];
+const SUGGESTIONS = ["Catch me up on the agent board", "What did my team push in the last day?", "Any open pull requests?", "File an issue for the login bug"];
+const POLL_MS = 15_000;
 
 const showArgs = (a: Record<string, unknown>) =>
   Object.entries(a).map(([k, v]) => `${k}: ${String(v)}`).join(", ").slice(0, 110);
@@ -28,11 +31,16 @@ function Panel({ initialRepo }: { initialRepo: string }) {
   const [repoInput, setRepoInput] = useState(initialRepo);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [calls, setCalls] = useState<Call[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [boardError, setBoardError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const seq = useRef(0);
   const repoRef = useRef("");
   const bottom = useRef<HTMLDivElement>(null);
+  const cursor = useRef<BoardCursor | undefined>(undefined);
+  const queue = useRef<BoardAlert[]>([]);
+  const flushRef = useRef(() => {});
 
   const parsed = parseRepo(repoInput);
   useEffect(() => {
@@ -81,10 +89,56 @@ function Panel({ initialRepo }: { initialRepo: string }) {
   const live = convo.status === "connected";
   const busy = convo.status === "connecting";
   const working = calls.some((c) => c.state === "running");
+  const repo = parsed.ok ? parsed.repo : "";
+  const feed = [...calls.map((c) => ({ seq: c.id, c })), ...alerts.map((a) => ({ seq: a.seq, a }))].sort((x, y) => x.seq - y.seq);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [msgs, calls]);
+  }, [msgs, feed.length]);
+
+  // Tell the agent about queued board alerts once it is idle, so we never talk over it.
+  // sendUserMessage makes the agent speak; sendContextualUpdate does not.
+  useEffect(() => {
+    flushRef.current = () => {
+      if (!live || convo.isSpeaking || working || !queue.current.length) return;
+      convo.sendUserMessage(alertMessage(queue.current.splice(0)));
+    };
+    flushRef.current();
+  });
+
+  // While a session is live, check the agent board every 15 s for posts that need the user.
+  useEffect(() => {
+    if (!live || !repo) return;
+    let stopped = false;
+    let inFlight = false;
+    cursor.current = undefined;
+    queue.current = [];
+    const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const r = await pollBoard(repo, cursor.current);
+        if (stopped) return;
+        cursor.current = r.cursor;
+        setBoardError(null);
+        if (r.alerts.length) {
+          setAlerts((a) => [...a, ...r.alerts.map((x) => ({ ...x, seq: ++seq.current }))]);
+          queue.current.push(...r.alerts);
+          flushRef.current();
+        }
+      } catch (e) {
+        if (!stopped) setBoardError(e instanceof Error ? e.message : "Board check failed.");
+      } finally {
+        inFlight = false;
+      }
+    };
+    tick();
+    const timer = setInterval(tick, POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [live, repo]);
 
   async function start(textOnly: boolean) {
     if (!parsed.ok) return;
@@ -92,6 +146,8 @@ function Panel({ initialRepo }: { initialRepo: string }) {
     setError(null);
     setMsgs([]);
     setCalls([]);
+    setAlerts([]);
+    setBoardError(null);
     if (!textOnly) {
       if (!navigator.mediaDevices?.getUserMedia) return setError("The microphone needs https or localhost. Use Type instead.");
       try {
@@ -128,7 +184,7 @@ function Panel({ initialRepo }: { initialRepo: string }) {
       <header>
         <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Repo Coworker</h1>
         <p className="mt-3 max-w-2xl text-lg text-zinc-400 sm:text-xl">
-          Paste a GitHub repo, press Talk, and ask what your team shipped. It reads the repo live and can file the issue for you.
+          Paste a GitHub repo, press Talk, and ask what your team shipped. It reads the repo live, watches your agent board, and speaks up when an agent needs you.
         </p>
       </header>
 
@@ -238,20 +294,40 @@ function Panel({ initialRepo }: { initialRepo: string }) {
         </section>
 
         <section className="flex min-h-80 flex-col rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5">
-          <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">What it is doing</h2>
+          <div className="mb-4 flex items-center gap-3">
+            <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">What it is doing</h2>
+            {live && (
+              <span className={`ml-auto flex items-center gap-2 text-sm ${boardError ? "text-amber-400" : "text-zinc-500"}`}>
+                <span className={`h-2 w-2 rounded-full ${boardError ? "bg-amber-400" : "animate-pulse bg-violet-400"}`} />
+                {boardError ?? "Watching the agent board"}
+              </span>
+            )}
+          </div>
           <div className="flex max-h-[34rem] flex-1 flex-col gap-3 overflow-y-auto pr-1">
-            {calls.length === 0 && <p className="text-lg text-zinc-500">Every GitHub call the agent makes shows up here.</p>}
-            {calls.map((c) => (
-              <div key={c.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <div className="flex items-center gap-3">
-                  <span className={`h-2.5 w-2.5 rounded-full ${c.state === "running" ? "animate-pulse bg-amber-400" : c.state === "ok" ? "bg-emerald-400" : "bg-red-400"}`} />
-                  <span className="font-mono text-lg font-medium">{c.name}</span>
-                  <span className="ml-auto font-mono text-sm text-zinc-500">{c.ms !== undefined ? `${c.ms} ms` : "running"}</span>
+            {feed.length === 0 && <p className="text-lg text-zinc-500">Every GitHub call the agent makes, and every board post that needs you, shows up here.</p>}
+            {feed.map((f) =>
+              "a" in f ? (
+                <div key={`a${f.seq}`} className="rounded-2xl border border-violet-500/60 bg-violet-950/40 p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400" />
+                    <span className="text-sm font-semibold uppercase tracking-wider text-violet-300">Board alert</span>
+                    <span className="ml-auto rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs font-medium text-violet-200">{f.a.why === "blocked" ? "blocked" : "mentions you"}</span>
+                  </div>
+                  <p className="mt-2 text-lg font-medium text-violet-100">{f.a.from}</p>
+                  <p className="mt-1 line-clamp-4 text-base text-violet-100/90">{f.a.text}</p>
                 </div>
-                {Object.keys(c.args).length > 0 && <p className="mt-1 font-mono text-sm text-zinc-500">{showArgs(c.args)}</p>}
-                {c.text && <p className={`mt-2 line-clamp-4 text-base ${c.state === "error" ? "text-red-300" : "text-zinc-300"}`}>{c.text}</p>}
-              </div>
-            ))}
+              ) : (
+                <div key={`c${f.seq}`} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                  <div className="flex items-center gap-3">
+                    <span className={`h-2.5 w-2.5 rounded-full ${f.c.state === "running" ? "animate-pulse bg-amber-400" : f.c.state === "ok" ? "bg-emerald-400" : "bg-red-400"}`} />
+                    <span className="font-mono text-lg font-medium">{f.c.name}</span>
+                    <span className="ml-auto font-mono text-sm text-zinc-500">{f.c.ms !== undefined ? `${f.c.ms} ms` : "running"}</span>
+                  </div>
+                  {Object.keys(f.c.args).length > 0 && <p className="mt-1 font-mono text-sm text-zinc-500">{showArgs(f.c.args)}</p>}
+                  {f.c.text && <p className={`mt-2 line-clamp-4 text-base ${f.c.state === "error" ? "text-red-300" : "text-zinc-300"}`}>{f.c.text}</p>}
+                </div>
+              ),
+            )}
           </div>
         </section>
       </div>
