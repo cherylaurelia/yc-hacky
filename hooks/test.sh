@@ -33,6 +33,7 @@ grep -q "acme/widgets/issues/1/comments" "$T/log" && check "posts to the repo or
 grep -q "body=\[Sam's Claude\]" "$T/log" && check "name from git user.name first word" 1 1 || check "name from git user.name first word" 0 1
 # --- which issue is the board: COWORKER_BOARD, else the open issue labeled "board", else nothing (never #1)
 perm0() { COWORKER_TIMEOUT=0 perm; }
+appr() { grep -c "issues/$1/comments -f body=.*needs approval" "$T/log" 2>/dev/null || true; }
 lookups() { grep -c 'issues?labels=board' "$T/log" 2>/dev/null || true; }
 reset; FAKE_BOARD=7 perm0 >/dev/null
 grep -q "acme/widgets/issues/7/comments" "$T/log" && check "labeled board found: posts to it, not #1" 1 1 || check "labeled board found: posts to it, not #1" 0 1
@@ -41,16 +42,28 @@ reset; check "no labeled board: silent, nothing posted" "$(FAKE_BOARD=0 perm0)$(
 reset; FAKE_BOARD=0 perm0 >/dev/null; FAKE_BOARD=9 perm0 >/dev/null
 check "a repo with no board is remembered: one lookup" "$(lookups)$(posts)" "10"
 reset; FAKE_BOARD=7 perm0 >/dev/null; FAKE_BOARD=9 perm0 >/dev/null
-check "a found board is cached: one lookup, same issue" "$(lookups)$(grep -c 'issues/7/comments' "$T/log")$(grep -c 'issues/9/comments' "$T/log")" "120"
+check "a found board is cached: one lookup, same issue" "$(lookups)$(appr 7)$(appr 9)" "120"
 reset; FAKE_BOARD=7 perm0 >/dev/null; printf '1 7\n' > "$T/state/board.acme_widgets"; FAKE_BOARD=9 perm0 >/dev/null
-check "a cache older than 10 minutes is looked up again" "$(grep -c 'issues/9/comments' "$T/log")" 1
+check "a cache older than 10 minutes is looked up again" "$(appr 9)" 1
 reset; check "lookup failure: silent, nothing posted" "$(FAKE_BOARD_FAIL=1 perm0)$(posts)" "0"
 reset; FAKE_BOARD_FAIL=1 perm0 >/dev/null; FAKE_BOARD=7 perm0 >/dev/null
-check "a failed lookup is not cached" "$(grep -c 'issues/7/comments' "$T/log")" 1
+check "a failed lookup is not cached" "$(appr 7)" 1
 reset; COWORKER_BOARD=4 FAKE_BOARD=7 perm0 >/dev/null
-check "COWORKER_BOARD wins and skips the lookup" "$(grep -c 'issues/4/comments' "$T/log")$(lookups)" "10"
+check "COWORKER_BOARD wins and skips the lookup" "$(appr 4)$(lookups)" "10"
 reset; COWORKER_BOARD=4 FAKE_BOARD=0 perm0 >/dev/null
-check "COWORKER_BOARD works in a repo with no board" "$(grep -c 'issues/4/comments' "$T/log")" 1
+check "COWORKER_BOARD works in a repo with no board" "$(appr 4)" 1
+# --- an approval nobody answers on the board must not leave its card up: the hook closes the request
+reqid() { grep -o 'req [0-9a-f]\{6\}' "$T/log" | head -1 | cut -d' ' -f2; }
+closed() { grep -c "req $(reqid) closed: $1" "$T/bodies" || true; }
+reset; check "no answer in time: silent output" "$(perm)" ""
+check "no answer in time: the board gets 'req ID closed: no answer'" "$(closed 'no answer in 3s')" 1
+reset; ( perm >/dev/null ) & sleep 1
+ev PostToolUse "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"touch a.txt"},"tool_response":{"stdout":""}}' | "$HOOK"; wait
+check "answered in the terminal: the same call finishing closes it" "$(closed 'answered in the terminal')" 1
+check "answered in the terminal: closed once, not again at the timeout" "$(grep -c " closed: " "$T/bodies")" 1
+reset; ( perm >/dev/null ) & sleep 1
+ev PostToolUse "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"stdout":""}}' | "$HOOK"; wait
+check "a different call finishing does not close it (only the timeout does)" "$(closed 'answered in the terminal')$(closed 'no answer')" 01
 reset; check "COWORKER_BOARD that is not a number: silent" "$(COWORKER_BOARD=abc perm0)$(posts)$(lookups)" "00"
 
 # a reply needs the request id, so read the id our post used, then feed the reply while the hook polls
@@ -71,6 +84,8 @@ unset FAKE_NAME_FAIL
 check "reply from a stranger is ignored (timeout, no output)" "$(run_reply mallory "req ID allow")" ""
 check "reply for another id is ignored" "$(run_reply cheryl "req ffffff allow")" ""
 check "no reply: silent fallback" "$( reset; perm )" ""
+run_reply cheryl "req ID allow" >/dev/null; ev PostToolUse "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"touch a.txt"}}' | "$HOOK"
+check "answered on the board: finishing the call posts no closure" "$(grep -c " closed: " "$T/bodies")" 0
 reset; export FAKE_POST_FAIL=1; s=$(date +%s); out="$(perm)"; check "post failure: silent and fast" "$out/$(( $(date +%s) - s < 3 ))" "/1"; unset FAKE_POST_FAIL
 reset; check "AskUserQuestion is not relayed" "$(ev PermissionRequest "$T/repo" '{"tool_name":"AskUserQuestion","tool_input":{}}' | "$HOOK")$(posts)" "0"
 reset; check "no repo: silent, no gh call" "$(ev PermissionRequest "$T" '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | "$HOOK")$(wc -c < "$T/log" | tr -d ' ')" "0"

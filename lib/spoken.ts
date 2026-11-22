@@ -13,6 +13,9 @@ export function ago(iso: string): string {
   return d < 730 ? `${Math.round(d / 30)} months ago` : `${Math.round(d / 365)} years ago`;
 }
 
+// A board post as the poster's own voice says it: the request id is for the board, not for the ear.
+export const aloud = (text: string) => text.replace(/\s*\(req [0-9a-f]{4,12}\)/gi, "");
+
 export function plain(md: string): string {
   return md
     .replace(/<!--[\s\S]*?-->/g, " ")

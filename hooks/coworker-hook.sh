@@ -171,10 +171,11 @@ permission() {
   id="$(head -c3 /dev/urandom | od -An -tx1 | tr -d ' \n')"
   out="$(post "$TAG needs approval (req $id): $what in $WHERE" "$(ctx approval "$id")")" || return
   read -r pid cts <<<"$out"
-  echo "R $id $cts waiting on approval" >> "$SF"
+  printf 'R %s %s waiting on approval\nT %s %s\n' "$id" "$cts" "$id" "$(call_hash)" >> "$SF"
   deadline=$(( $(date +%s) + TIMEOUT ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 3
+    grep -q "^C $id\$" "$SF" && return   # settle() saw the call finish: it was answered at the terminal
     rows="$(gh api --paginate "repos/$REPO/issues/$BOARD/comments?per_page=100&since=$cts" --jq '.[] | {id, u: .user.login, b: .body}')" || continue
     # first reply after our post, from an approver, saying "req ID" then an allow or deny word
     verdict="$(printf '%s' "$rows" | jq -rs --arg id "$id" --argjson pid "$pid" --arg ok "$ok" '
@@ -186,6 +187,7 @@ permission() {
       | first // empty')"
     [ -n "$verdict" ] || continue
     who="${verdict#*$'\t'}"; note="${who#*$'\t'}"; who="${who%%$'\t'*}"
+    echo "C $id" >> "$SF"
     if [ "${verdict%%$'\t'*}" = allow ]; then
       jq -nc '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision: {behavior: "allow"}}}'
     else
@@ -194,6 +196,25 @@ permission() {
     fi
     return
   done
+  close_req "$id" "no answer in ${TIMEOUT}s, so it asks in the terminal"
+}
+
+# An identifier for this tool call (name + input), the same in PermissionRequest and PostToolUse
+call_hash() { printf '%s' "$IN" | jq -cS '[.tool_name, .tool_input]' | cksum | cut -d' ' -f1; }
+
+# Tell the board request $1 is over without an answer from it ("req ID closed: why"), so its card goes away
+# instead of waiting for an answer nobody will give. Once per request.
+close_req() {
+  grep -q "^C $1\$" "$SF" && return
+  echo "C $1" >> "$SF"
+  post "$TAG req $1 closed: $2" >/dev/null
+}
+
+# A tool call finished: an approval this session posted for the same call was answered in the terminal
+settle() {
+  local h id; grep -q '^T ' "$SF" || return
+  h="$(call_hash)"
+  for id in $(awk -v h="$h" '$1 == "T" && $3 == h { print $2 }' "$SF"); do close_req "$id" "answered in the terminal"; done
 }
 
 # What a tool call is, for counting repeats: the Bash command (trailing "2>&1" / "| tail" dropped), else tool + file
@@ -294,7 +315,7 @@ case "$EVENT" in
       && touch "$STATE/$KEY.done"
     ;;
   PreToolUse) stop_check ;;
-  PostToolUse) tooluse; stop_check ;;
-  PostToolUseFailure) tooluse ;;   # Claude Code ignores continue:false from this event, so it never stops
+  PostToolUse) settle; tooluse; stop_check ;;
+  PostToolUseFailure) settle; tooluse ;;   # Claude Code ignores continue:false from this event, so it never stops
 esac
 exit 0

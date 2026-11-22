@@ -22,7 +22,7 @@ const MAX_DIFF = 30_000;
 // "waiting on CI" is not news. "waiting on your answer" is.
 const BLOCKED = /\b(?:blocked|awaiting|stuck|waiting (?:on|for)(?! (?:the )?(?:ci|build|builds|tests?|deploy|deploys|install)\b)|needs? (?:your )?(?:approval|decision|input|answer))\b/i;
 // A reply to a request: "req ab12cd allow", optionally behind a tag and an @mention.
-const ANSWER = /^\s*(?:\[[^\]\n]*\]\s*)?(?:@[\w-]+[\s,:]*)?req\s+([0-9a-f]{4,12})\s+(?:allow|approved?|yes|deny|denied|no|reject(?:ed)?|stop)\b/i;
+const ANSWER = /^\s*(?:\[[^\]\n]*\]\s*)?(?:@[\w-]+[\s,:]*)?req\s+([0-9a-f]{4,12})\s+(?:allow|approved?|yes|deny|denied|no|reject(?:ed)?|stop|closed)\b/i;
 
 const str = (v: unknown, max = 2000) => (typeof v === "string" && v ? v.slice(0, max) : undefined);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
