@@ -20,7 +20,7 @@ export type Phase = "idle" | "listening" | "thinking" | "speaking";
 export type BoardState = { kind: "checking" | "ok" | "none" } | { kind: "error"; message: string };
 type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m: unknown): void } } } };
 
-const POLL_MS = 15_000;
+const POLL_MS = 6_000;
 const REPO_KEY = "coworker.repo";
 const TAP_MS = 350; // a hold shorter than this is a tap: nothing to answer, so no "thinking"
 const PLAY_GAP_MS = 4_000; // after an alert is injected, wait for the agent to start talking before the next one
