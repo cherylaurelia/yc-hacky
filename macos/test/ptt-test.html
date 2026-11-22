@@ -14,7 +14,10 @@
 <div id="status">fn: up</div>
 <div>
   <button onclick="post('speaking')">state: speaking</button>
+  <button onclick="post('thinking')">state: thinking</button>
   <button onclick="post('idle')">state: idle</button>
+  <button onclick="post('speaking', {agent: 'reviewer', text: 'CI is red on main. Want me to revert the last merge?'})">alert</button>
+  <button onclick="post(undefined, null)">clear alert</button>
 </div>
 <pre id="log"></pre>
 <script>
@@ -33,11 +36,22 @@
     log('coworker-ptt ' + JSON.stringify(d));
   });
 
-  function post(state) {
+  // post(state), post(state, {agent, text}) for an alert, post(state, null) to clear the alert.
+  function post(state, alert) {
     const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.coworker;
     if (!h) return log('no webkit message handler (not inside Coworker.app)');
-    h.postMessage({ state });
-    log('posted state ' + state);
+    const msg = {};
+    if (state) msg.state = state;
+    if (alert !== undefined) msg.alert = alert;
+    h.postMessage(msg);
+    log('posted ' + JSON.stringify(msg));
+  }
+
+  // ?demo=1 walks the page states and one alert on a timer, for scripted checks of the menu-bar icon and the pill.
+  if (new URLSearchParams(location.search).has('demo')) {
+    const alert = { agent: 'reviewer', text: 'CI is red on main. Want me to revert the last merge?' };
+    [[3, 'thinking'], [6, 'speaking'], [9, 'idle'], [12, 'speaking', alert], [15, 'idle'], [20, undefined, null]]
+      .forEach(([t, state, a]) => setTimeout(() => post(state, a), t * 1000));
   }
 
   // Page keeps running while the panel is hidden? Heartbeat + visibility prove it.

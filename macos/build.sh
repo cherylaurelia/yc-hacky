@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds macos/build/Coworker.app (universal, ad-hoc signed) with plain swiftc. Command Line Tools are enough.
+# Builds macos/build/Coworker.app (universal, ad-hoc signed) with plain swiftc, and build/Coworker.zip to hand to others.
+# Command Line Tools are enough.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -27,7 +28,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>LSMinimumSystemVersion</key><string>13.3</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Coworker listens while you hold fn so you can talk to your voice coworker.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Coworker listens while you hold the talk key so you can talk to your voice coworker.</string>
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
 </plist>
@@ -35,4 +36,12 @@ PLIST
 
 codesign --force --deep -s - "$APP"
 codesign --verify --strict "$APP"
-echo "built $APP"
+
+# ditto keeps the signature and symlinks intact; the zip unpacks to a Coworker.app that opens via right-click > Open.
+rm -f build/Coworker.zip
+ditto -c -k --norsrc --keepParent "$APP" build/Coworker.zip
+check="$(mktemp -d)"
+trap 'rm -rf "$check"' EXIT
+ditto -x -k build/Coworker.zip "$check"
+codesign --verify --strict "$check/Coworker.app"
+echo "built $APP and build/Coworker.zip"
