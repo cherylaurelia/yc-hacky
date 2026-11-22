@@ -6,7 +6,7 @@
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts Launch out/coworker-launch.mp4 --crf=18",
-    "still": "remotion still src/index.ts Launch out/poster.png --frame=100",
+    "still": "remotion still src/index.ts Launch out/poster.png --frame=300",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
