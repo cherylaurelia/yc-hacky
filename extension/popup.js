@@ -224,8 +224,10 @@ const mic = $("mic");
 mic.addEventListener("pointerdown", (e) => { e.preventDefault(); mic.setPointerCapture(e.pointerId); startTalk(); });
 mic.addEventListener("pointerup", stopTalk);
 mic.addEventListener("pointercancel", stopTalk);
+// Space talks only when nothing interactive has focus, so Space still clicks a focused button.
+const spaceTalks = () => !document.activeElement?.closest("input, textarea, button, [role='button'], [role='tab'], a");
 document.addEventListener("keydown", (e) => {
-  if (e.code === "Space" && !e.repeat && document.activeElement !== $("input")) { e.preventDefault(); startTalk(); }
+  if (e.code === "Space" && !e.repeat && spaceTalks()) { e.preventDefault(); startTalk(); }
 });
 document.addEventListener("keyup", (e) => { if (e.code === "Space") stopTalk(); });
 
