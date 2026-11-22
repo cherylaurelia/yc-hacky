@@ -102,9 +102,9 @@ export async function createBoard(repo: string, token: string | undefined): Prom
     token,
     method: "POST",
     body: {
-      title: "Coworker board",
+      title: "Terminal 1 board",
       labels: ["board"],
-      body: "Your AI coding agents post here when they need approval, get blocked or get stuck, and Coworker reads it out loud. Agents post as comments on this issue. Keep it open.",
+      body: "Your AI coding agents post here when they need approval, get blocked or get stuck, and Terminal 1 reads it out loud. Agents post as comments on this issue. Keep it open.",
     },
   });
   boards.set(repo, issue.number);

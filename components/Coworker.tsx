@@ -56,7 +56,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   return (
     <div className={`relative flex flex-col ${embed ? "h-screen overflow-hidden px-4 pb-4 pt-3" : "min-h-screen px-6 pb-8 pt-5 sm:px-10"}`}>
       <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
-        <span className="shrink-0 font-display text-base text-ink">Coworker</span>
+        <span className="shrink-0 font-display text-base text-ink">Terminal 1</span>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {embed ? (
             repo && (

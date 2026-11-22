@@ -445,9 +445,9 @@ async function typeInstead() {
     // Messages carry a screen-reader tag, "You: " or "Coworker: ". A reply is a Coworker message after ours.
     const replied = () =>
       page.evaluate(() => {
-        const tags = [...document.querySelectorAll("span.sr-only")].filter((e) => /^(You|Coworker): $/.test(e.textContent ?? ""));
+        const tags = [...document.querySelectorAll("span.sr-only")].filter((e) => /^(You|Terminal 1): $/.test(e.textContent ?? ""));
         const mine = tags.findIndex((e) => e.textContent === "You: " && /hi$/.test(e.parentElement?.textContent ?? ""));
-        return mine >= 0 && tags.slice(mine + 1).some((e) => e.textContent === "Coworker: ");
+        return mine >= 0 && tags.slice(mine + 1).some((e) => e.textContent === "Terminal 1: ");
       });
     for (let i = 0; i < 30 && !(await replied()); i++) await page.waitForTimeout(500);
     must(await replied(), "no agent reply within 15 s");
@@ -617,7 +617,7 @@ async function createBoardFlow() {
     // GitHub's issue lists lag a few seconds behind a new issue, so read the labels off the issues and wait for it.
     const boards = () => (JSON.parse(gh("api", `repos/${scratch}/issues?state=open`)) as { title: string; labels: { name: string }[] }[]).filter((i) => i.labels.some((l) => l.name === "board"));
     for (let i = 0; i < 20 && !boards().length; i++) await page.waitForTimeout(1000);
-    must(boards().length === 1 && boards()[0].title === "Coworker board", `expected one "Coworker board" issue labeled board, got ${JSON.stringify(boards())}`);
+    must(boards().length === 1 && boards()[0].title === "Terminal 1 board", `expected one "Terminal 1 board" issue labeled board, got ${JSON.stringify(boards())}`);
     // Asking again on a repo that has one creates nothing more.
     const again = await ctx.request.post("/api/board", { data: { repo: scratch } });
     must((await again.json()).created === false, "a second create made another board");

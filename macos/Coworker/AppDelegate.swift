@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         menu.items = [noteItem, toggleItem, accessItem, talkKeyItem, item("Reload", #selector(reload), "r"), item("Set URL...", #selector(setURL)),
-                      simulateItem, simulateAlertItem, .separator(), NSMenuItem(title: "Quit Coworker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
+                      simulateItem, simulateAlertItem, .separator(), NSMenuItem(title: "Quit Terminal 1", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
         statusItem.menu = menu
         render()
         renderTalkKey()
@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func render() {
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: pill.phase.symbol, accessibilityDescription: "Coworker \(pill.phase.rawValue)")
+            button.image = NSImage(systemSymbolName: pill.phase.symbol, accessibilityDescription: "Terminal 1 \(pill.phase.rawValue)")
             button.contentTintColor = pill.phase == .listening ? .systemRed : nil
         }
         pillWindow.render(pill)
@@ -165,7 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
         field.stringValue = configuredURL.absoluteString
         let alert = NSAlert()
-        alert.messageText = "Coworker URL"
+        alert.messageText = "Terminal 1 URL"
         alert.accessoryView = field
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")

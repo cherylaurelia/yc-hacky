@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   if (!parsed.ok) return fail(400, parsed.error);
 
   const { token, session } = await resolveToken(req);
-  if (session && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Coworker page.");
+  if (session && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Terminal 1 page.");
   try {
     await assertReadable(parsed.repo, { signedIn: !!session });
     if (!(await checkWrite(parsed.repo, session))) {
