@@ -13,6 +13,12 @@ export function ago(iso: string): string {
   return d < 730 ? `${Math.round(d / 30)} months ago` : `${Math.round(d / 365)} years ago`;
 }
 
+// A board post as the poster's own voice says it: the request id is for the board, not for the ear.
+export const aloud = (text: string) => text.replace(/\s*\(req [0-9a-f]{4,12}\)/gi, "");
+
+// What the poster's voice plays before Terminal 1 asks: the first sentence only, so an alert stays a few seconds.
+export const headline = (text: string) => clip(aloud(text).match(/^.*?[.!?](?=\s|$)/)?.[0] ?? aloud(text), 110);
+
 export function plain(md: string): string {
   return md
     .replace(/<!--[\s\S]*?-->/g, " ")
@@ -34,4 +40,13 @@ export function clip(s: string, max: number): string {
   if (s.length <= max) return s;
   const cut = s.slice(0, max);
   return cut.slice(0, Math.max(cut.lastIndexOf(" "), max * 0.6)).trimEnd() + "...";
+}
+
+// CI state from a commit's combined status and check runs: failure beats pending beats success.
+export function ciState(combined: string | undefined, checks: { status: string; conclusion: string | null }[]): string {
+  const bad = ["failure", "timed_out", "cancelled", "action_required", "startup_failure"];
+  if (combined === "failure" || combined === "error" || checks.some((c) => c.conclusion && bad.includes(c.conclusion))) return "failing";
+  if (combined === "pending" || checks.some((c) => c.status !== "completed")) return "still running";
+  if (combined === "success" || checks.length) return "passing";
+  return "none";
 }

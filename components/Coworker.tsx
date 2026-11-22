@@ -2,13 +2,13 @@
 
 import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
-import AccountControl from "@/components/AccountControl";
-import Standup from "@/components/Standup";
+import AccountControl, { type Account, useAccount } from "@/components/AccountControl";
+import RepoPicker, { RepoChip } from "@/components/RepoPicker";
+import TextChat from "@/components/TextChat";
 import { type Phase, useCoworker } from "@/components/useCoworker";
 import type { Alert } from "@/lib/alerts";
 import { diffRows } from "@/lib/diff";
 import { type Interruptions, QUIET_MS, endQuiet, goQuiet } from "@/lib/interruptions";
-import { parseRepo } from "@/lib/repo";
 import { ago, plural } from "@/lib/spoken";
 import { COWORKER_VOICE, type Voice, voiceFor } from "@/lib/voices";
 
@@ -24,7 +24,6 @@ const VOICE_COLOR: Record<string, string> = {
 const INK = "#221d17";
 const colorOf = (who: string) => (who === "coworker" || who === "you" ? INK : (VOICE_COLOR[voiceFor(who).name] ?? INK));
 const firstName = (who: string) => who.replace(/[[\]]/g, "").split(/['’\s]/)[0] || who;
-const isLocalhost = () => typeof window !== "undefined" && /^(?:localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
 
 const MODE_LABEL = { all: "All updates", blockers: "Blockers only" } as const;
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -42,7 +41,7 @@ export default function Coworker({ initialRepo, board, embed }: { initialRepo: s
 // Presentation only: every piece of state and every action comes from useCoworker().
 function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const {
-    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError },
+    status: { phase, sub, hint, mic, live, textOnly, canType, error, board: boardState, madeBoard, gesture },
     transcript: msgs,
     agents,
     open,
@@ -50,30 +49,22 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     speaker,
     focus,
     settings: { interruptions, voiceId, voices, queued, offered },
-    standup,
-    draft,
-    repo: { current: repo, ready, input: repoInput, error: repoError },
+    repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo, setRepoInput, setStandup, setFocus, answer, dismiss, setInterruptions, setVoice, readQueued, holdQueued, endSession },
+    actions: { start, press, send, setRepo, setFocus, answer, dismiss, createBoard, setInterruptions, setVoice, readQueued, holdQueued },
   } = useCoworker({ initialRepo, board, embed });
 
+  const account = useAccount();
   const [settings, setSettings] = useState(false);
-  const captions = msgs.slice(-2);
+  const captions = msgs.slice(-1);
   const quiet = interruptions.mode === "dnd" ? interruptions : null;
   const behind = card ? open.length - 1 : 0;
 
   return (
     <div className={`relative flex flex-col ${embed ? "h-screen overflow-hidden px-4 pb-4 pt-3" : "min-h-screen px-6 pb-8 pt-5 sm:px-10"}`}>
       <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
-        {repo ? (
-          <a href={`https://github.com/${repo}`} target="_blank" rel="noreferrer" className="truncate underline-offset-4 hover:text-ink hover:underline">
-            {repo}
-          </a>
-        ) : (
-          <span className="font-display text-base text-ink">Coworker</span>
-        )}
-        {boardError && <span className="text-stop">{boardError}</span>}
-        <div className="flex items-start gap-4">
+        <span className="shrink-0 font-display text-base text-ink">Terminal 1</span>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {quiet && (
             <span role="status" className="rounded-full bg-chip px-3 py-0.5 font-semibold text-ink">
               Do Not Disturb{queued > 0 ? ` · ${plural(queued, "agent")} waiting` : ""}
@@ -82,10 +73,17 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           <button type="button" onClick={() => setSettings((o) => !o)} aria-expanded={settings} aria-controls="settings" className="underline-offset-4 hover:text-ink hover:underline">
             Settings
           </button>
-          {!embed && (
-            <div className="account">
-              <AccountControl repo={repo} onRepo={setRepo} />
-            </div>
+          {embed ? (
+            repo && (
+              <span className="max-w-[10rem] truncate" title={repo}>
+                {repo.split("/")[1]}
+              </span>
+            )
+          ) : (
+            <>
+              <RepoChip repo={repo} repos={account.repos} loading={account.loadingRepos} onPick={setRepo} />
+              <AccountControl account={account} />
+            </>
           )}
         </div>
       </header>
@@ -106,28 +104,10 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
 
       <main className={`mx-auto flex w-full flex-1 flex-col items-center ${embed ? "min-h-0 max-w-sm justify-safe-center overflow-y-auto py-3" : "max-w-xl justify-center py-10"}`}>
         {ready && !repo ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const p = parseRepo(repoInput);
-              if (p.ok) setRepo(p.repo);
-            }}
-            className="flex w-full flex-col gap-4"
-          >
-            <label htmlFor="repo" className={`font-display text-balance leading-tight text-ink ${embed ? "text-2xl" : "text-4xl"}`}>
-              Which repo are your agents working in?
-            </label>
-            <input
-              id="repo"
-              autoFocus
-              value={repoInput}
-              onChange={(e) => setRepoInput(e.target.value)}
-              spellCheck={false}
-              placeholder="owner/name, then press Enter"
-              className="h-12 rounded-full border border-line bg-card px-5 text-base text-ink outline-none placeholder:text-faint focus:border-ink/40"
-            />
-            {repoError && !repoError.ok && <span className="px-2 text-sm text-stop">{repoError.error}</span>}
-          </form>
+          <div className="flex w-full flex-col gap-4">
+            <h1 className={`font-display text-balance leading-tight text-ink ${embed ? "text-2xl" : "text-4xl"}`}>Which repo are your agents working in?</h1>
+            <RepoPicker repos={account.repos} loading={account.loadingRepos} onPick={setRepo} />
+          </div>
         ) : card ? (
           <AlertCard
             key={card.seq}
@@ -135,6 +115,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             behind={behind}
             embed={embed}
             pttHint={hint.replace(/ to talk$/, "").replace(/^H/, "h")}
+            needsGesture={!gesture}
             showDiff={focus?.seq === card.seq}
             onShow={(on) => setFocus(on ? card.seq : null)}
             onAnswer={(d) => answer(card, d)}
@@ -142,36 +123,47 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           />
         ) : (
           repo && (
-            <section className="flex w-full flex-col items-center gap-7 text-center calm-in">
+            <section className={`flex w-full flex-col items-center text-center calm-in ${embed ? "gap-4" : "gap-6"}`} key={boardState.kind}>
               <h1 className={`font-display text-balance leading-[1.12] tracking-[-0.01em] text-ink ${embed ? "text-[1.6rem]" : "text-[2.6rem] sm:text-5xl"}`}>
-                {agents.length > 1
-                  ? `All ${agents.length} agents are working.`
-                  : agents.length === 1
-                    ? `${agents[0].name} is working.`
-                    : "Your agents are working."}
+                {boardState.kind === "checking"
+                  ? "Looking for your agents…"
+                  : boardState.kind === "none"
+                    ? `No agents connected to ${repo.split("/")[1]} yet.`
+                    : boardState.kind === "error"
+                      ? `Can't open ${repo.split("/")[1]}.`
+                      : agents.length > 1
+                        ? `All ${agents.length} agents are working.`
+                        : agents.length === 1
+                          ? `${agents[0].name} is working.`
+                          : "Your agents are working."}
               </h1>
-              <p className={`-mt-3 text-soft ${embed ? "text-sm" : "text-base"}`}>
-                {quiet
-                  ? `Do Not Disturb ${quiet.quietUntil === null ? "until you turn it off" : `until ${clock(quiet.quietUntil)}`}. Blockers wait here.`
-                  : interruptions.mode === "blockers"
-                    ? "I’ll speak up if one is blocked."
-                    : "I’ll speak up if one needs you."}
-              </p>
-              {agents.length > 0 && (
-                <ul className="flex flex-wrap justify-center gap-2" aria-label="Agents on the board">
-                  {agents.map((a) => (
-                    <li key={a.name} className="flex items-center gap-2 rounded-full bg-card/70 py-1 pl-1 pr-3 text-[13px] text-ink shadow-[0_1px_2px_rgba(60,40,20,0.06)]">
-                      <Avatar who={a.name} size={22} />
-                      {a.name}
-                    </li>
-                  ))}
-                </ul>
+              {boardState.kind === "ok" && (
+                <p className={`text-soft ${embed ? "text-sm" : "text-base"}`}>
+                  {quiet
+                    ? `Do Not Disturb ${quiet.quietUntil === null ? "until you turn it off" : `until ${clock(quiet.quietUntil)}`}. Blockers wait here.`
+                    : interruptions.mode === "blockers"
+                      ? "I’ll speak up if one is blocked."
+                      : "I’ll speak up if one needs you."}
+                </p>
               )}
-              {!embed && standup && (
-                <div className="mt-4 w-full text-left">
-                  <Standup repo={repo} board={board} hours={3} voice={voiceId} />
-                </div>
+              {boardState.kind === "error" && (
+                <p role="alert" className={`max-w-md text-balance text-stop ${embed ? "text-sm" : "text-base"}`}>
+                  {boardState.message}
+                </p>
               )}
+              {boardState.kind === "error" && account.ready && !account.user && /sign in/i.test(boardState.message) && (
+                <button type="button" onClick={account.signIn} className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98]">
+                  Sign in with GitHub
+                </button>
+              )}
+              {boardState.kind === "none" && (
+                <>
+                  <p className={`max-w-md text-balance text-soft ${embed ? "text-sm" : "text-base"}`}>Agents tell me what they need on a board in this repo. Connect them, then create the board.</p>
+                  <ConnectAgents boardNo={madeBoard} open />
+                  <CreateBoard account={account} onCreate={createBoard} />
+                </>
+              )}
+              {boardState.kind === "ok" && agents.length === 0 && !embed && <ConnectAgents boardNo={madeBoard} />}
             </section>
           )
         )}
@@ -190,17 +182,19 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
               </button>
             </div>
           )}
-          <div aria-live="polite" className={`flex w-full flex-col items-center gap-1 text-center ${embed ? "max-w-sm" : "max-w-lg"}`}>
-            {captions.map((m, i) => (
-              <p
-                key={m.id}
-                className={`text-balance ${i === captions.length - 1 ? "max-h-40 overflow-y-auto text-ink" : "line-clamp-1 text-faint"} ${m.role === "user" ? "text-soft" : ""} ${embed ? "text-[13px]" : "text-[15px]"}`}
-              >
-                {m.role === "user" && <span className="sr-only">You: </span>}
-                {m.text}
-              </p>
-            ))}
-          </div>
+          {!(live && textOnly) && (
+            <div aria-live="polite" className={`flex w-full flex-col items-center gap-1 text-center ${embed ? "max-w-sm" : "max-w-lg"}`}>
+              {captions.map((m, i) => (
+                <p
+                  key={m.id}
+                  className={`text-balance ${i === captions.length - 1 ? "max-h-40 overflow-y-auto text-ink" : "line-clamp-1 text-faint"} ${m.role === "user" ? "text-soft" : ""} ${embed ? "text-[13px]" : "text-[15px]"}`}
+                >
+                  {m.role === "user" && <span className="sr-only">You: </span>}
+                  {m.text}
+                </p>
+              ))}
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="max-w-md text-balance text-center text-[13px] text-stop">
@@ -214,28 +208,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           )}
 
           {live && textOnly ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                send(draft);
-              }}
-              className="flex w-full max-w-md items-center gap-2 rounded-full bg-ink p-1.5 pl-5"
-            >
-              <label htmlFor="draft" className="sr-only">
-                Message
-              </label>
-              <input
-                id="draft"
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Type to your coworker"
-                className="min-w-0 flex-1 bg-transparent text-[15px] text-paper outline-none placeholder:text-paper/60"
-              />
-              <button type="submit" disabled={!draft.trim()} className="h-9 rounded-full bg-paper px-4 text-sm font-semibold text-ink disabled:opacity-40">
-                Send
-              </button>
-            </form>
+            <TextChat messages={msgs} onSend={send} />
           ) : (
             <button
               type="button"
@@ -257,25 +230,91 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             </button>
           )}
 
-          {!embed && (
-            <nav className="flex items-center gap-5 text-[13px] text-soft">
-              <button type="button" onClick={() => setStandup((s) => !s)} aria-expanded={standup} className="underline-offset-4 hover:text-ink hover:underline">
-                Standup
-              </button>
-              {live ? (
-                <button type="button" onClick={endSession} className="underline-offset-4 hover:text-ink hover:underline">
-                  End session
-                </button>
-              ) : (
-                !connecting && (
-                  <button type="button" onClick={() => setRepo("")} className="underline-offset-4 hover:text-ink hover:underline">
-                    Change repo
-                  </button>
-                )
-              )}
-            </nav>
-          )}
         </footer>
+      )}
+
+      {!embed && <p className="mt-6 text-center text-[12px] text-faint">Built at YC × ElevenLabs Hackathon</p>}
+    </div>
+  );
+}
+
+const INSTALL = "gh api repos/cherylaurelia/yc-hacky/contents/hooks/install.sh -H 'Accept: application/vnd.github.raw' | bash";
+
+// A command on one line with a button that copies it. If the browser refuses the clipboard, the
+// command is selected so Cmd+C works.
+function CopyCommand({ command }: { command: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "selected">("idle");
+  const code = useRef<HTMLElement>(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setState("copied");
+    } catch {
+      if (code.current) window.getSelection()?.selectAllChildren(code.current);
+      setState("selected");
+    }
+    setTimeout(() => setState("idle"), 2500);
+  };
+  return (
+    <div className="flex w-full flex-col items-stretch gap-2 rounded-2xl bg-chip p-3 text-left sm:flex-row sm:items-center">
+      <code ref={code} className="min-w-0 flex-1 select-all break-all font-mono text-[12.5px] leading-5 text-ink">
+        {command}
+      </code>
+      <button type="button" onClick={copy} className="h-9 shrink-0 rounded-full bg-ink px-4 text-[13px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98]">
+        {state === "copied" ? "Copied" : state === "selected" ? "Press Cmd+C" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+// The one-time hook install, as a quiet disclosure on the calm page and open when there is no board yet.
+function ConnectAgents({ boardNo, open = false }: { boardNo: number | null; open?: boolean }) {
+  return (
+    <details open={open} data-connect className="w-full text-left text-[13px] text-soft [&[open]>summary]:mb-3">
+      <summary className="cursor-pointer select-none text-center font-semibold text-ink underline decoration-ink/30 underline-offset-4 hover:decoration-ink">Connect your agents</summary>
+      <div className="flex flex-col gap-3">
+        <p>Run this once on the computer where your agents run, then restart them.</p>
+        <CopyCommand command={INSTALL} />
+        {boardNo !== null && boardNo !== 1 && (
+          <>
+            <p>Your board is issue #{boardNo}. Set this in the same terminal.</p>
+            <CopyCommand command={`export COWORKER_BOARD=${boardNo}`} />
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function CreateBoard({ account, onCreate }: { account: Account; onCreate: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!account.ready) return null;
+  const go = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await onCreate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create the board.");
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <button
+        type="button"
+        data-create-board
+        disabled={busy}
+        onClick={account.user ? go : account.signIn}
+        className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98] disabled:opacity-50"
+      >
+        {busy ? "Creating…" : account.user ? "Create the board" : "Sign in to create the board"}
+      </button>
+      {error && (
+        <p role="alert" className="max-w-md text-balance text-[13px] text-stop">
+          {error}
+        </p>
       )}
     </div>
   );
@@ -354,7 +393,7 @@ function SettingsPanel({
 
       <div className="flex flex-col gap-2">
         <label htmlFor="coworker-voice" className="font-display text-lg">
-          Coworker&rsquo;s voice
+          Terminal 1&rsquo;s voice
         </label>
         <select id="coworker-voice" value={voiceId} onChange={(e) => onVoice(e.target.value)} className="h-10 max-w-60 rounded-full border border-line bg-paper px-4 text-ink">
           {voices.map((v) => (
@@ -364,7 +403,7 @@ function SettingsPanel({
             </option>
           ))}
         </select>
-        <p className="text-soft">Only Coworker&rsquo;s own voice changes. Each agent keeps its own voice in alerts and the standup.{live ? " Your next session uses the new voice." : ""}</p>
+        <p className="text-soft">Only Terminal 1&rsquo;s own voice changes. Each agent keeps its own voice in alerts and the standup.{live ? " Your next session uses the new voice." : ""}</p>
       </div>
 
       <button type="button" onClick={onClose} className="self-start text-[13px] text-soft underline-offset-4 hover:text-ink hover:underline">
@@ -400,6 +439,7 @@ function AlertCard({
   behind,
   embed,
   pttHint,
+  needsGesture,
   showDiff,
   onShow,
   onAnswer,
@@ -409,6 +449,7 @@ function AlertCard({
   behind: number;
   embed: boolean;
   pttHint: string;
+  needsGesture: boolean;
   showDiff: boolean;
   onShow: (on: boolean) => void;
   onAnswer: (d: "allow" | "deny" | "stop") => void;
@@ -418,7 +459,6 @@ function AlertCard({
   const stuck = a.kind === "stuck";
   const rows = c?.diff ? diffRows(c.diff) : [];
   const [busy, setBusy] = useState(false);
-  const [opening, setOpening] = useState<{ state: "busy" | "ok" | "error"; text: string } | null>(null);
 
   const act = async (d: "allow" | "deny" | "stop") => {
     setBusy(true);
@@ -428,23 +468,6 @@ function AlertCard({
       setBusy(false);
     }
   };
-
-  async function openInEditor() {
-    if (!c?.cwd || !c.file) return;
-    setOpening({ state: "busy", text: "Opening" });
-    try {
-      const res = await fetch("/api/open", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd: c.cwd, file: c.file, line: c.line }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(j.error ?? `Could not open it (HTTP ${res.status}).`);
-      setOpening({ state: "ok", text: "Opened in your editor" });
-    } catch (e) {
-      setOpening({ state: "error", text: e instanceof Error ? e.message : "Could not open it." });
-    }
-  }
 
   const btn = `rounded-full font-semibold transition-[background-color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:opacity-50 ${embed ? "h-10 flex-1 px-4 text-sm" : "h-12 px-7 text-[15px]"}`;
 
@@ -465,11 +488,6 @@ function AlertCard({
         <div className="flex items-center gap-2.5 text-[13px]">
           <Avatar who={a.from} size={embed ? 22 : 26} />
           <span className="text-soft">{ago(a.at)}</span>
-          {stuck && c?.stuck && (
-            <span className="ml-auto rounded-full bg-stoptint px-2.5 py-0.5 font-semibold tabular-nums text-stop">
-              {c.stuck.minutes} min · ~${Math.round(c.stuck.cost_usd)}
-            </span>
-          )}
         </div>
 
         <h2 className={`font-display text-balance leading-[1.15] tracking-[-0.01em] text-ink ${embed ? "text-xl" : "text-[2rem]"}`}>{headline(a)}</h2>
@@ -492,12 +510,6 @@ function AlertCard({
                   {c.line ? `:${c.line}` : ""}
                 </span>
               )}
-              {!embed && isLocalhost() && c?.cwd && c.file && (
-                <button type="button" onClick={openInEditor} disabled={opening?.state === "busy"} className="text-soft underline-offset-4 hover:text-ink hover:underline">
-                  Open in editor
-                </button>
-              )}
-              {opening && <span className={opening.state === "error" ? "text-stop" : "text-soft"}>{opening.text}</span>}
             </div>
             {showDiff && rows.length > 0 && (
               <div className={`diff-open overflow-auto rounded-2xl bg-paper py-2 font-mono ${embed ? "max-h-28 text-[11px] leading-5" : "max-h-72 text-[12.5px] leading-6"}`} data-diff>
@@ -532,11 +544,6 @@ function AlertCard({
               <button type="button" disabled={busy} onClick={() => act("deny")} className={`${btn} text-ink hover:bg-paper`}>
                 Deny
               </button>
-              {!embed && (
-                <button type="button" disabled={busy} onClick={() => act("stop")} className={`${btn} ml-auto text-soft hover:bg-stoptint hover:text-stop`}>
-                  Stop agent
-                </button>
-              )}
             </>
           ) : (
             <button type="button" onClick={onDismiss} className={`${btn} bg-ink text-paper hover:bg-ink/90`}>
@@ -544,10 +551,14 @@ function AlertCard({
             </button>
           )}
         </div>
-        {!embed && (
-          <p className="-mt-1 text-[13px] text-soft">
-            or {pttHint} and say {a.req ? (stuck ? "“stop it”" : "“allow”") : "what to tell them"}
-          </p>
+        {needsGesture ? (
+          <p className="-mt-1 text-[13px] text-soft">Click anywhere to hear your agents</p>
+        ) : (
+          !embed && (
+            <p className="-mt-1 text-[13px] text-soft">
+              or {pttHint} and say {a.req ? (stuck ? "“stop it”" : "“allow”") : "what to tell them"}
+            </p>
+          )
         )}
       </article>
       {behind > 0 && <p className={`relative text-center text-[13px] text-soft ${embed ? "mt-2" : behind > 1 ? "mt-8" : "mt-6"}`}>{behind} more waiting</p>}

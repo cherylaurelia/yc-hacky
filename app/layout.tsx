@@ -7,7 +7,7 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrai
 const newsreader = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", axes: ["opsz"] });
 
 export const metadata: Metadata = {
-  title: "Coworker",
+  title: "Terminal 1",
   description: "Talk to your GitHub repo. A voice agent that reads and writes it live.",
 };
 

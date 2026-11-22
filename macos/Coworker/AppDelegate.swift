@@ -10,9 +10,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let ptt = PttMonitor()
     private let pillWindow = PillWindow()
     private let mic = MicLevel()
+    private let notifier = Notifier()
+    private var simulatedAlerts = 0
     private var panel: CoworkerPanel!
     private var activity: NSObjectProtocol?
     private var alertExpiry: DispatchWorkItem?
+    private var alertCollapse: DispatchWorkItem?
+    private var hoverWork: DispatchWorkItem?
     private var pill = PillState() { didSet { render() } }
 
     private func item(_ title: String, _ action: Selector, _ key: String = "") -> NSMenuItem {
@@ -23,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var toggleItem = item("", #selector(togglePanel))
     private lazy var accessItem = item("Grant keyboard access...", #selector(grantAccess))
     private lazy var simulateItem = item("Simulate talk key hold (1s)", #selector(simulate))
+    private lazy var simulateAlertItem = item("Simulate alert", #selector(simulateAlert))
     private lazy var noteItem: NSMenuItem = {
         let i = NSMenuItem(title: TalkKeySetting.note, action: nil, keyEquivalent: "")
         i.isEnabled = false
@@ -51,6 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.onPageMessage = { [weak self] in self?.apply(.page($0)) }
         panel.onVisibilityChange = { [weak self] in self?.apply(.panelOpen($0)) }
         pillWindow.onClick = { [weak self] in self?.panel.setVisible(true) }
+        pillWindow.onHover = { [weak self] in self?.hover($0) }
+        notifier.onOpen = { [weak self] in self?.panel.setVisible(true) }
+        notifier.requestAuthorization()
         mic.onLevel = { [weak self] in self?.pillWindow.setLevel($0) }
         pill.panelOpen = panel.isVisible
         pill.talkKey = ptt.key.title
@@ -58,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         menu.items = [noteItem, toggleItem, accessItem, talkKeyItem, item("Reload", #selector(reload), "r"), item("Set URL...", #selector(setURL)),
-                      simulateItem, .separator(), NSMenuItem(title: "Quit Coworker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
+                      simulateItem, simulateAlertItem, .separator(), NSMenuItem(title: "Quit Terminal 1", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
         statusItem.menu = menu
         render()
         renderTalkKey()
@@ -82,15 +90,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if !granted { NSLog("Coworker: microphone access denied; enable it in System Settings > Privacy & Security > Microphone") }
         }
 
+        if let dir = UserDefaults.standard.string(forKey: "pillSnapshots") { snapshotRun(dir) }  // -pillSnapshots /tmp/dir
+
         let after = UserDefaults.standard.double(forKey: "simulateAfter")  // launch args for scripted checks: -simulateAfter 5 -simulateSeconds 3
         if after > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.simulate() } }
+        let alertAfter = UserDefaults.standard.double(forKey: "simulateAlertAfter")  // -simulateAlertAfter 5
+        if alertAfter > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + alertAfter) { [weak self] in self?.simulateAlert() } }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         toggleItem.title = panel.isVisible ? "Hide Panel" : "Show Panel"
         accessItem.isHidden = KeyboardAccess.granted
         noteItem.isHidden = !TalkKeySetting.notePending
-        simulateItem.isHidden = !(NSEvent.modifierFlags.contains(.option) || UserDefaults.standard.bool(forKey: "debug"))
+        let debug = NSEvent.modifierFlags.contains(.option) || UserDefaults.standard.bool(forKey: "debug")
+        simulateItem.isHidden = !debug
+        simulateAlertItem.isHidden = !debug
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -114,17 +128,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func apply(_ input: PillState.Input) {
         let hadAlert = pill.alert
         pill.apply(input)
+        if let alert = pill.notify { notifier.post(alert) }
         guard pill.alert != hadAlert else { return }
         alertExpiry?.cancel()
+        alertCollapse?.cancel()
         guard pill.alert != nil else { return }
         let work = DispatchWorkItem { [weak self] in self?.apply(.alertExpired) }  // never leave a stale alert on screen
         alertExpiry = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 120, execute: work)
+        let collapse = DispatchWorkItem { [weak self] in self?.apply(.alertCollapsed) }  // the pill shrinks back; the alert stays in the panel
+        alertCollapse = collapse
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: collapse)
+    }
+
+    /// Entering waits 300 ms so a mouse passing over the capsule does not flash it open; leaving is immediate.
+    private func hover(_ inside: Bool) {
+        hoverWork?.cancel()
+        guard inside else { apply(.hover(false)); return }
+        let work = DispatchWorkItem { [weak self] in self?.apply(.hover(true)) }
+        hoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     private func render() {
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: pill.phase.symbol, accessibilityDescription: "Coworker \(pill.phase.rawValue)")
+            button.image = NSImage(systemSymbolName: pill.phase.symbol, accessibilityDescription: "Terminal 1 \(pill.phase.rawValue)")
             button.contentTintColor = pill.phase == .listening ? .systemRed : nil
         }
         pillWindow.render(pill)
@@ -138,6 +166,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ptt.simulateHold(seconds: seconds > 0 ? seconds : 1)
     }
 
+    /// Same path as a real page message, with a fresh id each time so de-dup lets every click through.
+    @objc private func simulateAlert() {
+        simulatedAlerts += 1
+        let alert = BoardAlert(agent: "Eithan's Claude", text: "Needs your call on the migration plan (#\(simulatedAlerts))", id: "sim-\(simulatedAlerts)")
+        apply(.page(PageMessage(phase: nil, alert: .set(alert))))
+    }
+
+    /// Debug only: walks idle, hover, hold and alert, saving the pill's pixels after each settles.
+    private func snapshotRun(_ dir: String) {
+        pillWindow.onHover = nil  // a real mouse must not change the scripted states
+        pillWindow.onClick = nil
+        let steps: [(String, () -> Void)] = [
+            ("idle", {}),
+            ("hover", { self.apply(.hover(true)) }),
+            ("hold", { self.apply(.hover(false)); self.apply(.talkDown); self.pillWindow.setLevel(0.7) }),
+            ("release", { self.apply(.talkUp(cancelled: false)) }),
+            ("alert", { self.simulateAlert() }),
+            ("alert-collapsed", {}),
+        ]
+        var t = 1.0
+        for (name, act) in steps {
+            DispatchQueue.main.asyncAfter(deadline: .now() + t) { act() }
+            t += name == "alert-collapsed" ? 8.5 : 0.6
+            DispatchQueue.main.asyncAfter(deadline: .now() + t) { [weak self] in self?.pillWindow.snapshot(to: "\(dir)/\(name).png") }
+            t += 0.3
+        }
+    }
+
     @objc private func grantAccess() {
         KeyboardAccess.openInputMonitoring()
         KeyboardAccess.openAccessibility()
@@ -148,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
         field.stringValue = configuredURL.absoluteString
         let alert = NSAlert()
-        alert.messageText = "Coworker URL"
+        alert.messageText = "Terminal 1 URL"
         alert.accessoryView = field
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")

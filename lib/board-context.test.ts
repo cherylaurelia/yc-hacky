@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { type Comment, alertMessage, alertsFrom, answeredFrom, parseContext, parsePost } from "./board.ts";
+import { aloud } from "./spoken.ts";
 
 let id = 100;
 const post = (body: string): Comment => ({ id: ++id, user: { login: "cheryl" }, body, created_at: new Date().toISOString() });
@@ -45,6 +46,18 @@ test("answeredFrom finds replies, not requests", () => {
     post("[Sam's Claude] needs approval (req 99aa11): run req 99aa11 no"),
     post("[Cheryl's Coworker] @EithanY-Coder req 0000ff deny too risky"),
     post("[Cheryl's Coworker] sent: use 202"),
+    post("[Eithan's Claude] req 7c01de closed: answered in the terminal"),
   ];
-  assert.deepEqual(answeredFrom(cs), ["ab12cd", "3fa9c1", "0000ff"]);
+  assert.deepEqual(answeredFrom(cs), ["ab12cd", "3fa9c1", "0000ff", "7c01de"]);
+});
+
+test("a spoken post never says its request id", () => {
+  assert.equal(aloud("needs approval (req c52c31): Bash npm run migrate in demo"), "needs approval: Bash npm run migrate in demo");
+  assert.equal(aloud("stuck: retried npm test 3 times (req ab12cd)"), "stuck: retried npm test 3 times");
+});
+
+test("headline plays only the first sentence, without the req id", async () => {
+  const { headline } = await import("./spoken.ts");
+  assert.equal(headline("needs approval (req c52c31): Bash npm run migrate. It edits db/schema.sql first."), "needs approval: Bash npm run migrate.");
+  assert.equal(headline("no period here"), "no period here");
 });

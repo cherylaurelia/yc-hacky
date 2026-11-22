@@ -115,44 +115,6 @@ p {
   box-shadow: 0 16px 34px -14px rgb(34 29 23 / 0.7);
 }
 
-/* AccountControl ships unstyled; this keeps it small in the top-right corner. */
-.account > div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem 0.75rem;
-  max-width: 22rem;
-  font-size: 13px;
-  color: var(--soft);
-}
-.account img {
-  border-radius: 9999px;
-}
-.account button {
-  color: var(--ink);
-  font-weight: 600;
-  text-underline-offset: 4px;
-}
-.account button:hover {
-  text-decoration: underline;
-}
-.account p:not([role="alert"]) {
-  display: none;
-}
-.account [role="alert"] {
-  color: var(--stop);
-}
-.account select {
-  max-width: 12rem;
-  margin-left: 0.35rem;
-  border-radius: 9999px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  padding: 0.2rem 0.6rem;
-  color: var(--ink);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .card-rise,
   .diff-open,

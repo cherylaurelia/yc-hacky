@@ -31,7 +31,7 @@ async function handle(req: Request, name: string, audit: Audit) {
   const { token, session } = await resolveToken(req);
   const { decision, request_id: reqId } = checked.args;
   audit.set({ input: clipValues(checked.args), attrs: { repo: parsed.repo, user: session?.login, write: isWriteTool(name), decision: typeof decision === "string" ? decision : undefined, request_id: typeof reqId === "string" ? reqId : undefined } });
-  if (session && isWriteTool(name) && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Coworker page.");
+  if (session && isWriteTool(name) && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Terminal 1 page.");
   if (isWriteTool(name)) {
     const slowDown = rateLimit(req, "write");
     if (slowDown) return slowDown;

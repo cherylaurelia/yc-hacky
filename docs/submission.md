@@ -4,7 +4,7 @@ Paste each field as written. Items marked TODO need you before you submit at 3:0
 
 ## Project name
 
-Coworker
+Terminal 1
 
 ## One-liner
 
@@ -12,11 +12,11 @@ A voice coworker that watches your AI coding agents and interrupts you when one 
 
 ## Description
 
-Coworker is a voice coworker for people who run several AI coding agents. Claude Code hooks and a shared GitHub issue board tell it what every agent is doing. When one needs approval, is blocked, or is stuck retrying a failing command, Coworker speaks up. The agent that asked talks first in its own ElevenLabs voice, then Coworker asks you. You hold a key and say allow, deny, stop, or an answer to relay. Say "show me" and the command or diff opens on screen. Give a task by voice and a headless Claude Code agent opens a pull request in about 35 seconds on a small change. A standup button plays each agent's latest news in its own voice. ElevenLabs Agents handles speech, turn-taking, tool calls, and the Claude Sonnet 5.5 brain. Text to speech and text to dialogue give each agent a voice.
+Terminal 1 is a voice coworker for people who run several AI coding agents. Claude Code hooks and a shared GitHub issue board tell it what every agent is doing. When one needs approval, is blocked, or is stuck retrying a failing command, Terminal 1 speaks up. The agent that asked talks first in its own ElevenLabs voice, then Terminal 1 asks you. You hold a key and say allow, deny, stop, or an answer to relay. Say "show me" and the command or diff opens on screen. Give a task by voice and a headless Claude Code agent opens a pull request in about 35 seconds on a small change. A standup button plays each agent's latest news in its own voice. ElevenLabs Agents handles speech, turn-taking, tool calls, and the Claude Sonnet 5.5 brain. Text to speech and text to dialogue give each agent a voice.
 
 ## Partner tools
 
-| Tool | How Coworker uses it |
+| Tool | How Terminal 1 uses it |
 |---|---|
 | ElevenLabs Agents platform | The whole conversation. It handles speech in, speech out, and turn-taking. Its agent runs `claude-sonnet-5-5` and calls 12 client tools. Eleven read and write the GitHub repo and the agent board through the server, and one puts a card on screen. The page connects with `@elevenlabs/react`. Setup is in `scripts/sync-agent.ts`. |
 | ElevenLabs text to speech (`eleven_flash_v2_5`) | Reads each agent's board post in that agent's own voice, from a pool of six premade voices. Route `app/api/speak`. |
@@ -36,10 +36,9 @@ Other tools, not necessarily partners.
 
 - Project: https://github.com/cherylaurelia/yc-hacky
 - Demo video: TODO(operator) record the video from `docs/video.md`, upload it, and paste the link.
-- Live demo: TODO(operator) none yet. The app runs on `localhost`. Add a hosted URL only if you deploy one.
+- Live demo: https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh (hosted on Maritime)
 - Try it: the README has the one-command hook install and the local run steps.
 
-TODO(operator): the repo is private today. The project link, the install command, and the "stranger" bonus all fail for anyone without read access. Make it public, or add the judges and the stranger as collaborators.
 
 ## Team
 

@@ -6,26 +6,30 @@
 import { useConversation } from "@elevenlabs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswered, normReq, waiting } from "@/lib/alerts";
-import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/lib/board";
+import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
-import { parseRepo } from "@/lib/repo";
-import { speakPost } from "@/lib/speak-client";
+import { parseRepo, rememberRecent } from "@/lib/repo";
+import { speakPost, unlockAudio } from "@/lib/speak-client";
+import { headline } from "@/lib/spoken";
 import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
 import { COWORKER_VOICE, COWORKER_VOICES, coworkerVoice } from "@/lib/voices";
 
 export type Msg = { id: number; role: "user" | "agent"; text: string };
 export type Call = { id: number; name: string; args: Record<string, unknown>; state: "running" | "ok" | "error"; text: string; ms?: number };
 export type Phase = "idle" | "listening" | "thinking" | "speaking";
+// Where the repo's board stands: not checked yet, found and polling, the repo has none, or the check failed.
+export type BoardState = { kind: "checking" | "ok" | "none" } | { kind: "error"; message: string };
 type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m: unknown): void } } } };
 
-const POLL_MS = 15_000;
+const POLL_MS = 6_000;
 const REPO_KEY = "coworker.repo";
 const INTERRUPTIONS_KEY = "coworker.interruptions";
 const VOICE_KEY = "coworker.voice";
 const TAP_MS = 350; // a hold shorter than this is a tap: nothing to answer, so no "thinking"
 const PLAY_GAP_MS = 4_000; // after an alert is injected, wait for the agent to start talking before the next one
 const ANSWER_GAP_MS = 2_500; // after an answer is posted, let the agent say "Allowed." before the next alert
+const TALK_GAP_MS = 8_000; // an alert never cuts into a conversation: wait this long after the last message or tool call
 const ASK_TIMEOUT_MS = 90_000; // an unanswered question stops holding the line after this much silence
 
 const soon = (ms: number) => Date.now() + ms;
@@ -52,31 +56,43 @@ function spokenAlerts(played: BoardAlert[], missed: BoardAlert[]): string {
   return parts.join("\n");
 }
 
+// An alert still on the user's plate: unanswered blocked/stuck ones, and mentions not yet spoken or dismissed.
+const isOpen = (a: Alert, hidden: ReadonlySet<number>) => a.state !== "answered" && !hidden.has(a.id) && !(a.why === "mention" && a.state === "told");
+
+// What a desktop notification says under "<agent> needs you".
+function noticeBody(a: Alert): string {
+  const c = a.ctx;
+  if (a.kind === "approval") return c?.command ? `Wants to run ${c.command}` : c?.file ? `Wants to edit ${c.file.split("/").pop()}` : "Needs your OK";
+  if (a.kind === "stuck") return "Keeps failing at the same step";
+  return a.text;
+}
+
 export function useCoworker({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const first = parseRepo(initialRepo);
-  const [repo, setRepo] = useState(first.ok ? first.repo : "");
+  const [repo, setRepoState] = useState(first.ok ? first.repo : "");
   const [ready, setReady] = useState(first.ok);
-  const [repoInput, setRepoInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [boardError, setBoardError] = useState<string | null>(null);
+  const [boardState, setBoardState] = useState<BoardState>({ kind: "checking" });
+  const [madeBoard, setMadeBoard] = useState<number | null>(null); // the board this page just created: GitHub's label list lags a few seconds behind
   const [error, setError] = useState<string | null>(null);
   const [canType, setCanType] = useState(false);
   const [textOnly, setTextOnly] = useState(false);
-  const [draft, setDraft] = useState("");
   const [held, setHeld] = useState(false);
   const [starting, setStarting] = useState(false);
   const [awaiting, setAwaiting] = useState(false);
-  const [standup, setStandup] = useState(false);
   const [focus, setFocus] = useState<number | null>(null);
   const [pttKey, setPttKey] = useState("fn");
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
+  const [gesture, setGesture] = useState(false);
   const [interruptions, setInterruptionsState] = useState<Interruptions>(DEFAULT_INTERRUPTIONS);
   const [voiceId, setVoiceId] = useState(COWORKER_VOICE.id);
   const [offer, setOffer] = useState(false); // quiet just ended with blockers held back: ask before reading them
 
   const seq = useRef(0);
+  const noticed = useRef(new Set<number>());
+  const notices = useRef(new Map<number, Notification>());
   const alertsRef = useRef<Alert[]>([]);
   const answeredReqs = useRef(new Set<string>());
   const lastActive = useRef(0);
@@ -99,7 +115,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     try {
       const saved = parseRepo(localStorage.getItem(REPO_KEY));
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved.ok) setRepo(saved.repo);
+      if (saved.ok) setRepoState(saved.repo);
     } catch (e) {
       console.warn("Could not read the saved repo:", e);
     }
@@ -114,6 +130,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     } catch (e) {
       console.warn("Could not save the repo:", e);
     }
+    rememberRecent(repo);
   }, [repo]);
 
   // The saved Interruptions mode and Coworker voice, read after hydration like the repo above.
@@ -297,6 +314,11 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       if (kept !== alerts) return setAlerts((all) => sieve(all, interruptions));
       const a = nextSpoken(alerts, interruptions, offered);
       if (!a || draining.current || !live || held || convo.isSpeaking || working || awaiting || Date.now() < quietUntil.current) return;
+      const talking = TALK_GAP_MS - (Date.now() - lastActive.current);
+      if (talking > 0) {
+        setTimeout(() => drainRef.current(), talking + 100);
+        return;
+      }
       draining.current = true;
       try {
         mark(a.id, "playing");
@@ -305,7 +327,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
         if (a.kind !== "stuck") {
           try {
             console.info(`[coworker] voice start ${a.from} ${new Date().toISOString()}`);
-            await speakPost(a.from, a.text);
+            await speakPost(a.from, headline(a.text));
             played = true;
           } catch (e) {
             setError(e instanceof Error ? e.message : "Could not play that board post.");
@@ -330,7 +352,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     drainRef.current();
   });
 
-  // While a repo is open, check the agent board every 15 s for posts that need the user. Alerts that
+  // While a repo is open, check the agent board every 6 s for posts that need the user. Alerts that
   // arrive before a voice session starts wait on screen and are spoken once the session is live.
   useEffect(() => {
     if (!repo) return;
@@ -341,15 +363,18 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       if (inFlight) return;
       inFlight = true;
       try {
-        const r = await pollBoard(repo, cursor.current, "", board);
+        const r = await pollBoard(repo, cursor.current, "", board ?? madeBoard ?? undefined);
         if (stopped) return;
         cursor.current = r.cursor;
-        setBoardError(null);
+        setBoardState((s) => (s.kind === "ok" ? s : { kind: "ok" }));
         for (const q of r.answered) answeredReqs.current.add(q);
         const fresh: Alert[] = r.alerts.map((x) => ({ ...x, seq: ++seq.current, state: "waiting" }));
         if (fresh.length || r.answered.length) setAlerts((a) => markAnswered([...a, ...fresh], answeredReqs.current));
       } catch (e) {
-        if (!stopped) setBoardError(e instanceof Error ? e.message : "Board check failed.");
+        if (stopped) return;
+        // A dropped connection reads "Failed to fetch" in the browser, which says nothing to the user.
+        const offline = e instanceof TypeError || (e instanceof DOMException && e.name === "TimeoutError");
+        setBoardState(e instanceof NoBoardError ? { kind: "none" } : { kind: "error", message: offline ? "I can't reach the server. Trying again." : e instanceof Error ? e.message : "Board check failed." });
       } finally {
         inFlight = false;
       }
@@ -361,7 +386,16 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       stopped = true;
       clearInterval(timer);
     };
-  }, [repo, board]);
+  }, [repo, board, madeBoard]);
+
+  // Open this repo's board as the signed-in user, then look at it again. Throws a sentence for the page to show.
+  async function createBoard() {
+    const res = await fetch("/api/board", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repo }) });
+    const j = (await res.json().catch(() => ({}))) as { number?: number; error?: string };
+    if (!res.ok || !j.number) throw new Error(j.error ?? `Could not create the board (HTTP ${res.status}).`);
+    setBoardState({ kind: "checking" });
+    setMadeBoard(j.number); // restarts the board check, now pointed at this issue
+  }
 
   async function start(asText: boolean) {
     if (!repo || starting || convo.status === "connecting" || convo.status === "connected") return;
@@ -411,6 +445,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     const now = sources.current.size > 0;
     if (now === was) return;
     setHeld(now);
+    lastActive.current = Date.now(); // the user talking counts as conversation, so no alert cuts in right after
     clearTimeout(awaitTimer.current);
     if (now) {
       pressedAt.current = Date.now();
@@ -471,7 +506,6 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     if (!t || !live) return;
     setMsgs((m) => [...m, { id: ++seq.current, role: "user", text: t }]);
     convo.sendUserMessage(t);
-    setDraft("");
   }
 
   const hint = embed ? `Hold ${pttKey} to talk` : "Hold Space to talk";
@@ -492,14 +526,69 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
             ? "Mic muted"
             : hint;
   const source = !live ? null : phase === "speaking" ? convo.getOutputByteFrequencyData : convo.getInputByteFrequencyData;
-  const repoError = repoInput.trim() ? parseRepo(repoInput) : null;
 
   const skip = (id: number) => setAlerts((all) => all.map((x) => (x.id === id && x.state === "asking" ? { ...x, state: "told" } : x)));
 
-  // Alerts still on the user's plate: unanswered blocked/stuck ones, and mentions not yet spoken or dismissed.
-  const open = alerts.filter((a) => a.state !== "answered" && !hidden.has(a.id) && !(a.why === "mention" && a.state === "told"));
+  const open = alerts.filter((a) => isOpen(a, hidden));
   // The one card on screen: what "show me" asked for, else the one being spoken about, else the oldest open.
   const card = (focused && open.includes(focused) ? focused : undefined) ?? (current(alerts) && open.includes(current(alerts)!) ? current(alerts) : undefined) ?? open[0] ?? null;
+  // The first click or key press is the browser's licence to play audio, and the moment to ask once for notification permission.
+  useEffect(() => {
+    const first = () => {
+      window.removeEventListener("pointerdown", first, true);
+      window.removeEventListener("keydown", first, true);
+      setGesture(true);
+      try {
+        if ("Notification" in window && Notification.permission === "default") Promise.resolve(Notification.requestPermission()).catch((e) => console.warn("Notification permission failed:", e));
+      } catch (e) {
+        console.warn("Could not ask for notification permission:", e);
+      }
+    };
+    window.addEventListener("pointerdown", first, true);
+    window.addEventListener("keydown", first, true);
+    return () => {
+      window.removeEventListener("pointerdown", first, true);
+      window.removeEventListener("keydown", first, true);
+    };
+  }, []);
+
+  // Safari only counts a click or key press as licence to play, so unlock the shared audio element on those too.
+  useEffect(() => {
+    window.addEventListener("click", unlockAudio, true);
+    window.addEventListener("keydown", unlockAudio, true);
+    return () => {
+      window.removeEventListener("click", unlockAudio, true);
+      window.removeEventListener("keydown", unlockAudio, true);
+    };
+  }, []);
+
+  // An alert that arrives while the tab is hidden or unfocused gets one desktop notification, closed once it is answered
+  // or dismissed. Clicking it brings the window forward and opens that alert's card.
+  useEffect(() => {
+    for (const a of alerts) {
+      if (noticed.current.has(a.id)) continue;
+      noticed.current.add(a.id);
+      if (!(document.hidden || !document.hasFocus()) || !("Notification" in window) || Notification.permission !== "granted") continue;
+      try {
+        const n = new Notification(`${a.from} ${a.why === "blocked" ? "needs you" : "has news for you"}`, { body: noticeBody(a), tag: a.req ?? String(a.id), requireInteraction: true });
+        n.onclick = () => {
+          window.focus();
+          setFocus(a.seq);
+        };
+        notices.current.set(a.id, n);
+      } catch (e) {
+        console.warn("Could not show a notification:", e);
+      }
+    }
+    for (const [id, n] of notices.current) {
+      const a = alerts.find((x) => x.id === id);
+      if (!a || !isOpen(a, hidden)) {
+        n.close();
+        notices.current.delete(id);
+      }
+    }
+  }, [alerts, hidden]);
+
   const speaker = phase === "speaking" ? (playing?.from ?? "coworker") : phase === "listening" ? "you" : null;
 
   // A click on Allow, Deny or Stop: the user named the alert by looking at it, so it is posted for
@@ -525,8 +614,32 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   }
   const dismiss = (id: number) => setHidden((h) => new Set(h).add(id));
 
+  // Pick another repo: drop the old repo's alerts and chat, end a live session, and put the repo in the address bar.
+  function switchRepo(next: string) {
+    if (next === repo) return;
+    if (live || connecting) void convo.endSession();
+    setRepoState(next);
+    setAlerts([]);
+    setHidden(new Set());
+    setFocus(null);
+    setMsgs([]);
+    setCalls([]);
+    setBoardState({ kind: "checking" });
+    setMadeBoard(null);
+    setError(null);
+    answeredReqs.current.clear();
+    try {
+      const url = new URL(window.location.href);
+      if (next) url.searchParams.set("repo", next);
+      else url.searchParams.delete("repo");
+      window.history.replaceState(null, "", url);
+    } catch (e) {
+      console.warn("Could not update the address bar:", e);
+    }
+  }
+
   return {
-    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError },
+    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, board: boardState, madeBoard, gesture },
     transcript: msgs,
     feed,
     alerts,
@@ -544,10 +657,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     waiting: { count: waitingNow.length, stuck: waitingNow.some((a) => a.kind === "stuck") },
     settings: { interruptions, voiceId, voices: COWORKER_VOICES, queued, offered },
     focus: focused ?? null,
-    standup,
-    draft,
-    repo: { current: repo, ready, input: repoInput, error: repoError },
+    repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo, setRepoInput, setStandup, setFocus, skip, answer, dismiss, setInterruptions, setVoice, endSession: () => convo.endSession(), readQueued: () => setOffer(false), holdQueued: () => { setOffer(false); setAlerts(deferQueued); } },
+    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, createBoard, setInterruptions, setVoice, endSession: () => convo.endSession(), readQueued: () => setOffer(false), holdQueued: () => { setOffer(false); setAlerts(deferQueued); } },
   };
 }

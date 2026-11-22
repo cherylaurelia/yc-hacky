@@ -1,5 +1,5 @@
 import { resolveToken } from "@/lib/auth";
-import { boardUpdates } from "@/lib/board-api";
+import { NoBoard, boardUpdates } from "@/lib/board-api";
 import { gh, GhError } from "@/lib/github";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertReadable } from "@/lib/repo-access";
@@ -48,7 +48,8 @@ export async function GET(req: Request) {
     }
     return Response.json(updates);
   } catch (e) {
-    if (e instanceof GhError) return fail(e.status, e.message);
+    if (e instanceof NoBoard) return Response.json({ error: e.message, code: "no_board" }, { status: 404 });
+    if (e instanceof GhError) return fail(e.status, e.status === 404 ? `I could not find ${parsed.repo}. Check the name, or sign in if it is private.` : e.message);
     console.error("board poll failed:", e instanceof Error ? e.message : "unknown error");
     return fail(500, "Something went wrong checking the board.");
   }

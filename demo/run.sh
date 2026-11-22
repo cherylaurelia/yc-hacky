@@ -139,6 +139,7 @@ w "$DEMO_DIR/demo-docs-site/scripts/reindex.sh" <<EOF
 # Stand-in for a search index rebuild that takes about a minute.
 steps=16
 for i in \$(seq 1 \$steps); do echo "indexing section \$i/\$steps ..."; sleep $((LONG / 16)); done
+echo '{"pages": 128}' > docs/search-index.json   # a real rebuild writes its output: the hook posts "done" only for a turn that changed files
 echo "indexed 128 pages in $(( (LONG / 16) * 16 ))s"
 EOF
 w "$DEMO_DIR/demo-docs-site/docs/index.md" <<'EOF'

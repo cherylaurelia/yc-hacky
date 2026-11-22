@@ -15,7 +15,8 @@
 # Needs bash, gh (logged in) and jq. On any error it prints nothing and exits 0, so Claude Code
 # falls back to its own terminal prompt. Install with hooks/install.sh.
 # Env: COWORKER_REPO    board repo owner/name   (default: origin of the session's repo)
-#      COWORKER_BOARD   board issue number      (default 1)
+#      COWORKER_BOARD   board issue number      (default: the repo's oldest open issue labeled "board", looked up
+#                       once per 10 min; a repo with none gets no posts, the hook never falls back to #1)
 #      COWORKER_NAME    first name in the tag   (default: git user.name first word, then $USER)
 #      COWORKER_TIMEOUT seconds to wait for an approval reply (default 90)
 #      COWORKER_APPROVERS comma list of GitHub logins whose replies count (default: the gh user)
@@ -39,8 +40,14 @@ SF="$TMP/$KEY"
 # SF lines:  F <sig> <epoch> failure   S <sig> <epoch> success   P <sig> stuck posted
 #            R <req> <created_at> <why> req this session posted   A <login> approver   D <comment id> stop used
 
+# "<HEAD> <checksum of the changed files>" of the session's repo; prints nothing outside a git repo
+git_mark() {
+  git -C "$CWD" rev-parse --git-dir >/dev/null 2>&1 || return
+  echo "$(git -C "$CWD" rev-parse --verify -q HEAD 2>/dev/null || echo none) $(git -C "$CWD" status --porcelain 2>/dev/null | cksum | cut -d' ' -f1)"
+}
+
 if [ "$EVENT" = UserPromptSubmit ]; then
-  date +%s > "$STATE/$KEY.start"; rm -f "$STATE/$KEY.done"
+  date +%s > "$STATE/$KEY.start"; rm -f "$STATE/$KEY.done"; git_mark > "$STATE/$KEY.git"
   find "$STATE" -type f ! -name debug.log -mtime +2 -delete; find "$TMP" -type f -mtime +2 -delete
   exit 0
 fi
@@ -48,7 +55,8 @@ fi
 case "$EVENT" in PreToolUse|PostToolUse) [ -s "$SF" ] || exit 0 ;; esac
 
 NUM='^[0-9]+$'
-BOARD="${COWORKER_BOARD:-1}"; [[ "$BOARD" =~ $NUM ]] || exit 0
+BOARD="${COWORKER_BOARD:-}"
+[ -z "$BOARD" ] || [[ "$BOARD" =~ $NUM ]] || exit 0
 TIMEOUT="${COWORKER_TIMEOUT:-90}"; [[ "$TIMEOUT" =~ $NUM ]] || TIMEOUT=90
 DONE_MIN="${COWORKER_DONE_MIN:-60}"; [[ "$DONE_MIN" =~ $NUM ]] || DONE_MIN=60
 STUCK_COUNT="${COWORKER_STUCK_COUNT:-3}"; [[ "$STUCK_COUNT" =~ $NUM ]] && [ "$STUCK_COUNT" -ge 1 ] || STUCK_COUNT=3
@@ -69,6 +77,17 @@ repo_of() {
 SESSION_REPO="$(repo_of "$CWD")"
 REPO="${COWORKER_REPO:-$SESSION_REPO}"
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 0
+# The board is the repo's open issue labeled "board" (the app picks the same one: oldest first, not a PR), cached 10 min
+# per repo, "0" meaning none. A failed lookup is not cached, so the next call asks again.
+board_of() {
+  local f="$STATE/board.${REPO//\//_}" t n now; now="$(date +%s)"
+  read -r t n < "$f" 2>/dev/null
+  if [[ "$t" =~ $NUM ]] && [[ "$n" =~ $NUM ]] && [ $(( now - t )) -lt 600 ]; then printf '%s' "$n"; return; fi
+  n="$(gh api "repos/$REPO/issues?labels=board&state=open&sort=created&direction=asc&per_page=10" --jq '[.[] | select(.pull_request | not)] | (.[0].number // 0)')" \
+    && [[ "$n" =~ $NUM ]] || return 1
+  echo "$now $n" > "$f"; printf '%s' "$n"
+}
+[ -n "$BOARD" ] || { BOARD="$(board_of)" && [ "$BOARD" -ge 1 ] || exit 0; }
 WHERE="${SESSION_REPO#*/}"; [ -n "$WHERE" ] || WHERE="$(basename "$CWD")"
 
 NAME="${COWORKER_NAME:-$(git -C "$CWD" config user.name | awk '{print $1}')}"
@@ -136,8 +155,20 @@ me_login() {
   printf '%s' "$m"
 }
 
+# First word of the GitHub profile name of login $1, else the login. This is who answered through the Coworker, which
+# is not the agent's owner ($NAME). Cached a day per login; a failed lookup (slow network) is not cached.
+person() {
+  local f="$STATE/person.${1//[^A-Za-z0-9_-]/_}" n
+  if [ -s "$f" ] && [ -z "$(find "$f" -mtime +1)" ]; then cat "$f"; return; fi
+  if n="$(within_1s gh api "users/$1" --jq '(.name // "") | split(" ") | map(select(. != "")) | (.[0] // empty)')"; then
+    n="$(printf '%s' "${n:-$1}" | tr -d '[]\n')"; echo "$n" > "$f"; printf '%s' "$n"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 permission() {
-  local tool what id out pid cts me ok rows verdict note msg deadline
+  local tool what id out pid cts me ok rows verdict who note msg deadline
   tool="$(j '.tool_name // empty')"
   case "$tool" in ''|AskUserQuestion|ExitPlanMode) return ;; esac
   me="$(me_login)" && [ -n "$me" ] || return
@@ -146,29 +177,50 @@ permission() {
   id="$(head -c3 /dev/urandom | od -An -tx1 | tr -d ' \n')"
   out="$(post "$TAG needs approval (req $id): $what in $WHERE" "$(ctx approval "$id")")" || return
   read -r pid cts <<<"$out"
-  echo "R $id $cts waiting on approval" >> "$SF"
+  printf 'R %s %s waiting on approval\nT %s %s\n' "$id" "$cts" "$id" "$(call_hash)" >> "$SF"
   deadline=$(( $(date +%s) + TIMEOUT ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
     sleep 3
+    grep -q "^C $id\$" "$SF" && return   # settle() saw the call finish: it was answered at the terminal
     rows="$(gh api --paginate "repos/$REPO/issues/$BOARD/comments?per_page=100&since=$cts" --jq '.[] | {id, u: .user.login, b: .body}')" || continue
     # first reply after our post, from an approver, saying "req ID" then an allow or deny word
     verdict="$(printf '%s' "$rows" | jq -rs --arg id "$id" --argjson pid "$pid" --arg ok "$ok" '
       ($ok | ascii_downcase | split(",") | map(gsub("\\s"; ""))) as $ok
       | [ .[] | select(.id > $pid and ((.u | ascii_downcase) as $u | $ok | index($u) != null))
-          | .b | capture("req\\s+" + $id + "\\b(?<r>[\\s\\S]*)"; "i").r
-          | capture("\\b(?<w>allow|approved?|yes|deny|denied|no|reject(ed)?)\\b(?<n>[\\s\\S]*)"; "i")
-          | "\(if .w | test("^(allow|approved?|yes)$"; "i") then "allow" else "deny" end)\t\(.n | gsub("^[\\s,:.-]+|\\s+$"; ""))" ]
+          | .u as $who | (.b | capture("req\\s+" + $id + "\\b(?<r>[\\s\\S]*)"; "i").r
+          | capture("\\b(?<w>allow|approved?|yes|deny|denied|no|reject(ed)?)\\b(?<n>[\\s\\S]*)"; "i"))
+          | "\(if .w | test("^(allow|approved?|yes)$"; "i") then "allow" else "deny" end)\t\($who)\t\(.n | gsub("^[\\s,:.-]+|\\s+$"; ""))" ]
       | first // empty')"
     [ -n "$verdict" ] || continue
-    note="${verdict#*$'\t'}"
+    who="${verdict#*$'\t'}"; note="${who#*$'\t'}"; who="${who%%$'\t'*}"
+    echo "C $id" >> "$SF"
     if [ "${verdict%%$'\t'*}" = allow ]; then
       jq -nc '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision: {behavior: "allow"}}}'
     else
-      msg="Denied by voice from the coworker${note:+: $note}"
+      msg="Denied by $(person "$who") via Coworker${note:+: $note}"
       jq -nc --arg m "$msg" '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision: {behavior: "deny", message: $m}}}'
     fi
     return
   done
+  close_req "$id" "no answer in ${TIMEOUT}s, so it asks in the terminal"
+}
+
+# An identifier for this tool call (name + input), the same in PermissionRequest and PostToolUse
+call_hash() { printf '%s' "$IN" | jq -cS '[.tool_name, .tool_input]' | cksum | cut -d' ' -f1; }
+
+# Tell the board request $1 is over without an answer from it ("req ID closed: why"), so its card goes away
+# instead of waiting for an answer nobody will give. Once per request.
+close_req() {
+  grep -q "^C $1\$" "$SF" && return
+  echo "C $1" >> "$SF"
+  post "$TAG req $1 closed: $2" >/dev/null
+}
+
+# A tool call finished: an approval this session posted for the same call was answered in the terminal
+settle() {
+  local h id; grep -q '^T ' "$SF" || return
+  h="$(call_hash)"
+  for id in $(awk -v h="$h" '$1 == "T" && $3 == h { print $2 }' "$SF"); do close_req "$id" "answered in the terminal"; done
 }
 
 # What a tool call is, for counting repeats: the Bash command (trailing "2>&1" / "| tail" dropped), else tool + file
@@ -233,7 +285,7 @@ tooluse() {
 # "req ID stop" from an approver, for a req this session posted, ends the session: print continue:false once.
 # Looks at the board at most every COWORKER_STOP_EVERY seconds and fails open on any error or a slow network.
 stop_check() {
-  local now last ok since ids used rows hit cid rid why
+  local now last ok since ids used rows hit cid rid who why
   grep -q '^R ' "$SF" 2>/dev/null || return
   now="$(date +%s)"; last="$(cat "$SF.chk" 2>/dev/null)"
   [[ "$last" =~ $NUM ]] && [ $(( now - last )) -lt "$STOP_EVERY" ] && return
@@ -246,12 +298,12 @@ stop_check() {
   hit="$(printf '%s' "$rows" | jq -rs --arg ok "$ok" --arg ids "$ids" --arg used ",$used," '
     ($ok | ascii_downcase | split(",") | map(gsub("\\s"; ""))) as $ok
     | [ .[] | select(((.u | ascii_downcase) as $u | $ok | index($u) != null) and (.id as $i | $used | contains(",\($i),") | not))
-        | .id as $cid | (.b | capture("req\\s+(?<r>" + $ids + ")\\b[\\s,:.-]*stop\\b"; "i")) as $m | "\($cid) \($m.r)" ]
+        | .id as $cid | .u as $who | (.b | capture("req\\s+(?<r>" + $ids + ")\\b[\\s,:.-]*stop\\b"; "i")) as $m | "\($cid) \($m.r) \($who)" ]
     | first // empty')" && [ -n "$hit" ] || return
-  read -r cid rid <<<"$hit"
+  read -r cid rid who <<<"$hit"
   why="$(awk -v id="$rid" '$1 == "R" && $2 == id { $1 = $2 = $3 = ""; print }' "$SF" | sed 's/^ *//')"
   echo "D $cid" >> "$SF"
-  jq -nc --arg r "Stopped by $NAME via Coworker${why:+: $why}" '{continue: false, stopReason: $r}'
+  jq -nc --arg r "Stopped by $(person "$who") via Coworker${why:+: $why}" '{continue: false, stopReason: $r}'
 }
 
 case "$EVENT" in
@@ -264,12 +316,25 @@ case "$EVENT" in
   Stop)
     [ "$(j '.stop_hook_active // false')" = true ] && exit 0
     start="$(cat "$STATE/$KEY.start")" && rm -f "$STATE/$KEY.start" || exit 0
-    [[ "$start" =~ $NUM ]] && [ $(( $(date +%s) - start )) -ge "$DONE_MIN" ] || exit 0
-    post "$TAG done: $(printf '%s' "$IN" | jq -r "$CLEAN"' ((.last_assistant_message // "") | split("\n") | map(select(test("\\S"))) | first // "finished") | sub("[ .]+$"; "") | clean(140)') in $WHERE" "$(ctx 'done')" >/dev/null \
+    [[ "$start" =~ $NUM ]] || exit 0
+    # A turn that made a commit is done however short. One that only changed files is done after DONE_MIN seconds.
+    # A turn that changed nothing is a chat, not work: no post. Outside a git repo only the duration counts.
+    read -r h0 s0 < "$STATE/$KEY.git" 2>/dev/null; rm -f "$STATE/$KEY.git"; read -r h1 s1 <<<"$(git_mark)"
+    long=0; [ $(( $(date +%s) - start )) -ge "$DONE_MIN" ] && long=1
+    pr=""
+    if [ -n "${h0:-}" ] && [ -n "$h1" ]; then
+      if [ "$h0" != "$h1" ]; then   # committed: name its pull request when there is one
+        pr="$(within_1s gh pr list --repo "$REPO" --head "$(git -C "$CWD" branch --show-current)" --state open --json number --jq '.[0].number // empty')"
+        [[ "$pr" =~ $NUM ]] || pr=""
+      elif [ "$s0" = "$s1" ] || [ "$long" = 0 ]; then exit 0; fi
+    else
+      [ "$long" = 1 ] || exit 0
+    fi
+    post "$TAG done: $(printf '%s' "$IN" | jq -r "$CLEAN"' ((.last_assistant_message // "") | split("\n") | map(select(test("\\S"))) | first // "finished") | sub("[ .]+$"; "") | clean(140)')${pr:+, PR #$pr} in $WHERE" "$(ctx 'done')" >/dev/null \
       && touch "$STATE/$KEY.done"
     ;;
   PreToolUse) stop_check ;;
-  PostToolUse) tooluse; stop_check ;;
-  PostToolUseFailure) tooluse ;;   # Claude Code ignores continue:false from this event, so it never stops
+  PostToolUse) settle; tooluse; stop_check ;;
+  PostToolUseFailure) settle; tooluse ;;   # Claude Code ignores continue:false from this event, so it never stops
 esac
 exit 0

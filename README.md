@@ -1,31 +1,41 @@
-# Coworker
+# Terminal 1
+
+**Try it live:** https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh (hosted on Maritime)
 
 A voice coworker for people who run several AI coding agents. It watches your agents, speaks up when one needs approval, is blocked, or is stuck retrying a failing command, and you answer by holding a key and talking.
 
 ![20-second demo: an agent asks, you answer by voice, the agent continues](docs/demo.gif)
 
-<!-- TODO(operator): record docs/demo.gif, 20 s, no more than 5 MB. Suggested take: a Claude Code session asks to run a command, Coworker speaks, you hold Space and say "show me", then "allow", and the terminal continues. -->
+<!-- TODO(operator): record docs/demo.gif, 20 s, no more than 5 MB. Suggested take: a Claude Code session asks to run a command, Terminal 1 speaks, you hold Space and say "show me", then "allow", and the terminal continues. -->
+
+## Connect your agents
+
+This installs the Coworker hooks into your Claude Code settings, so every session posts approvals, blockers, and stuck commands to the board. Needs `gh` logged in and `jq`.
+
+```bash
+gh api repos/cherylaurelia/yc-hacky/contents/hooks/install.sh -H "Accept: application/vnd.github.raw" | bash
+```
 
 ## What it does
 
 - Speaks up when an agent needs approval, is blocked, or is stuck. A stuck alert gives the retry count, the minutes, and an estimated dollar cost.
-- The agent that asked talks first, in its own ElevenLabs voice. Then Coworker asks you.
+- The agent that asked talks first, in its own ElevenLabs voice. Then Terminal 1 asks you.
 - You answer with your voice. Say allow, deny, stop, or an answer to relay. Hold Space in the browser, or the talk key in the Mac app.
-- Say "show me" and the command, file, or diff opens full screen. Coworker never reads a diff aloud.
+- Say "show me" and the command, file, or diff opens full screen. Terminal 1 never reads a diff aloud.
 - Give it a task by voice. A headless Claude Code agent builds it in its own worktree and opens a pull request. That took 34 s on a small change.
 - Press Standup and each agent reports its latest news in its own voice.
 - Settings sets how often Coworker speaks up on its own: All updates, Blockers only, or Do Not Disturb (for 30 minutes or until you turn it off). Push to talk always works. The same panel picks Coworker's own voice. Agents keep theirs. Both settings are saved in the browser.
 
-A general voice assistant waits for you to ask. Coworker watches your agents and interrupts you.
+A general voice assistant waits for you to ask. Terminal 1 watches your agents and interrupts you.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  agents["Claude Code sessions<br/>(Coworker hooks)"]
+  agents["Claude Code sessions<br/>(Terminal 1 hooks)"]
   board[("GitHub issue board")]
   worker["board-worker.sh<br/>(headless claude -p)"]
-  app["Coworker<br/>browser page or Mac panel"]
+  app["Terminal 1<br/>browser page or Mac panel"]
   el["ElevenLabs Agent<br/>speech, turn-taking, Claude Sonnet 5.5, tools"]
   tts["ElevenLabs TTS and dialogue<br/>one voice per agent"]
 
@@ -42,7 +52,7 @@ flowchart LR
 The board is one pinned GitHub issue. A post is a comment that starts with a tag such as `[Sam's Claude]`.
 
 1. The hooks in `hooks/coworker-hook.sh` post to the board when a Claude Code session asks for permission, waits for input, or finishes a long turn.
-2. The Coworker page polls the board every 15 s while a voice session is live. One alert is handled at a time, so voices never overlap.
+2. The Terminal 1 page polls the board every 15 s while a voice session is live. One alert is handled at a time, so voices never overlap.
 3. The ElevenLabs agent talks to you. Its client tools (`lib/tool-specs.ts`) run on the Next.js server through `app/api/tool/[name]`, except `show_me`, which runs in the browser.
 4. Your answer goes back to the board as `req <id> allow`, `deny`, or `stop`. The hook polls the board for that reply every 3 s. It hands Claude Code the decision, or Claude Code shows its normal terminal prompt after `COWORKER_TIMEOUT` seconds or on any error.
 5. A post that contains `TASK for Cheryl's Claude:` is a work order. `scripts/board-worker.sh` runs it (see [docs/worker.md](docs/worker.md)).
@@ -65,7 +75,7 @@ The hook masks secrets and defuses `@mentions` in what it posts. Only a reply fr
 
 <!-- TODO(operator): the stuck-loop post (retry count, minutes, dollars), the "req ID stop" handling, and the diff context block are in a hook update that is not on main yet. Confirm that update is merged before you submit, then this install command delivers it. The repo is also private, so `gh api` fails for anyone without read access. Make it public or add the judges. -->
 
-## Run Coworker locally
+## Run Terminal 1 locally
 
 You need Node 22.18 or newer and a microphone. A browser on `localhost` can use the microphone without https.
 
@@ -110,7 +120,7 @@ The agent runs with `acceptEdits`, a short list of allowed commands, a $3 budget
 
 ## Mac app
 
-The menu-bar app puts Coworker in a floating panel and lets you hold a key from any app.
+The menu-bar app puts Terminal 1 in a floating panel and lets you hold a key from any app.
 
 ```
 macos/build.sh

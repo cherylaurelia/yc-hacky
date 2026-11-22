@@ -1,6 +1,20 @@
 import { clip, plain } from "./spoken.ts";
 
-let current: HTMLAudioElement | null = null;
+// One audio element for every board post. Safari only lets a page play sound from code after the
+// user has played something on that element, so unlockAudio() plays a silent clip inside the
+// user's first click or key press and every later post reuses the element.
+let el: HTMLAudioElement | null = null;
+let cut: (() => void) | null = null;
+const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+
+export function unlockAudio(): void {
+  if (el) return;
+  const a = new Audio(SILENCE);
+  a.play().then(
+    () => (el = a),
+    () => {}, // no gesture yet: the next click or key press tries again
+  );
+}
 
 // Browser helper: speak one board post in its poster's voice. Resolves when playback ends
 // (or a newer speakPost call cuts it off); rejects with a sentence you can show the user.
@@ -15,13 +29,25 @@ export async function speakPost(poster: string, text: string): Promise<void> {
     throw new Error(j.error ?? `Could not speak that (HTTP ${res.status}).`);
   }
   const url = URL.createObjectURL(await res.blob());
-  current?.pause();
-  const audio = (current = new Audio(url));
+  cut?.();
+  const audio = (el ??= new Audio());
   try {
     await new Promise<void>((resolve, reject) => {
-      audio.onended = audio.onpause = () => resolve();
-      audio.onerror = () => reject(new Error("Could not play the audio."));
-      audio.play().catch(reject);
+      const off = () => {
+        audio.onended = audio.onpause = audio.onerror = null;
+        cut = null;
+      };
+      cut = () => {
+        off();
+        audio.pause();
+        resolve();
+      };
+      audio.onended = () => (off(), resolve());
+      // A cut-off clip's late "pause" event must not end the next one: only a real pause counts.
+      audio.onpause = () => audio.paused && (off(), resolve());
+      audio.onerror = () => (off(), reject(new Error("Could not play the audio.")));
+      audio.src = url;
+      audio.play().catch((e) => (off(), reject(e)));
     });
   } finally {
     URL.revokeObjectURL(url);

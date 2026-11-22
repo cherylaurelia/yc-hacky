@@ -17,3 +17,25 @@ export function parseRepo(input: unknown): ParsedRepo {
   }
   return { ok: true, repo: `${owner}/${name}` };
 }
+
+const RECENT_KEY = "coworker.recent";
+const RECENT_MAX = 8;
+
+// The repos this browser opened last, newest first. Browser only (localStorage).
+export function readRecent(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, RECENT_MAX) : [];
+  } catch (e) {
+    console.warn("Could not read the recent repos:", e);
+    return [];
+  }
+}
+
+export function rememberRecent(repo: string): void {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([repo, ...readRecent().filter((r) => r.toLowerCase() !== repo.toLowerCase())].slice(0, RECENT_MAX)));
+  } catch (e) {
+    console.warn("Could not save the recent repos:", e);
+  }
+}
