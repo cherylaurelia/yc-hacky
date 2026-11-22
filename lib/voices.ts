@@ -4,6 +4,20 @@ export type Voice = { id: string; name: string };
 // The live agent's own voice (agent_6301... tts.voice_id). Kept out of the poster pool.
 export const COWORKER_VOICE: Voice = { id: "cjVigY5qzO86Huf0OWal", name: "Eric" };
 
+// Voices the user may pick for Coworker itself, Eric first (the default). None is in POSTER_VOICES,
+// so Coworker never sounds like an agent. Ids checked against GET /v1/voices.
+export const COWORKER_VOICES: readonly Voice[] = [
+  COWORKER_VOICE,
+  { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda" },
+  { id: "hpp4J3VqNfWAUOO0d1Us", name: "Bella" },
+  { id: "nPczCjzI2devNBz1zQrb", name: "Brian" },
+  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel" },
+  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily" },
+];
+
+// A stored or requested voice id, or undefined when it is not one Coworker offers.
+export const coworkerVoice = (id: string | null | undefined): Voice | undefined => COWORKER_VOICES.find((v) => v.id === id);
+
 // All six premade voices, checked against GET /v1/voices. Mixed gender and accent so they are easy to tell apart.
 export const POSTER_VOICES: readonly Voice[] = [
   { id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger" },
