@@ -1,4 +1,4 @@
-// Runs in the Coworker page's own JS world, only when that page is framed by this extension's side panel.
+// Runs in the Terminal 1 page's own JS world, only when that page is framed by this extension's side panel.
 // It gives the page the same bridge the Mac app gives it (see macos/Coworker/CoworkerPanel.swift):
 //   page -> panel: window.webkit.messageHandlers.coworker.postMessage({ state })
 //   panel -> page: window events `coworker-ptt` {down, cancelled} and `coworker-ptt-key` {key}

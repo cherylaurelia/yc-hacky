@@ -1,4 +1,4 @@
-// Side panel: the Coworker web page in a frame, plus the bits a browser tab can't do on its own
+// Side panel: the Terminal 1 web page in a frame, plus the bits a browser tab can't do on its own
 // (talk shortcut, sign-in in a tab, one-time mic grant, voice state on the toolbar icon).
 "use strict";
 
@@ -12,7 +12,7 @@ const STATE_TEXT = { idle: "Ready", listening: "Listening", speaking: "Speaking"
 
 function showState(state) {
   $("dot").className = `dot ${state || ""}`;
-  $("stateText").textContent = STATE_TEXT[state] || "Coworker";
+  $("stateText").textContent = STATE_TEXT[state] || "Terminal 1";
   if (state !== "listening") talking = false;
   chrome.runtime.sendMessage({ type: "state", state }).catch(() => {});
 }

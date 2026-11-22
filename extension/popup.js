@@ -1,6 +1,6 @@
-// Coworker popup: the board as a priority queue. Reads and writes go through the Coworker app
+// Terminal 1 popup: the board as a priority queue. Reads and writes go through the Terminal 1 app
 // (GET /api/board/recent, POST /api/tool/answer_request and /api/tool/board_post) from a hidden
-// frame on the app's origin (extension/relay.js), so they run as the Coworker page would.
+// frame on the app's origin (extension/relay.js), so they run as the Terminal 1 page would.
 "use strict";
 
 const $ = (id) => document.getElementById(id);
@@ -43,7 +43,7 @@ function startRelay() {
   });
   relay = document.createElement("iframe");
   relay.hidden = true;
-  relay.title = "Coworker relay";
+  relay.title = "Terminal 1 relay";
   relay.src = `${appOrigin(settings)}/ext/relay`;
   document.body.append(relay);
 }
@@ -58,7 +58,7 @@ async function api(path, { method = "GET", body: payload } = {}) {
   await relayReady;
   const id = ++seq;
   return new Promise((resolve) => {
-    const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, status: 0, json: { error: "Coworker took too long to answer." } }); }, 20_000);
+    const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, status: 0, json: { error: "Terminal 1 took too long to answer." } }); }, 20_000);
     waiting.set(id, (r) => { clearTimeout(timer); resolve(r); });
     relay.contentWindow.postMessage({ coworker: "api", id, method, path, body: payload }, appOrigin(settings));
   });
@@ -74,7 +74,7 @@ async function refresh() {
     state.data = r.json;
     state.error = "";
   } else {
-    state.error = (r.json && r.json.error) || `Coworker answered ${r.status}.`;
+    state.error = (r.json && r.json.error) || `Terminal 1 answered ${r.status}.`;
   }
   render();
 }
@@ -142,7 +142,7 @@ function render() {
 }
 
 function renderQueue() {
-  $("title").textContent = "Coworker";
+  $("title").textContent = "Terminal 1";
   if (state.error && !state.data) {
     $("sub").textContent = settings.repo;
     $("live").className = "live off";
@@ -298,7 +298,7 @@ async function main() {
   } catch {
     $("live").className = "live off";
     $("sub").textContent = "not running";
-    body.innerHTML = `<div class="empty"><p>Coworker isn't running at <code>${esc(settings.appUrl)}</code>.</p><p>Run <code>npm run dev</code> in your yc-hacky checkout, then open this again.</p></div>`;
+    body.innerHTML = `<div class="empty"><p>Terminal 1 isn't running at <code>${esc(settings.appUrl)}</code>.</p><p>Run <code>npm run dev</code> in your yc-hacky checkout, then open this again.</p></div>`;
     return;
   }
   await refresh();

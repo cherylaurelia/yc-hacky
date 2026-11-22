@@ -1,4 +1,4 @@
-/* The extension's own chrome around the Coworker page. Colors are the app's tokens (app/globals.css). */
+/* The extension's own chrome around the Terminal 1 page. Colors are the app's tokens (app/globals.css). */
 :root {
   color-scheme: light;
   --paper: #f3eee6;

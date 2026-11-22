@@ -1,5 +1,5 @@
-// Coworker extension service worker: the talk shortcut, and the voice state on the toolbar badge.
-// The toolbar icon opens the popup (the queue); the side panel runs the full Coworker page.
+// Terminal 1 extension service worker: the talk shortcut, and the voice state on the toolbar badge.
+// The toolbar icon opens the popup (the queue); the side panel runs the full Terminal 1 page.
 
 const BADGE = {
   listening: { text: "●", color: "#2e6542" },
@@ -42,7 +42,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     const b = BADGE[msg.state];
     chrome.action.setBadgeText({ text: b ? b.text : "" });
     if (b) chrome.action.setBadgeBackgroundColor({ color: b.color });
-    chrome.action.setTitle({ title: msg.state && STATE_TITLES[msg.state] ? `Coworker: ${STATE_TITLES[msg.state]}` : "Coworker" });
+    chrome.action.setTitle({ title: msg.state && STATE_TITLES[msg.state] ? `Terminal 1: ${STATE_TITLES[msg.state]}` : "Terminal 1" });
   }
 });
 

@@ -1,6 +1,6 @@
-// Content script (isolated world) on the Coworker app's pages. When a page is framed by THIS
+// Content script (isolated world) on the Terminal 1 app's pages. When a page is framed by THIS
 // extension, it runs /api/* calls for the extension from the page's origin, so the app's
-// same-origin check and the sign-in cookie apply exactly as they do for the Coworker page.
+// same-origin check and the sign-in cookie apply exactly as they do for the Terminal 1 page.
 (() => {
   if (window.top === window) return;
   const ours = `chrome-extension://${chrome.runtime.id}`;
@@ -24,7 +24,7 @@
       try { json = await res.json(); } catch { /* not JSON */ }
       reply({ ok: res.ok, status: res.status, json });
     } catch {
-      reply({ ok: false, status: 0, json: { error: "Coworker isn't answering." } });
+      reply({ ok: false, status: 0, json: { error: "Terminal 1 isn't answering." } });
     }
   });
   window.parent.postMessage({ coworker: "relay-ready" }, ours);

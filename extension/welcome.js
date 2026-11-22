@@ -1,6 +1,6 @@
 "use strict";
 // The side panel can't show Chrome's mic prompt, so the grant happens here, on the extension's own
-// origin. The panel's Coworker frame inherits it through allow="microphone".
+// origin. The panel's Terminal 1 frame inherits it through allow="microphone".
 const state = document.getElementById("micState");
 
 function show(s) {

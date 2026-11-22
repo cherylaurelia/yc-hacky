@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Coworker</title>
+  <title>Terminal 1</title>
   <link rel="stylesheet" href="shell.css">
 </head>
 <body>
   <div class="shell">
     <header class="bar">
-      <div class="state" aria-live="polite"><span class="dot" id="dot" aria-hidden="true"></span><span id="stateText">Coworker</span><small id="repoText"></small></div>
-      <button class="icon" id="openTab" type="button" aria-label="Open Coworker in a tab" title="Open in a tab">
+      <div class="state" aria-live="polite"><span class="dot" id="dot" aria-hidden="true"></span><span id="stateText">Terminal 1</span><small id="repoText"></small></div>
+      <button class="icon" id="openTab" type="button" aria-label="Open Terminal 1 in a tab" title="Open in a tab">
         <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button class="icon" id="reload" type="button" aria-label="Reload Coworker" title="Reload">
+      <button class="icon" id="reload" type="button" aria-label="Reload Terminal 1" title="Reload">
         <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <button class="icon" id="gear" type="button" aria-label="Settings" aria-pressed="false" aria-controls="settings" title="Settings">
@@ -22,7 +22,7 @@
     </header>
 
     <form class="settings" id="settings" hidden>
-      <label>Coworker app address
+      <label>Terminal 1 app address
         <input id="appUrl" type="url" placeholder="http://localhost:3000" required>
       </label>
       <label>Repository
@@ -43,10 +43,10 @@
     </div>
 
     <div class="frame">
-      <iframe id="app" title="Coworker" allow="microphone; autoplay; clipboard-write"></iframe>
+      <iframe id="app" title="Terminal 1" allow="microphone; autoplay; clipboard-write"></iframe>
       <div class="card" id="offline" hidden>
-        <h2>Coworker isn&rsquo;t running</h2>
-        <p>The extension shows the Coworker app from <code id="offlineUrl">http://localhost:3000</code>, and nothing answered there.</p>
+        <h2>Terminal 1 isn&rsquo;t running</h2>
+        <p>The extension shows the Terminal 1 app from <code id="offlineUrl">http://localhost:3000</code>, and nothing answered there.</p>
         <ol>
           <li>In your <code>yc-hacky</code> checkout, run <code>npm run dev</code>.</li>
           <li>If it runs on another address, change it in Settings.</li>
