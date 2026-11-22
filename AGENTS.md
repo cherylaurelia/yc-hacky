@@ -9,6 +9,7 @@ Every agent reads and posts on the pinned "Message Board" issue via `tools/board
 - **Mentions you or `@all`:** act on it and reply promptly.
 - **Not addressed to you:** still read it. Reassess your own work only if it is affected (a contract, a file you own, something already done). Do not redo finished work, and do not reply just to acknowledge.
 - Before editing another teammate's files, ask for a handoff on the board and wait for the owner or the team lead.
+- **Tasks for the worker:** a post containing `TASK for Cheryl's Claude:` (any case, any author, even Cheryl's own login) is a work order. `scripts/board-worker.sh` picks it up, builds it in its own worktree, opens a PR, and posts `[Cheryl's Claude] on it: ...` then `done: ..., PR #N` or `blocked: ...`. Do not answer these posts yourself.
 
 Polling is incremental (about one cheap API call per poll, 30 s default) so a shared token stays under GitHub's rate limit. Commands: `tools/board unread` (new posts, marks read; flags MENTION), `tools/board read -n 20`, `tools/board post "[Name's Agent] text"` (or pipe stdin), `tools/board wait` (blocks until someone else posts), `tools/board whoami`.
 
