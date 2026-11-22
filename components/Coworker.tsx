@@ -7,6 +7,7 @@ import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/li
 import { localNow } from "@/lib/now";
 import { parseRepo } from "@/lib/repo";
 import { TOOL_SPECS } from "@/lib/tool-specs";
+import Standup from "@/components/Standup";
 
 type Msg = { id: number; role: "user" | "agent"; text: string };
 type Alert = BoardAlert & { seq: number };
@@ -176,161 +177,255 @@ function Panel({ initialRepo }: { initialRepo: string }) {
     setDraft("");
   }
 
-  const state = busy ? "Connecting..." : !live ? "Idle" : working ? "Checking GitHub..." : convo.isSpeaking ? "Speaking" : "Listening";
-  const dot = busy || working ? "bg-amber-400 animate-pulse" : live ? (convo.isSpeaking ? "bg-sky-400 animate-pulse" : "bg-emerald-400 animate-pulse") : "bg-zinc-600";
+  const state = busy ? "Connecting" : !live ? "Ready" : working ? "Checking GitHub" : convo.isSpeaking ? "Speaking" : "Listening";
+  const tone = busy || working ? "text-warn" : live ? "text-signal" : "text-dim";
+  const meterSource = !live ? null : convo.isSpeaking ? convo.getOutputByteFrequencyData : convo.getInputByteFrequencyData;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-5 py-10 sm:px-8">
-      <header>
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Repo Coworker</h1>
-        <p className="mt-3 max-w-2xl text-lg text-zinc-400 sm:text-xl">
-          Paste a GitHub repo, press Talk, and ask what your team shipped. It reads the repo live, watches your agent board, and speaks up when an agent needs you.
-        </p>
+    <div className="flex min-h-screen flex-col">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 sm:px-8">
+        <div className="flex items-center gap-2.5">
+          <Logo />
+          <span className="text-lg font-semibold tracking-tight">Repo Coworker</span>
+        </div>
+        <span className="hidden text-sm text-dim md:inline">A voice teammate that reads your repo and watches your agent board.</span>
+        <a
+          href={repo ? `https://github.com/${repo}` : undefined}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto font-mono text-sm text-dim underline-offset-4 hover:text-text hover:underline"
+        >
+          {repo || "no repo yet"}
+        </a>
       </header>
 
-      <section className="flex flex-col gap-3">
-        <label htmlFor="repo" className="text-sm font-medium uppercase tracking-wider text-zinc-500">
-          GitHub repo
-        </label>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            id="repo"
-            value={repoInput}
-            onChange={(e) => setRepoInput(e.target.value)}
-            disabled={live || busy}
-            spellCheck={false}
-            placeholder="owner/name or https://github.com/owner/name"
-            className="min-w-0 flex-1 rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4 font-mono text-lg outline-none transition focus:border-emerald-500 disabled:opacity-60"
-          />
-          {live || busy ? (
-            <button onClick={() => convo.endSession()} className="rounded-2xl bg-red-500 px-10 py-4 text-xl font-semibold text-white transition hover:bg-red-400">
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={() => start(false)}
-              disabled={!parsed.ok}
-              className="rounded-2xl bg-emerald-500 px-10 py-4 text-xl font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+      <main className="grid flex-1 grid-cols-1 gap-px bg-line lg:grid-cols-[minmax(0,1fr)_26rem]">
+        <section className="flex min-w-0 flex-col bg-ink">
+          <div className="flex flex-col items-center gap-6 px-5 pb-8 pt-12 sm:px-8">
+            <VoiceMeter source={meterSource} live={live} speaking={convo.isSpeaking} />
+            <p className={`text-sm font-medium tracking-wide ${tone}`} aria-live="polite">
+              {state}
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (live || busy) convo.endSession();
+                else start(false);
+              }}
+              className="flex w-full max-w-xl flex-col gap-2"
             >
-              Talk
-            </button>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-500">
-          {repoInput.trim() && !parsed.ok ? (
-            <span className="text-amber-400">{parsed.error}</span>
-          ) : parsed.ok ? (
-            <span>
-              {live ? "Plugged into" : "Repo:"} <span className="font-mono text-zinc-300">{parsed.repo}</span>
-            </span>
-          ) : null}
-          {!live && !busy && (
-            <>
-              <span>Try:</span>
-              {EXAMPLES.map((r) => (
-                <button key={r} onClick={() => setRepoInput(r)} className="font-mono text-zinc-400 underline decoration-zinc-700 underline-offset-4 hover:text-emerald-400">
-                  {r}
+              <label htmlFor="repo" className="sr-only">
+                GitHub repo
+              </label>
+              <div className="flex rounded-full border border-line bg-panel p-1.5 transition focus-within:border-signal/70">
+                <input
+                  id="repo"
+                  value={repoInput}
+                  onChange={(e) => setRepoInput(e.target.value)}
+                  disabled={live || busy}
+                  spellCheck={false}
+                  placeholder="owner/name or a GitHub URL"
+                  className="min-w-0 flex-1 bg-transparent px-4 font-mono text-base outline-none placeholder:text-dim/80 disabled:text-dim"
+                />
+                {live || busy ? (
+                  <button type="submit" className="rounded-full bg-raise px-7 py-3 text-base font-semibold text-text transition hover:bg-bad hover:text-ink">
+                    End call
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!parsed.ok}
+                    className="flex items-center gap-2 rounded-full bg-signal px-7 py-3 text-base font-semibold text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <MicIcon />
+                    Talk
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 text-sm text-dim">
+                {repoInput.trim() && !parsed.ok ? (
+                  <span className="text-warn">{parsed.error}</span>
+                ) : !live && !busy ? (
+                  <>
+                    <span>Try</span>
+                    {EXAMPLES.map((r) => (
+                      <button key={r} type="button" onClick={() => setRepoInput(r)} className="font-mono text-text/80 underline decoration-line underline-offset-4 hover:text-signal">
+                        {r}
+                      </button>
+                    ))}
+                  </>
+                ) : null}
+                {!live && !busy && (
+                  <button type="button" onClick={() => start(true)} disabled={!parsed.ok} className="ml-auto underline decoration-line underline-offset-4 hover:text-signal disabled:opacity-40">
+                    No mic? Type instead
+                  </button>
+                )}
+              </div>
+            </form>
+            {error && (
+              <p role="alert" className="w-full max-w-xl rounded-2xl border border-bad/40 bg-bad/10 px-4 py-3 text-base text-[#ffc9c9]">
+                {error}
+              </p>
+            )}
+          </div>
+
+          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col border-t border-line px-5 py-6 sm:px-8">
+            <div className="flex max-h-[26rem] min-h-40 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+              {msgs.length === 0 && (
+                <p className="m-auto max-w-sm text-center text-base text-dim">
+                  {live ? "Say something, or pick a question below." : "Press Talk and ask what your team shipped today."}
+                </p>
+              )}
+              {msgs.map((m) =>
+                m.role === "user" ? (
+                  <p key={m.id} className="max-w-[80%] self-end rounded-2xl rounded-br-md bg-raise px-4 py-2.5 text-base">
+                    {m.text}
+                  </p>
+                ) : (
+                  <p key={m.id} className="max-w-[65ch] text-xl leading-relaxed">
+                    {m.text}
+                  </p>
+                ),
+              )}
+              <div ref={bottom} />
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  disabled={!live}
+                  className="rounded-full border border-line px-3.5 py-1.5 text-sm text-text/85 transition enabled:hover:border-signal enabled:hover:text-signal disabled:opacity-40"
+                >
+                  {s}
                 </button>
               ))}
-              <button onClick={() => start(true)} disabled={!parsed.ok} className="ml-auto text-zinc-400 underline decoration-zinc-700 underline-offset-4 hover:text-emerald-400 disabled:opacity-40">
-                Type instead
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                send(draft);
+              }}
+              className="mt-3 flex gap-2"
+            >
+              <input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                disabled={!live}
+                placeholder={live ? "Too loud? Type here" : "Start a call to type"}
+                className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-4 py-3 text-base outline-none placeholder:text-dim/80 focus:border-signal/70 disabled:opacity-50"
+              />
+              <button type="submit" disabled={!live || !draft.trim()} className="rounded-xl bg-raise px-5 py-3 text-base font-medium transition enabled:hover:bg-line disabled:opacity-40">
+                Send
               </button>
-            </>
-          )}
-        </div>
-        {error && (
-          <p role="alert" className="rounded-xl border border-red-900 bg-red-950/50 px-4 py-3 text-base text-red-300">
-            {error}
-          </p>
-        )}
-      </section>
-
-      <section className="flex items-center gap-3 text-lg" aria-live="polite">
-        <span className={`h-3.5 w-3.5 rounded-full ${dot}`} />
-        <span className="font-medium">{state}</span>
-      </section>
-
-      <div className="grid flex-1 gap-6 md:grid-cols-2">
-        <section className="flex min-h-80 flex-col rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5">
-          <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-zinc-500">Conversation</h2>
-          <div className="flex max-h-[28rem] flex-1 flex-col gap-3 overflow-y-auto pr-1">
-            {msgs.length === 0 && (
-              <p className="text-lg text-zinc-500">
-                {live ? "Say something, or tap a suggestion." : "Press Talk and ask about your repo."}
-              </p>
-            )}
-            {msgs.map((m) => (
-              <p key={m.id} className={m.role === "user" ? "self-end rounded-2xl bg-zinc-800 px-4 py-3 text-lg" : "text-xl leading-snug text-emerald-100"}>
-                {m.text}
-              </p>
-            ))}
-            <div ref={bottom} />
+            </form>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => send(s)} disabled={!live} className="rounded-full border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition enabled:hover:border-emerald-500 enabled:hover:text-emerald-300 disabled:opacity-40">
-                {s}
-              </button>
-            ))}
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              send(draft);
-            }}
-            className="mt-3 flex gap-2"
-          >
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              disabled={!live}
-              placeholder={live ? "Too loud? Type here" : "Connect to type a message"}
-              className="min-w-0 flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-base outline-none focus:border-emerald-500 disabled:opacity-40"
-            />
-            <button type="submit" disabled={!live || !draft.trim()} className="rounded-xl bg-zinc-800 px-5 py-3 text-base font-medium transition enabled:hover:bg-zinc-700 disabled:opacity-40">
-              Send
-            </button>
-          </form>
         </section>
 
-        <section className="flex min-h-80 flex-col rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">What it is doing</h2>
-            {live && (
-              <span className={`ml-auto flex items-center gap-2 text-sm ${boardError ? "text-amber-400" : "text-zinc-500"}`}>
-                <span className={`h-2 w-2 rounded-full ${boardError ? "bg-amber-400" : "animate-pulse bg-violet-400"}`} />
-                {boardError ?? "Watching the agent board"}
-              </span>
-            )}
+        <aside className="flex min-w-0 flex-col gap-px bg-line">
+          <div className="flex min-h-0 flex-1 flex-col bg-panel">
+            <div className="flex items-center gap-3 px-5 pb-3 pt-5">
+              <h2 className="text-base font-semibold">Live activity</h2>
+              {live && (
+                <span className={`ml-auto flex items-center gap-2 text-xs ${boardError ? "text-warn" : "text-dim"}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${boardError ? "bg-warn" : "animate-pulse bg-signal"}`} />
+                  {boardError ?? "Watching the board"}
+                </span>
+              )}
+            </div>
+            <ol className="flex max-h-[34rem] flex-1 flex-col overflow-y-auto">
+              {feed.length === 0 && <li className="px-5 py-2 text-sm text-dim">Every GitHub call the agent makes, and every board post that needs you, lands here.</li>}
+              {feed.map((f) =>
+                "a" in f ? (
+                  <li key={`a${f.seq}`} className="mx-3 my-2 rounded-xl border border-signal/50 bg-signal/10 px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-signal">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal" />
+                      {f.a.why === "blocked" ? "Blocked, needs you" : "Mentions you"}
+                    </div>
+                    <p className="mt-1.5 text-base font-semibold">{f.a.from}</p>
+                    <p className="mt-0.5 line-clamp-4 text-sm text-text/85">{f.a.text}</p>
+                  </li>
+                ) : (
+                  <li key={`c${f.seq}`} className="border-t border-line/70 px-5 py-3 first:border-t-0">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${f.c.state === "running" ? "animate-pulse bg-warn" : f.c.state === "ok" ? "bg-ok" : "bg-bad"}`} />
+                      <span className="truncate font-mono text-sm font-medium">{f.c.name}</span>
+                      <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-dim">{f.c.ms !== undefined ? `${f.c.ms} ms` : "running"}</span>
+                    </div>
+                    {Object.keys(f.c.args).length > 0 && <p className="mt-1 truncate pl-[18px] font-mono text-xs text-dim">{showArgs(f.c.args)}</p>}
+                    {f.c.text && <p className={`mt-1 line-clamp-3 pl-[18px] text-sm ${f.c.state === "error" ? "text-bad" : "text-text/80"}`}>{f.c.text}</p>}
+                  </li>
+                ),
+              )}
+            </ol>
           </div>
-          <div className="flex max-h-[34rem] flex-1 flex-col gap-3 overflow-y-auto pr-1">
-            {feed.length === 0 && <p className="text-lg text-zinc-500">Every GitHub call the agent makes, and every board post that needs you, shows up here.</p>}
-            {feed.map((f) =>
-              "a" in f ? (
-                <div key={`a${f.seq}`} className="rounded-2xl border border-violet-500/60 bg-violet-950/40 p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-violet-400" />
-                    <span className="text-sm font-semibold uppercase tracking-wider text-violet-300">Board alert</span>
-                    <span className="ml-auto rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs font-medium text-violet-200">{f.a.why === "blocked" ? "blocked" : "mentions you"}</span>
-                  </div>
-                  <p className="mt-2 text-lg font-medium text-violet-100">{f.a.from}</p>
-                  <p className="mt-1 line-clamp-4 text-base text-violet-100/90">{f.a.text}</p>
-                </div>
-              ) : (
-                <div key={`c${f.seq}`} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                  <div className="flex items-center gap-3">
-                    <span className={`h-2.5 w-2.5 rounded-full ${f.c.state === "running" ? "animate-pulse bg-amber-400" : f.c.state === "ok" ? "bg-emerald-400" : "bg-red-400"}`} />
-                    <span className="font-mono text-lg font-medium">{f.c.name}</span>
-                    <span className="ml-auto font-mono text-sm text-zinc-500">{f.c.ms !== undefined ? `${f.c.ms} ms` : "running"}</span>
-                  </div>
-                  {Object.keys(f.c.args).length > 0 && <p className="mt-1 font-mono text-sm text-zinc-500">{showArgs(f.c.args)}</p>}
-                  {f.c.text && <p className={`mt-2 line-clamp-4 text-base ${f.c.state === "error" ? "text-red-300" : "text-zinc-300"}`}>{f.c.text}</p>}
-                </div>
-              ),
-            )}
+          <div className="bg-panel p-5">
+            <h2 className="mb-3 text-base font-semibold">Team standup</h2>
+            <Standup repo={repo} />
           </div>
-        </section>
-      </div>
-    </main>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+// Signature move: 28 bars driven by the live ElevenLabs audio (agent voice while it speaks, your mic otherwise).
+// Writes heights straight to the DOM each frame so React never re-renders at 60 fps.
+function VoiceMeter({ source, live, speaking }: { source: (() => Uint8Array) | null; live: boolean; speaking: boolean }) {
+  const bars = useRef<(HTMLSpanElement | null)[]>([]);
+  useEffect(() => {
+    if (!source) {
+      bars.current.forEach((b) => b && (b.style.transform = "scaleY(0.08)"));
+      return;
+    }
+    let raf = 0;
+    const loop = () => {
+      const data = source();
+      const n = bars.current.length;
+      bars.current.forEach((b, i) => {
+        if (!b) return;
+        const mid = Math.abs(i - (n - 1) / 2) / (n / 2); // 0 at centre, 1 at edges
+        const v = data.length ? data[Math.floor((i / n) * data.length * 0.6)] / 255 : 0;
+        b.style.transform = `scaleY(${Math.max(0.08, v * (1 - mid * 0.55))})`;
+      });
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [source]);
+
+  return (
+    <div className="flex h-28 items-center gap-1.5" aria-hidden>
+      {Array.from({ length: 28 }, (_, i) => (
+        <span
+          key={i}
+          ref={(el) => {
+            bars.current[i] = el;
+          }}
+          className={`h-full w-1.5 origin-center rounded-full transition-[background-color] duration-500 ${live ? (speaking ? "bg-signal" : "bg-text/70") : "bg-line"}`}
+          style={{ transform: "scaleY(0.08)" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Logo() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden className="text-signal">
+      {[4, 9, 14, 19].map((x, i) => (
+        <rect key={x} x={x - 1.25} y={11 - [3, 7, 9, 5][i]} width="2.5" height={[3, 7, 9, 5][i] * 2} rx="1.25" fill="currentColor" />
+      ))}
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+    </svg>
   );
 }

@@ -2,17 +2,55 @@
 
 :root {
   color-scheme: dark;
-  --background: #0a0c10;
-  --foreground: #e8ecf1;
+  --ink: #12110f;
+  --panel: #1a1916;
+  --raise: #23211d;
+  --line: #2f2c27;
+  --text: #f2eee6;
+  --dim: #a9a397;
+  --signal: #ff6a3d;
+  --ok: #8fd694;
+  --warn: #f2b84b;
+  --bad: #ff6b6b;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-raise: var(--raise);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-dim: var(--dim);
+  --color-signal: var(--signal);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--signal) 45%, transparent);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  caret-color: var(--signal);
 }

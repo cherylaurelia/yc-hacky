@@ -37,35 +37,35 @@ export default function Standup({ repo, hours = 3, board }: { repo: string; hour
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5">
+    <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={run}
           disabled={busy || !repo}
-          className="rounded-2xl bg-emerald-500 px-6 py-3 text-lg font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-full border border-signal/60 px-5 py-2.5 text-sm font-semibold text-signal transition hover:bg-signal hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "Recording the standup..." : standup ? "Play it again" : `Play the ${hours}-hour standup`}
         </button>
-        <span className="text-sm text-zinc-500">Each agent reports in its own voice.</span>
+        <span className="text-sm text-dim">Each agent reports in its own voice.</span>
       </div>
       {error && (
-        <p role="alert" className="rounded-xl border border-red-900 bg-red-950/50 px-4 py-3 text-base text-red-300">
+        <p role="alert" className="rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-[#ffc9c9]">
           {error}
         </p>
       )}
       {standup && (
         <>
-          <audio key={standup.url} src={standup.url} controls autoPlay className="w-full" />
+          <audio key={standup.url} src={standup.url} controls autoPlay className="h-10 w-full" />
           <ol className="flex flex-col gap-2">
             {standup.lines.map((l, i) => (
-              <li key={i} className="text-base leading-relaxed text-zinc-200">
-                <span className="mr-2 font-semibold text-emerald-400">{l.speaker}</span>
-                <span className="mr-2 text-xs uppercase tracking-wider text-zinc-600">{l.voice}</span>
+              <li key={i} className="text-sm leading-relaxed text-text/90">
+                <span className="mr-2 font-semibold text-signal">{l.speaker}</span>
+                <span className="mr-2 font-mono text-xs text-dim">{l.voice}</span>
                 {l.text}
               </li>
             ))}
           </ol>
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-dim">
             {standup.mode === "dialogue" ? "Multi-speaker dialogue (eleven_v3)." : "One text-to-speech clip per line, stitched together."}
           </p>
         </>
