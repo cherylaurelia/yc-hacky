@@ -10,7 +10,7 @@ import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoar
 import { localNow } from "@/lib/now";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost, unlockAudio } from "@/lib/speak-client";
-import { aloud } from "@/lib/spoken";
+import { headline } from "@/lib/spoken";
 import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
 
 export type Msg = { id: number; role: "user" | "agent"; text: string };
@@ -258,7 +258,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
         if (a.kind !== "stuck") {
           try {
             console.info(`[coworker] voice start ${a.from} ${new Date().toISOString()}`);
-            await speakPost(a.from, aloud(a.text));
+            await speakPost(a.from, headline(a.text));
             played = true;
           } catch (e) {
             setError(e instanceof Error ? e.message : "Could not play that board post.");

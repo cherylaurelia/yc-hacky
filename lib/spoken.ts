@@ -16,6 +16,9 @@ export function ago(iso: string): string {
 // A board post as the poster's own voice says it: the request id is for the board, not for the ear.
 export const aloud = (text: string) => text.replace(/\s*\(req [0-9a-f]{4,12}\)/gi, "");
 
+// What the poster's voice plays before Terminal 1 asks: the first sentence only, so an alert stays a few seconds.
+export const headline = (text: string) => clip(aloud(text).match(/^.*?[.!?](?=\s|$)/)?.[0] ?? aloud(text), 110);
+
 export function plain(md: string): string {
   return md
     .replace(/<!--[\s\S]*?-->/g, " ")
