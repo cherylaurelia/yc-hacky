@@ -229,6 +229,8 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           )}
         </footer>
       )}
+
+      {!embed && <p className="mt-6 text-center text-[12px] text-faint">Built at YC × ElevenLabs Hackathon</p>}
     </div>
   );
 }
