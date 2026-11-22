@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coworker panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="comp.css">
+<style>
+  body { font-size: 13.5px; overflow: hidden; }
+  .panel { height: 100vh; display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  header { display: flex; align-items: center; gap: 8px; height: 28px; }
+  header h1 { font-size: 17px; font-weight: 650; letter-spacing: -0.02em; font-stretch: 87.5%; }
+  header h1 .n { color: var(--standby); }
+  header .sp { flex: 1; }
+  .icon-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--wings-raise); font-size: 12.5px; font-weight: 600; }
+  .icon-btn .strip { width: 32px; height: 5px; }
+
+  .page.focus { padding: 12px 12px 12px; border-radius: 12px; }
+  .page .meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .page .meta .name { color: var(--page-ink); }
+  .page .meta .state { color: oklch(0.5 0.13 70); }
+  .page .meta .sp { flex: 1; }
+  .page .cmd { margin-top: 9px; padding: 9px 11px; font-size: 13px; }
+  .page .cmd .showme { margin-left: auto; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--page); background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: oklch(1 0 0 / 0.35); }
+  .page .cmd .showme:focus-visible { outline-color: var(--page); }
+  .page :focus-visible { outline-color: var(--page-ink); }
+  .acts { margin-top: 9px; display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 6px; }
+  .acts .btn { height: 34px; padding: 0 8px; font-size: 13px; border-radius: 9px; gap: 6px; }
+  .acts .i { width: 14px; height: 14px; }
+
+  .agents { list-style: none; padding: 0; border: 1px solid var(--rule); border-radius: 12px; background: var(--wings-raise); overflow: hidden; }
+  .agents li { display: grid; grid-template-columns: minmax(0, 1fr) auto 46px; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border-top: 1px solid var(--rule); }
+  .agents li:first-child { border-top: 0; }
+  .agents li.focus { background: var(--wings-hi); }
+  .agents .name { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agents .state { font-size: 12.5px; gap: 6px; }
+  .agents .lamp { width: 8px; height: 8px; }
+  .agents .t { text-align: right; font-size: 12.5px; color: var(--dim); }
+  .agents .t.hot { color: var(--text); font-weight: 600; }
+  .agents .usd { color: oklch(0.78 0.15 27); font-weight: 600; }
+
+  .caption { margin-top: auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 14px; line-height: 1.4; padding: 0 4px; }
+  .caption .w { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--dim); }
+  .dock { display: flex; justify-content: center; }
+  .pill { height: 44px; width: 100%; justify-content: center; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <header>
+    <h1><span class="n">2</span> waiting on you</h1>
+    <span class="sp"></span>
+    <button class="icon-btn" type="button" aria-label="Standup, 60 seconds">
+      <svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M7 5.5v13l11-6.5z" fill="currentColor" stroke="none"/></svg>
+      Standup
+      <span class="strip" aria-hidden="true"><span style="--c:var(--tape-sarah);flex:3"></span><span style="--c:var(--tape-roger);flex:2"></span><span style="--c:var(--tape-jessica);flex:2.5"></span><span style="--c:var(--tape-alice);flex:1.5"></span></span>
+    </button>
+  </header>
+
+  <article class="page focus" aria-label="Eithan's Codex needs approval">
+    <div class="meta">
+      <span class="who"><span class="tape" style="--c:var(--tape-roger)"></span><span class="name">Eithan's Codex</span></span>
+      <span class="sp"></span>
+      <span class="state"><span class="lamp standby"></span>Needs approval · 3 min</span>
+    </div>
+    <div class="cmd"><span class="p">$</span><span>npm run migrate</span><button class="showme" type="button" aria-expanded="false">Show me</button></div>
+    <div class="acts">
+      <button class="btn btn-go" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Allow</button>
+      <button class="btn btn-quiet" type="button">Deny</button>
+      <button class="btn btn-stop" type="button">Stop</button>
+    </div>
+  </article>
+
+  <ul class="agents" aria-label="Agents">
+    <li tabindex="0"><span class="who"><span class="tape" style="--c:var(--tape-sarah)"></span><span class="name">Cheryl's Claude</span></span><span class="state stuck-t"><span class="lamp stuck"></span>Stuck <span class="usd">≈$8</span></span><span class="t hot">20 min</span></li>
+    <li tabindex="0" class="focus" aria-current="true"><span class="who"><span class="tape" style="--c:var(--tape-roger)"></span><span class="name">Eithan's Codex</span></span><span class="state standby-t"><span class="lamp standby"></span>Approval</span><span class="t hot">3 min</span></li>
+    <li tabindex="0"><span class="who"><span class="tape" style="--c:var(--tape-jessica)"></span><span class="name">Aidan's Claude</span></span><span class="state working-t"><span class="lamp working"></span>Working</span><span class="t"></span></li>
+    <li tabindex="0"><span class="who"><span class="tape" style="--c:var(--tape-alice)"></span><span class="name">Priya's Claude</span></span><span class="state done-t"><span class="lamp done"></span>Done</span><span class="t"></span></li>
+  </ul>
+
+  <p class="caption" aria-live="polite"><span class="w"><span class="tape" style="--c:var(--tape-roger)"></span>Eithan's Codex</span><span>I need approval to run npm run migrate. It touches the dev database.</span></p>
+
+  <div class="dock">
+    <span class="sr" role="status">Eithan's Codex is speaking.</span>
+    <div class="pill"><span class="wave" data-bars="20" style="--c:var(--tape-roger)"></span><span class="label">Eithan's Codex</span><span class="sub">hold <span class="key">right ⌥</span></span></div>
+  </div>
+</div>
+<script>
+  for (const w of document.querySelectorAll(".wave")) {
+    const n = +w.dataset.bars;
+    for (let i = 0; i < n; i++) {
+      const b = document.createElement("i");
+      const env = Math.sin((i + 0.5) / n * Math.PI);
+      b.style.setProperty("--h", Math.round(22 + 78 * env * (0.55 + 0.45 * Math.abs(Math.sin(i * 2.3)))) + "%");
+      b.style.setProperty("--d", (i * 37 % 420) + "ms");
+      w.append(b);
+    }
+  }
+</script>
+</body>
+</html>

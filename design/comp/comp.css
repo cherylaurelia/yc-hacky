@@ -1,0 +1,141 @@
+/* Coworker comp tokens and components. The build lifts these into app/globals.css. */
+:root {
+  color-scheme: dark;
+  /* backstage: running-light navy */
+  --wings: oklch(0.205 0.045 264);
+  --wings-raise: oklch(0.24 0.05 264);
+  --wings-hi: oklch(0.285 0.058 264);
+  --rule: oklch(0.335 0.05 264);
+  --text: oklch(0.97 0.008 264);
+  --dim: oklch(0.8 0.03 264);
+  --faint: oklch(0.7 0.035 264);
+  /* the lit page (prompt book) */
+  --page: oklch(0.985 0.004 264);
+  --page-ink: oklch(0.21 0.035 264);
+  --page-dim: oklch(0.46 0.03 264);
+  --page-rule: oklch(0.905 0.01 264);
+  --page-well: oklch(0.955 0.008 264);
+  /* cue lamps: amber is reserved for "waiting on you" */
+  --standby: oklch(0.84 0.155 80);
+  --stuck: oklch(0.68 0.2 27);
+  --done: oklch(0.8 0.15 155);
+  /* spike tape: one per voice */
+  --tape-roger: oklch(0.83 0.12 192);
+  --tape-sarah: oklch(0.76 0.17 356);
+  --tape-charlie: oklch(0.89 0.17 125);
+  --tape-alice: oklch(0.8 0.11 238);
+  --tape-george: oklch(0.95 0.015 264);
+  --tape-jessica: oklch(0.76 0.14 296);
+  /* diff, on the lit page */
+  --add-bg: oklch(0.95 0.05 152);
+  --add-ink: oklch(0.42 0.12 152);
+  --del-bg: oklch(0.955 0.035 27);
+  --del-ink: oklch(0.48 0.16 27);
+  --pill: oklch(0.13 0.025 264);
+
+  --sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--wings);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: color-mix(in oklab, var(--tape-alice) 40%, transparent); color: var(--text); }
+:focus-visible { outline: 2px solid var(--tape-alice); outline-offset: 2px; border-radius: 6px; }
+* { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+/* spike tape chip: identity. Rectangular, never round. */
+.tape { display: inline-block; width: 14px; height: 9px; border-radius: 1.5px; background: var(--c); flex: none;
+  clip-path: polygon(0 8%, 100% 0, 100% 92%, 0 100%); }
+.name { font-weight: 600; letter-spacing: -0.005em; }
+.who { display: inline-flex; align-items: center; gap: 8px; }
+
+/* cue lamp: state. Round, hollow when off. */
+.lamp { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1.5px var(--rule); }
+.lamp.standby { background: var(--standby); box-shadow: inset 0 0 0 1.5px oklch(0.7 0.14 70); animation: standby 2.4s var(--ease) infinite; }
+.lamp.stuck { background: var(--stuck); box-shadow: inset 0 0 0 1.5px oklch(0.55 0.18 27); }
+.lamp.done { background: var(--done); box-shadow: inset 0 0 0 1.5px oklch(0.62 0.13 155); }
+.lamp.working { box-shadow: inset 0 0 0 1.5px var(--faint); }
+@keyframes standby { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+
+.state { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; white-space: nowrap; }
+.state.standby-t { color: var(--standby); }
+.state.stuck-t { color: oklch(0.76 0.16 27); }
+.state.done-t { color: var(--done); }
+.state.working-t { color: var(--dim); }
+
+/* keycap */
+.key { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 5px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em; line-height: 1;
+  background: oklch(1 0 0 / 0.08); box-shadow: inset 0 -1px 0 oklch(1 0 0 / 0.08), 0 0 0 1px oklch(1 0 0 / 0.14); color: var(--text); }
+.page .key { background: var(--page); box-shadow: inset 0 -1.5px 0 var(--page-rule), 0 0 0 1px var(--page-rule); color: var(--page-ink); }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 10px;
+  border: 1px solid transparent; font-weight: 600; font-size: 14.5px; transition: background 160ms var(--ease), border-color 160ms var(--ease); }
+.btn-go { background: var(--page-ink); color: var(--page); }
+.btn-go:hover { background: oklch(0.3 0.05 264); }
+.btn-quiet { background: transparent; color: var(--page-ink); border-color: oklch(0.82 0.015 264); }
+.btn-quiet:hover { background: var(--page-well); }
+.btn-stop { background: transparent; color: var(--del-ink); border-color: oklch(0.86 0.05 27); }
+.btn-stop:hover { background: var(--del-bg); }
+.btn-dark { background: var(--wings-raise); color: var(--text); border-color: var(--rule); height: 36px; padding: 0 14px; font-size: 14px; }
+.btn-dark:hover { background: var(--wings-hi); }
+
+/* standup strip: 60 s split per voice */
+.strip { display: inline-flex; gap: 2px; width: 64px; height: 6px; }
+.strip span { height: 100%; border-radius: 1px; background: var(--c); }
+
+/* the lit page */
+.page { background: var(--page); color: var(--page-ink); border-radius: 14px;
+  box-shadow: 0 1px 0 oklch(1 0 0 / 0.6) inset, 0 18px 40px -12px oklch(0.08 0.04 264 / 0.7), 0 2px 6px oklch(0.08 0.04 264 / 0.35); }
+.page .dim { color: var(--page-dim); }
+.cmd { font-family: var(--mono); font-size: 14px; background: var(--page-ink); color: var(--page); border-radius: 9px; padding: 12px 14px; display: flex; align-items: baseline; gap: 10px; }
+.cmd .p { color: var(--tape-alice); user-select: none; }
+.diff { border: 1px solid var(--page-rule); border-radius: 9px; overflow: hidden; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; }
+.diff .file { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--page-well); border-bottom: 1px solid var(--page-rule); font-size: 12px; color: var(--page-dim); }
+.diff .file b { color: var(--page-ink); font-weight: 600; }
+.diff .file .n-add { color: var(--add-ink); } .diff .file .n-del { color: var(--del-ink); }
+.diff .ln { display: grid; grid-template-columns: 34px 16px 1fr; white-space: pre; }
+.diff .ln > span:first-child { color: oklch(0.52 0.02 264); text-align: right; padding-right: 8px; user-select: none; }
+.diff .ln.hunk { color: var(--page-dim); background: oklch(0.97 0.01 264); }
+.diff .ln.add { background: var(--add-bg); color: var(--add-ink); }
+.diff .ln.del { background: var(--del-bg); color: var(--del-ink); }
+.diff .ln.ctx { color: oklch(0.36 0.03 264); }
+
+/* the talk pill (Wispr-like): tiny, black, bottom center */
+.pill { display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 18px 0 16px; border-radius: 999px;
+  background: var(--pill); color: var(--text); border: 1px solid oklch(1 0 0 / 0.1);
+  box-shadow: 0 14px 34px -10px oklch(0.05 0.03 264 / 0.8), 0 2px 6px oklch(0.05 0.03 264 / 0.5);
+  font-size: 14px; font-weight: 500; white-space: nowrap; transition: width 260ms var(--ease); }
+.pill .label { color: var(--text); }
+.pill .sub { color: var(--faint); font-weight: 400; }
+.wave { display: inline-flex; align-items: center; gap: 2.5px; height: 24px; }
+.wave i { display: block; width: 3px; border-radius: 2px; background: var(--c, var(--text)); height: var(--h, 30%); animation: wave 900ms var(--ease) infinite alternate; animation-delay: var(--d, 0ms); }
+@keyframes wave { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
+.dots { display: inline-flex; gap: 4px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--dim); animation: dot 1.2s var(--ease) infinite; }
+.dots i:nth-child(2) { animation-delay: 160ms; } .dots i:nth-child(3) { animation-delay: 320ms; }
+@keyframes dot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.rec { width: 8px; height: 8px; border-radius: 50%; background: var(--stuck); }
+@media (prefers-reduced-motion: reduce) { .wave i, .dots i, .lamp.standby { animation: none; } }
+
+/* state switching for the comp: body[data-state] shows the matching elements */
+body[data-state] [data-when] { display: none !important; }
+body[data-state="idle"] [data-when~="idle"],
+body[data-state="listening"] [data-when~="listening"],
+body[data-state="thinking"] [data-when~="thinking"],
+body[data-state="speaking"] [data-when~="speaking"],
+body[data-state="agent"] [data-when~="agent"] { display: var(--show, block) !important; }
+.pill { --show: inline-flex; }
