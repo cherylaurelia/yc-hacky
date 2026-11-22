@@ -149,8 +149,20 @@ me_login() {
   printf '%s' "$m"
 }
 
+# First word of the GitHub profile name of login $1, else the login. This is who answered through the Coworker, which
+# is not the agent's owner ($NAME). Cached a day per login; a failed lookup (slow network) is not cached.
+person() {
+  local f="$STATE/person.${1//[^A-Za-z0-9_-]/_}" n
+  if [ -s "$f" ] && [ -z "$(find "$f" -mtime +1)" ]; then cat "$f"; return; fi
+  if n="$(within_1s gh api "users/$1" --jq '(.name // "") | split(" ") | map(select(. != "")) | (.[0] // empty)')"; then
+    n="$(printf '%s' "${n:-$1}" | tr -d '[]\n')"; echo "$n" > "$f"; printf '%s' "$n"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 permission() {
-  local tool what id out pid cts me ok rows verdict note msg deadline
+  local tool what id out pid cts me ok rows verdict who note msg deadline
   tool="$(j '.tool_name // empty')"
   case "$tool" in ''|AskUserQuestion|ExitPlanMode) return ;; esac
   me="$(me_login)" && [ -n "$me" ] || return
@@ -168,16 +180,16 @@ permission() {
     verdict="$(printf '%s' "$rows" | jq -rs --arg id "$id" --argjson pid "$pid" --arg ok "$ok" '
       ($ok | ascii_downcase | split(",") | map(gsub("\\s"; ""))) as $ok
       | [ .[] | select(.id > $pid and ((.u | ascii_downcase) as $u | $ok | index($u) != null))
-          | .b | capture("req\\s+" + $id + "\\b(?<r>[\\s\\S]*)"; "i").r
-          | capture("\\b(?<w>allow|approved?|yes|deny|denied|no|reject(ed)?)\\b(?<n>[\\s\\S]*)"; "i")
-          | "\(if .w | test("^(allow|approved?|yes)$"; "i") then "allow" else "deny" end)\t\(.n | gsub("^[\\s,:.-]+|\\s+$"; ""))" ]
+          | .u as $who | (.b | capture("req\\s+" + $id + "\\b(?<r>[\\s\\S]*)"; "i").r
+          | capture("\\b(?<w>allow|approved?|yes|deny|denied|no|reject(ed)?)\\b(?<n>[\\s\\S]*)"; "i"))
+          | "\(if .w | test("^(allow|approved?|yes)$"; "i") then "allow" else "deny" end)\t\($who)\t\(.n | gsub("^[\\s,:.-]+|\\s+$"; ""))" ]
       | first // empty')"
     [ -n "$verdict" ] || continue
-    note="${verdict#*$'\t'}"
+    who="${verdict#*$'\t'}"; note="${who#*$'\t'}"; who="${who%%$'\t'*}"
     if [ "${verdict%%$'\t'*}" = allow ]; then
       jq -nc '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision: {behavior: "allow"}}}'
     else
-      msg="Denied by voice from the coworker${note:+: $note}"
+      msg="Denied by $(person "$who") via Coworker${note:+: $note}"
       jq -nc --arg m "$msg" '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision: {behavior: "deny", message: $m}}}'
     fi
     return
@@ -246,7 +258,7 @@ tooluse() {
 # "req ID stop" from an approver, for a req this session posted, ends the session: print continue:false once.
 # Looks at the board at most every COWORKER_STOP_EVERY seconds and fails open on any error or a slow network.
 stop_check() {
-  local now last ok since ids used rows hit cid rid why
+  local now last ok since ids used rows hit cid rid who why
   grep -q '^R ' "$SF" 2>/dev/null || return
   now="$(date +%s)"; last="$(cat "$SF.chk" 2>/dev/null)"
   [[ "$last" =~ $NUM ]] && [ $(( now - last )) -lt "$STOP_EVERY" ] && return
@@ -259,12 +271,12 @@ stop_check() {
   hit="$(printf '%s' "$rows" | jq -rs --arg ok "$ok" --arg ids "$ids" --arg used ",$used," '
     ($ok | ascii_downcase | split(",") | map(gsub("\\s"; ""))) as $ok
     | [ .[] | select(((.u | ascii_downcase) as $u | $ok | index($u) != null) and (.id as $i | $used | contains(",\($i),") | not))
-        | .id as $cid | (.b | capture("req\\s+(?<r>" + $ids + ")\\b[\\s,:.-]*stop\\b"; "i")) as $m | "\($cid) \($m.r)" ]
+        | .id as $cid | .u as $who | (.b | capture("req\\s+(?<r>" + $ids + ")\\b[\\s,:.-]*stop\\b"; "i")) as $m | "\($cid) \($m.r) \($who)" ]
     | first // empty')" && [ -n "$hit" ] || return
-  read -r cid rid <<<"$hit"
+  read -r cid rid who <<<"$hit"
   why="$(awk -v id="$rid" '$1 == "R" && $2 == id { $1 = $2 = $3 = ""; print }' "$SF" | sed 's/^ *//')"
   echo "D $cid" >> "$SF"
-  jq -nc --arg r "Stopped by $NAME via Coworker${why:+: $why}" '{continue: false, stopReason: $r}'
+  jq -nc --arg r "Stopped by $(person "$who") via Coworker${why:+: $why}" '{continue: false, stopReason: $r}'
 }
 
 case "$EVENT" in

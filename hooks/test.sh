@@ -8,6 +8,7 @@ cat > "$T/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_LOG"
 case "$*" in
+  "api users/"*) [ -n "${FAKE_NAME_FAIL:-}" ] && exit 1; echo "${FAKE_NAME-Cheryl}" ;;
   "api user"*) echo cheryl ;;
   *"issues?labels=board"*) [ -n "${FAKE_BOARD_FAIL:-}" ] && exit 1; echo "${FAKE_BOARD-1}" ;;
   *" -f body="*)
@@ -59,7 +60,14 @@ run_reply() { # $1 login, $2 body template with ID
 check "allow reply returns allow" "$(run_reply cheryl "[Cheryl's Coworker] req ID allow go on" | jq -r .hookSpecificOutput.decision.behavior)" allow
 out="$(run_reply Cheryl "req ID DENY wrong folder")"
 check "deny reply returns deny" "$(echo "$out" | jq -r .hookSpecificOutput.decision.behavior)" deny
-check "deny carries the note" "$(echo "$out" | jq -r .hookSpecificOutput.decision.message)" "Denied by voice from the coworker: wrong folder"
+check "deny carries the note" "$(echo "$out" | jq -r .hookSpecificOutput.decision.message)" "Denied by Cheryl via Coworker: wrong folder"
+check "deny names the answerer, not the agent's owner (Sam)" "$(echo "$out" | jq -r .hookSpecificOutput.decision.message | grep -c Sam)" 0
+export FAKE_NAME=
+check "answerer with no profile name: the login" "$(run_reply Cheryl "req ID deny no" | jq -r .hookSpecificOutput.decision.message)" "Denied by Cheryl via Coworker: no"
+unset FAKE_NAME
+export FAKE_NAME_FAIL=1
+check "answerer lookup fails: the login, not an error" "$(run_reply cheryl "req ID deny no" | jq -r .hookSpecificOutput.decision.message)" "Denied by cheryl via Coworker: no"
+unset FAKE_NAME_FAIL
 check "reply from a stranger is ignored (timeout, no output)" "$(run_reply mallory "req ID allow")" ""
 check "reply for another id is ignored" "$(run_reply cheryl "req ffffff allow")" ""
 check "no reply: silent fallback" "$( reset; perm )" ""
@@ -136,7 +144,7 @@ pre() { ev "${1:-PreToolUse}" "$T/repo" '{"tool_name":"Bash","tool_input":{"comm
 stuck3() { for _ in 1 2 3; do fail_ev "node --test" | "$HOOK"; done; }
 reset; stuck3; reply cheryl "[Sam's Coworker] req $(reqid) stop"
 out="$(pre | "$HOOK")"
-check "stop reply: continue false with the reason" "$(echo "$out" | jq -c '[.continue, .stopReason]')" '[false,"Stopped by Sam via Coworker: stuck retrying node --test"]'
+check "stop reply: continue false with the reason" "$(echo "$out" | jq -c '[.continue, .stopReason]')" '[false,"Stopped by Cheryl via Coworker: stuck retrying node --test"]'
 check "the stop is delivered once" "$(pre | "$HOOK")" ""
 reset; stuck3; reply cheryl "req $(reqid) stop"; check "PostToolUseFailure never stops (Claude Code ignores it there)" "$(fail_ev "node --test" | "$HOOK")" ""
 check "the stop waits for the next Pre/PostToolUse" "$(pre | "$HOOK" | jq -r .continue)" false
@@ -154,7 +162,7 @@ check "board is checked at most once per interval" "$(( $(grep -c "comments?per_
 pre | "$HOOK"; check "an elapsed interval checks again" "$(( $(grep -c "comments?per_page" "$T/log") - n0 ))" 1
 reset; fail_ev "x" | "$HOOK"; pre | "$HOOK"; check "no req posted: no board call" "$(grep -c "comments?per_page" "$T/log")" 0
 reset; check "no state: Pre/PostToolUse exit at once" "$(pre | "$HOOK")$(pre PostToolUse | "$HOOK")$(wc -c < "$T/log" | tr -d ' ')" 0
-reset; perm >/dev/null; reply cheryl "req $(reqid) stop"; check "stop works for an approval req too" "$(pre | "$HOOK" | jq -r .stopReason)" "Stopped by Sam via Coworker: waiting on approval"
+reset; perm >/dev/null; reply cheryl "req $(reqid) stop"; check "stop works for an approval req too" "$(pre | "$HOOK" | jq -r .stopReason)" "Stopped by Cheryl via Coworker: waiting on approval"
 
 # --- install.sh: new events, idempotent, uninstall byte for byte
 INST="$(cd "$(dirname "$HOOK")" && pwd)/install.sh"; S="$T/inst/settings.json"; mkdir -p "$T/inst"
