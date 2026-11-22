@@ -75,6 +75,47 @@ struct PillLogicTest {
         check("long alert text is cut", long.alert?.text.count, PillState.maxAlertText)
         check("cut text ends with an ellipsis", long.alert?.text.hasSuffix("…"), true)
 
+        // Native notifications: one per new alert.
+        let other = BoardAlert(agent: "deployer", text: "needs approval")
+        var n = pill(page(.speaking, .set(ci)))
+        check("a new alert asks for a notification", n.notify, ci)
+        n.apply(page(.speaking, .set(ci)))
+        check("the same alert re-posted does not", n.notify, nil)
+        n.apply(page(.thinking))
+        check("a state-only message does not", n.notify, nil)
+        n.apply(page(.speaking, .set(other)))
+        check("a different alert does", n.notify, other)
+        n.apply(page(.speaking, .set(ci)))
+        check("an alert already announced stays quiet even after another came in between", n.notify, nil)
+        n.apply(page(nil, .clear))
+        n.apply(page(.speaking, .set(ci)))
+        check("the same alert after a clear is new again", n.notify, ci)
+        n.apply(.alertExpired)
+        n.apply(page(nil, .set(ci)))
+        check("the same alert after expiry is new again", n.notify, ci)
+        n.apply(.talkDown)
+        n.apply(.talkUp(cancelled: false))
+        n.apply(page(nil, .set(ci)))
+        check("the same alert after the operator answered is new again", n.notify, ci)
+        let withId = BoardAlert(agent: "reviewer", text: "CI is red on main", id: "req-7")
+        n.apply(page(nil, .set(withId)))
+        check("a request id makes it a different alert from the same text", n.notify, withId)
+        n.apply(page(nil, .set(BoardAlert(agent: "reviewer", text: "CI is still red", id: "req-7"))))
+        check("the same request id with reworded text is the same alert", n.notify, nil)
+        check("an open panel suppresses the notification", pill(.panelOpen(true), page(.speaking, .set(ci))).notify, nil)
+        var shown = pill(.panelOpen(true), page(nil, .set(ci)))
+        shown.apply(.panelOpen(false))
+        shown.apply(page(nil, .set(ci)))
+        check("an alert seen in the open panel is not announced again when it closes", shown.notify, nil)
+        let long2 = pill(page(.speaking, .set(BoardAlert(agent: "a", text: String(repeating: "x", count: 300)))))
+        check("the notification keeps the full text", long2.notify?.text.count, 300)
+        check("parse reads a string request id", PageMessage.parse(["alert": ["agent": "a", "text": "b", "id": "r1"]]),
+              PageMessage(phase: nil, alert: .set(BoardAlert(agent: "a", text: "b", id: "r1"))))
+        check("parse reads a numeric request id", PageMessage.parse(["alert": ["agent": "a", "text": "b", "id": 42]]),
+              PageMessage(phase: nil, alert: .set(BoardAlert(agent: "a", text: "b", id: "42"))))
+        check("parse drops an empty request id", PageMessage.parse(["alert": ["agent": "a", "text": "b", "id": ""]]),
+              PageMessage(phase: nil, alert: .set(BoardAlert(agent: "a", text: "b"))))
+
         // Page messages, parsed defensively.
         check("parse state only", PageMessage.parse(["state": "thinking"]), PageMessage(phase: .thinking, alert: .unchanged))
         check("parse state and alert",

@@ -17,6 +17,10 @@ enum Phase: String {
 struct BoardAlert: Equatable {
     var agent: String
     var text: String
+    var id: String? = nil  // the page's request id, when it sends one
+
+    /// Same key = same alert. The page re-posts the current alert with every state message.
+    var dedupKey: String { id.map { "id:\($0)" } ?? "\(agent)\u{1F}\(text)" }
 }
 
 /// Page -> app: window.webkit.messageHandlers.coworker.postMessage({state, alert}).
@@ -32,9 +36,10 @@ struct PageMessage: Equatable {
         msg.phase = (dict["state"] as? String).flatMap(Phase.init(rawValue:))
         if let raw = dict["alert"] {
             let a = raw as? [String: Any]
+            let id = (a?["id"] as? String) ?? (a?["id"] as? NSNumber)?.stringValue
             let text = (a?["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let agent = (a?["agent"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            msg.alert = text.isEmpty ? .clear : .set(BoardAlert(agent: agent.isEmpty ? "Alert" : agent, text: text))
+            msg.alert = text.isEmpty ? .clear : .set(BoardAlert(agent: agent.isEmpty ? "Alert" : agent, text: text, id: id?.isEmpty == false ? id : nil))
         }
         return msg.phase == nil && msg.alert == .unchanged ? nil : msg
     }
@@ -59,6 +64,10 @@ struct PillState: Equatable {
     var alert: BoardAlert?
     var panelOpen = false
     var talkKey = "fn"
+    /// Set by `apply` when an alert arrives that was not announced yet; the caller posts the native notification.
+    /// Nil after every other input, and while the full panel is open (the alert is already in front of the operator).
+    var notify: BoardAlert?
+    private var announced = Set<String>()
 
     var mode: Mode { panelOpen ? .hidden : alert == nil ? .compact : .alert }
     /// The level meter runs only while the mic is really live for this hold.
@@ -76,6 +85,7 @@ struct PillState: Equatable {
     }
 
     mutating func apply(_ input: Input) {
+        notify = nil
         switch input {
         case .talkDown:
             held = true
@@ -83,13 +93,14 @@ struct PillState: Equatable {
         case .talkUp(let cancelled):
             held = false
             if phase == .listening { phase = .idle }
-            if !cancelled { alert = nil }  // a real hold is the answer
+            if !cancelled { alert = nil; announced = [] }  // a real hold is the answer
         case .page(let m):
             if let p = m.phase { phase = p }
             switch m.alert {
             case .unchanged: break
-            case .clear: alert = nil
+            case .clear: alert = nil; announced = []
             case .set(var a):
+                if announced.insert(a.dedupKey).inserted && !panelOpen { notify = a }
                 if a.text.count > Self.maxAlertText { a.text = String(a.text.prefix(Self.maxAlertText - 1)) + "…" }
                 alert = a
             }
@@ -97,6 +108,7 @@ struct PillState: Equatable {
             panelOpen = open
         case .alertExpired:
             alert = nil
+            announced = []
         }
     }
 }

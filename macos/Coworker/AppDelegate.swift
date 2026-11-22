@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let ptt = PttMonitor()
     private let pillWindow = PillWindow()
     private let mic = MicLevel()
+    private let notifier = Notifier()
+    private var simulatedAlerts = 0
     private var panel: CoworkerPanel!
     private var activity: NSObjectProtocol?
     private var alertExpiry: DispatchWorkItem?
@@ -23,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var toggleItem = item("", #selector(togglePanel))
     private lazy var accessItem = item("Grant keyboard access...", #selector(grantAccess))
     private lazy var simulateItem = item("Simulate talk key hold (1s)", #selector(simulate))
+    private lazy var simulateAlertItem = item("Simulate alert", #selector(simulateAlert))
     private lazy var noteItem: NSMenuItem = {
         let i = NSMenuItem(title: TalkKeySetting.note, action: nil, keyEquivalent: "")
         i.isEnabled = false
@@ -51,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.onPageMessage = { [weak self] in self?.apply(.page($0)) }
         panel.onVisibilityChange = { [weak self] in self?.apply(.panelOpen($0)) }
         pillWindow.onClick = { [weak self] in self?.panel.setVisible(true) }
+        notifier.onOpen = { [weak self] in self?.panel.setVisible(true) }
+        notifier.requestAuthorization()
         mic.onLevel = { [weak self] in self?.pillWindow.setLevel($0) }
         pill.panelOpen = panel.isVisible
         pill.talkKey = ptt.key.title
@@ -58,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         menu.items = [noteItem, toggleItem, accessItem, talkKeyItem, item("Reload", #selector(reload), "r"), item("Set URL...", #selector(setURL)),
-                      simulateItem, .separator(), NSMenuItem(title: "Quit Coworker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
+                      simulateItem, simulateAlertItem, .separator(), NSMenuItem(title: "Quit Coworker", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
         statusItem.menu = menu
         render()
         renderTalkKey()
@@ -84,13 +89,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let after = UserDefaults.standard.double(forKey: "simulateAfter")  // launch args for scripted checks: -simulateAfter 5 -simulateSeconds 3
         if after > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.simulate() } }
+        let alertAfter = UserDefaults.standard.double(forKey: "simulateAlertAfter")  // -simulateAlertAfter 5
+        if alertAfter > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + alertAfter) { [weak self] in self?.simulateAlert() } }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         toggleItem.title = panel.isVisible ? "Hide Panel" : "Show Panel"
         accessItem.isHidden = KeyboardAccess.granted
         noteItem.isHidden = !TalkKeySetting.notePending
-        simulateItem.isHidden = !(NSEvent.modifierFlags.contains(.option) || UserDefaults.standard.bool(forKey: "debug"))
+        let debug = NSEvent.modifierFlags.contains(.option) || UserDefaults.standard.bool(forKey: "debug")
+        simulateItem.isHidden = !debug
+        simulateAlertItem.isHidden = !debug
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -114,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func apply(_ input: PillState.Input) {
         let hadAlert = pill.alert
         pill.apply(input)
+        if let alert = pill.notify { notifier.post(alert) }
         guard pill.alert != hadAlert else { return }
         alertExpiry?.cancel()
         guard pill.alert != nil else { return }
@@ -136,6 +146,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func simulate() {
         let seconds = UserDefaults.standard.double(forKey: "simulateSeconds")
         ptt.simulateHold(seconds: seconds > 0 ? seconds : 1)
+    }
+
+    /// Same path as a real page message, with a fresh id each time so de-dup lets every click through.
+    @objc private func simulateAlert() {
+        simulatedAlerts += 1
+        let alert = BoardAlert(agent: "Eithan's Claude", text: "Needs your call on the migration plan (#\(simulatedAlerts))", id: "sim-\(simulatedAlerts)")
+        apply(.page(PageMessage(phase: nil, alert: .set(alert))))
     }
 
     @objc private func grantAccess() {
