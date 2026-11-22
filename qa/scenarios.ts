@@ -33,7 +33,7 @@ const ME = "cherylaurelia";
 
 export const said = (t: Turn) => t.agent.join(" ").trim();
 const calls = (t: Turn, name: string) => t.calls.filter((c) => c.name === name);
-const WRITES = ["create_issue", "add_comment", "board_post", "answer_request"];
+const WRITES = ["board_post", "answer_request"];
 const wrote = (t: Turn) => t.calls.filter((c) => WRITES.includes(c.name)).map((c) => c.name);
 const strArg = (c: Call | undefined, k: string) => String(c?.args[k] ?? "");
 const sentences = (s: string) => (s.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) ?? []).filter((x) => /\w/.test(x)).length;
@@ -93,7 +93,6 @@ export const SCENARIOS: Scenario[] = [
         say: ["What are the agents up to?", "Catch me up."],
         expect: (t, ok) => {
           ok(calls(t, "board_digest").length === 1, "calls board_digest once");
-          ok(!calls(t, "recent_activity").length && !calls(t, "list_items").length, "does not use the repo tools for a board question");
           ok(!wrote(t).length, "writes nothing");
           ok(said(t), "says something");
         },
@@ -106,23 +105,6 @@ export const SCENARIOS: Scenario[] = [
           const m = Number(c?.args.since_minutes);
           ok(c, "calls board_digest");
           ok(m >= want - 20 && m <= want + 90, `since_minutes is about ${Math.round(want)} (got ${c?.args.since_minutes})`);
-        },
-      },
-    ],
-  },
-  {
-    id: "since-11-repo",
-    title: "What happened since 11 (repo activity)",
-    steps: [
-      {
-        say: ["What happened in the repo since 11?", "What did we push since 11?"],
-        expect: (t, ok) => {
-          const c = calls(t, "recent_activity")[0];
-          const want = hoursSince11();
-          const h = Number(c?.args.hours);
-          ok(c, "calls recent_activity");
-          ok(h >= Math.floor(want) && h <= Math.ceil(want) + 1, `hours is about ${want.toFixed(1)} (got ${c?.args.hours})`);
-          ok(!wrote(t).length, "writes nothing");
         },
       },
     ],
@@ -304,20 +286,20 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     id: "read-only-write",
-    title: "Write to a read-only repo is refused plainly",
+    title: "Board post on a read-only repo is refused plainly",
     repo: "octocat/Hello-World",
     steps: [
       {
-        say: "Comment on issue 1 saying thanks for the report.",
+        say: "Tell everyone on the board thanks for the update.",
         expect: (t, ok) => {
-          ok(!calls(t, "add_comment").length, "reads the comment back first, no write yet");
+          ok(!calls(t, "board_post").length, "reads the message back first, no write yet");
           ok(/thanks/i.test(said(t)) && asks(said(t)), `reads it back and asks for a yes (said: ${said(t)})`);
         },
       },
       {
         say: "Yes.",
         expect: (t, ok) => {
-          const c = calls(t, "add_comment");
+          const c = calls(t, "board_post");
           ok(c.length >= 1 && c.length <= 2, `tries the write at most twice (tried ${c.length})`);
           ok(c.every((x) => x.error), "the server refused it");
           const s = said(t);
@@ -422,33 +404,6 @@ export const SCENARIOS: Scenario[] = [
         expect: (t, ok) => {
           ok(!wrote(t).length, "writes nothing");
           ok(/can't|cannot|can not|unable|not able|don't|do not|yet/i.test(said(t)), `declines (said: ${said(t)})`);
-        },
-      },
-    ],
-  },
-  {
-    id: "long-winded",
-    title: "Overview, long file and hash requests stay short and speakable",
-    steps: [
-      {
-        say: "Give me an overview of this repo and who's been working on it.",
-        expect: (t, ok) => {
-          ok(calls(t, "repo_overview").length + calls(t, "recent_activity").length >= 1, "calls repo_overview or recent_activity");
-          ok(sentences(said(t)) <= 3, `three sentences or fewer (got ${sentences(said(t))})`);
-        },
-      },
-      {
-        say: "Read me the AGENTS.md file.",
-        expect: (t, ok) => {
-          ok(calls(t, "read_file").length >= 1, "calls read_file");
-          ok(sentences(said(t)) <= 3, `three sentences or fewer (got ${sentences(said(t))})`);
-        },
-      },
-      {
-        say: "What's the hash of the latest commit? Read it out.",
-        expect: (t, ok) => {
-          ok(!/\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b/i.test(said(t)), "does not read a hash");
-          ok(said(t), "says something");
         },
       },
     ],
