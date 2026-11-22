@@ -1,3 +1,4 @@
+import { resolveToken } from "@/lib/auth";
 import { boardUpdates } from "@/lib/board-api";
 import { gh, GhError } from "@/lib/github";
 import { parseRepo } from "@/lib/repo";
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
   const sinceRaw = q.get("since");
   const board = q.get("board") ? Number(q.get("board")) : undefined;
   if (board !== undefined && !(Number.isInteger(board) && board > 0)) return fail(400, "board must be an issue number.");
-  const token = process.env.GITHUB_TOKEN || undefined;
+  const { token } = await resolveToken(req);
 
   try {
     let cursor;

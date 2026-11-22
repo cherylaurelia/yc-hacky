@@ -1,3 +1,4 @@
+import { resolveToken } from "@/lib/auth";
 import { GhError } from "@/lib/github";
 import { boardPosts } from "@/lib/board-read";
 import { ElevenError, TTS_MODEL, elevenAudio } from "@/lib/eleven";
@@ -22,8 +23,10 @@ export async function GET(req: Request) {
   const board = q.has("board") ? Number(q.get("board")) : undefined;
   if (board !== undefined && !(Number.isInteger(board) && board > 0)) return fail(400, "board must be an issue number.");
 
+  const { token } = await resolveToken(req);
+
   try {
-    const posts = await boardPosts(parsed.repo, process.env.GITHUB_TOKEN || undefined, board, hours);
+    const posts = await boardPosts(parsed.repo, token, board, hours);
     const script = standupScript(posts, hours);
     if (!script) return fail(404, `The board has been quiet for the last ${hours === 1 ? "hour" : `${hours} hours`}. Nothing to stand up on.`);
 

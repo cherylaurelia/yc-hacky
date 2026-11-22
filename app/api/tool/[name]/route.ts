@@ -1,3 +1,4 @@
+import { checkWrite, resolveToken, sameOrigin } from "@/lib/auth";
 import { GhError } from "@/lib/github";
 import { parseRepo } from "@/lib/repo";
 import { HANDLERS, isToolName, isWriteTool, validateArgs } from "@/lib/tools";
@@ -19,15 +20,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ name: s
   const checked = validateArgs(name, body.args);
   if (!checked.ok) return fail(400, checked.error);
 
-  if (isWriteTool(name)) {
-    const allowed = (process.env.WRITE_REPOS ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
-    if (!allowed.includes(parsed.repo.toLowerCase())) {
-      return fail(403, "I can read this repo but I can't write to it yet.");
-    }
-  }
+  const { token, session } = await resolveToken(req);
+  if (session && isWriteTool(name) && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Coworker page.");
 
   try {
-    const result = await HANDLERS[name]({ repo: parsed.repo, token: process.env.GITHUB_TOKEN || undefined }, checked.args);
+    if (isWriteTool(name) && !(await checkWrite(parsed.repo, session))) {
+      return fail(403, session ? `You don't have write access to ${parsed.repo}, so I can't write there as you.` : "I can read this repo but I can't write to it yet. Sign in with GitHub and I'll write as you.");
+    }
+    const result = await HANDLERS[name]({ repo: parsed.repo, token }, checked.args);
     return Response.json({ result });
   } catch (e) {
     if (e instanceof GhError) return fail(e.status, e.message);

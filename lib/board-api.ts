@@ -20,15 +20,16 @@ export async function boardNumber(repo: string, token: string | undefined, given
   return n;
 }
 
-// The server token's owner from GET /user: `login` decides who is mentioned, `name` is the first
-// name shown in the relay tag. env OWNER_NAME overrides it; no profile name falls back to the login.
+// The token owner from GET /user: `login` decides who is mentioned, `name` is the first name shown
+// in the relay tag. env OWNER_NAME overrides it for the server token only (a signed-in user is
+// always themselves); no profile name falls back to the login.
 export async function tokenOwner(token: string | undefined): Promise<{ login: string; name: string }> {
   if (!token) throw new GhError("The board needs a GitHub token on the server.", 502);
   const hit = owners.get(token);
   if (hit) return hit;
   const u = await gh<{ login: string; name: string | null }>("/user", { token });
   const first = u.name?.trim().split(/\s+/)[0] ?? "";
-  const me = { login: u.login, name: process.env.OWNER_NAME?.trim() || (first && first[0].toUpperCase() + first.slice(1)) || u.login };
+  const me = { login: u.login, name: (token === process.env.GITHUB_TOKEN && process.env.OWNER_NAME?.trim()) || (first && first[0].toUpperCase() + first.slice(1)) || u.login };
   owners.set(token, me);
   return me;
 }
