@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Repo Coworker",
-  description: "Talk to your GitHub repo. A voice agent that reads and writes it live.",
+  description: "Repo Coworker: talk to your repo",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
