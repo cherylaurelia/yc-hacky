@@ -6,16 +6,17 @@ import { rateLimit } from "@/lib/ratelimit";
 import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
 import { type Line, HOST, standupScript } from "@/lib/standup";
-import { COWORKER_VOICE, assignVoices } from "@/lib/voices";
+import { COWORKER_VOICE, assignVoices, coworkerVoice } from "@/lib/voices";
 
 export const maxDuration = 60;
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
 
-// GET ?repo=owner/name&hours=3[&board=4][&format=json][&mode=stitched]
+// GET ?repo=owner/name&hours=3[&board=4][&voice=<id>][&format=json][&mode=stitched]
 // -> audio/mpeg of a multi-voice standup. Headers: X-Standup-Mode (dialogue | stitched) and
 // X-Standup-Script (base64 of the JSON lines [{speaker, voice, text}]). format=json returns the
-// script only and spends no credits.
+// script only and spends no credits. voice is the id of one of Coworker's voices (lib/voices.ts) for the host
+// lines; the agents keep their own.
 export async function GET(req: Request) {
   const limited = rateLimit(req, "standup");
   if (limited) return limited;
@@ -27,6 +28,9 @@ export async function GET(req: Request) {
   const board = q.has("board") ? Number(q.get("board")) : undefined;
   if (board !== undefined && !(Number.isInteger(board) && board > 0)) return fail(400, "board must be an issue number.");
 
+  const host = q.has("voice") ? coworkerVoice(q.get("voice")) : COWORKER_VOICE;
+  if (!host) return fail(400, "voice must be the id of one of Coworker's voices.");
+
   const { token, session } = await resolveToken(req);
 
   try {
@@ -36,7 +40,7 @@ export async function GET(req: Request) {
     if (!script) return fail(404, `The board has been quiet for the last ${hours === 1 ? "hour" : `${hours} hours`}. Nothing to stand up on.`);
 
     const voices = assignVoices(script.filter((l) => !l.host).map((l) => l.speaker));
-    const voiceOf = (l: Line) => (l.host ? COWORKER_VOICE : voices.get(l.speaker)!);
+    const voiceOf = (l: Line) => (l.host ? host : voices.get(l.speaker)!);
     const lines = script.map((l) => ({ speaker: l.speaker, voice: voiceOf(l).name, text: l.text }));
     console.log(`standup: ${script.length} lines, ${script.reduce((n, l) => n + l.text.length, 0)} chars, voices ${[...new Set(script.map((l) => `${l.speaker}=${voiceOf(l).name}(${voiceOf(l).id})`))].join(", ")}`);
     if (q.get("format") === "json") return Response.json({ lines, host: HOST });

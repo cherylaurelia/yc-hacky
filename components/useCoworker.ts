@@ -5,13 +5,15 @@
 // can render it. components/Coworker.tsx is the current view.
 import { useConversation } from "@elevenlabs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswered, nextUp, normReq, waiting } from "@/lib/alerts";
+import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswered, normReq, waiting } from "@/lib/alerts";
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
+import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost, unlockAudio } from "@/lib/speak-client";
 import { headline } from "@/lib/spoken";
 import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
+import { COWORKER_VOICE, COWORKER_VOICES, coworkerVoice } from "@/lib/voices";
 
 export type Msg = { id: number; role: "user" | "agent"; text: string };
 export type Call = { id: number; name: string; args: Record<string, unknown>; state: "running" | "ok" | "error"; text: string; ms?: number };
@@ -22,6 +24,8 @@ type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m:
 
 const POLL_MS = 6_000;
 const REPO_KEY = "coworker.repo";
+const INTERRUPTIONS_KEY = "coworker.interruptions";
+const VOICE_KEY = "coworker.voice";
 const TAP_MS = 350; // a hold shorter than this is a tap: nothing to answer, so no "thinking"
 const PLAY_GAP_MS = 4_000; // after an alert is injected, wait for the agent to start talking before the next one
 const ANSWER_GAP_MS = 2_500; // after an answer is posted, let the agent say "Allowed." before the next alert
@@ -29,6 +33,13 @@ const TALK_GAP_MS = 8_000; // an alert never cuts into a conversation: wait this
 const ASK_TIMEOUT_MS = 90_000; // an unanswered question stops holding the line after this much silence
 
 const soon = (ms: number) => Date.now() + ms;
+const save = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`Could not save ${key}:`, e);
+  }
+};
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 
 // The text injected into the live conversation. Posts we already played aloud in the poster's
@@ -75,6 +86,9 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const [pttKey, setPttKey] = useState("fn");
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
   const [gesture, setGesture] = useState(false);
+  const [interruptions, setInterruptionsState] = useState<Interruptions>(DEFAULT_INTERRUPTIONS);
+  const [voiceId, setVoiceId] = useState(COWORKER_VOICE.id);
+  const [offer, setOffer] = useState(false); // quiet just ended with blockers held back: ask before reading them
 
   const seq = useRef(0);
   const noticed = useRef(new Set<number>());
@@ -89,6 +103,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const cursor = useRef<BoardCursor | undefined>(undefined);
   const draining = useRef(false);
   const quietUntil = useRef(0);
+  const interruptionsRef = useRef<Interruptions>(DEFAULT_INTERRUPTIONS);
+  const interruptionsSet = useRef<(next: Interruptions) => void>(() => {});
   const pressRef = useRef<(src: string, on: boolean, cancelled?: boolean) => void>(() => {});
   const drainRef = useRef(() => {});
 
@@ -116,6 +132,48 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     }
     rememberRecent(repo);
   }, [repo]);
+
+  // The saved Interruptions mode and Coworker voice, read after hydration like the repo above.
+  useEffect(() => {
+    try {
+      const saved = parseInterruptions(localStorage.getItem(INTERRUPTIONS_KEY), Date.now());
+      interruptionsRef.current = saved;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInterruptionsState(saved);
+      setVoiceId((coworkerVoice(localStorage.getItem(VOICE_KEY)) ?? COWORKER_VOICE).id);
+    } catch (e) {
+      console.warn("Could not read the saved settings:", e);
+    }
+  }, []);
+
+  // Changes the Interruptions setting. When quiet ends, by the clock or by hand, blockers it held
+  // back are offered before any is read.
+  function setInterruptions(next: Interruptions) {
+    const was = interruptionsRef.current;
+    if (next === was) return;
+    interruptionsRef.current = next;
+    setInterruptionsState(next);
+    save(INTERRUPTIONS_KEY, JSON.stringify(next));
+    if (next.mode === "dnd") setOffer(false);
+    else if (was.mode === "dnd") setOffer(queuedAgents(alertsRef.current).length > 0);
+  }
+  useEffect(() => {
+    interruptionsSet.current = setInterruptions;
+  });
+
+  // A timed quiet ends on the wall clock, so a laptop that slept through it is not left quiet.
+  useEffect(() => {
+    if (interruptions.mode !== "dnd" || interruptions.quietUntil === null) return;
+    const t = setInterval(() => interruptionsSet.current(expire(interruptionsRef.current, Date.now())), 1000);
+    return () => clearInterval(t);
+  }, [interruptions]);
+
+  function setVoice(id: string) {
+    const v = coworkerVoice(id);
+    if (!v) return;
+    setVoiceId(v.id);
+    save(VOICE_KEY, v.id);
+  }
 
   // One generic client tool per spec. Reads the repo from a ref because the SDK
   // freezes these closures when the session starts. The URL's board wins for board tools.
@@ -211,6 +269,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const playing = alerts.find((a) => a.state === "playing");
   const feed = [...calls.map((c) => ({ seq: c.id, c })), ...alerts.map((a) => ({ seq: a.seq, a }))].sort((x, y) => x.seq - y.seq);
   const waitingNow = waiting(alerts);
+  const queued = queuedAgents(alerts).length;
+  const offered = offer && queued > 0;
   const focused = alerts.find((a) => a.seq === focus);
 
   // The one state the whole UI (and the Mac menu-bar icon) follows.
@@ -249,7 +309,10 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       const mark = (id: number, state: AlertState) => setAlerts((all) => all.map((a) => (a.id === id && a.state !== "answered" ? { ...a, state } : a)));
       const stale = alerts.find((a) => a.state === "asking");
       if (stale && Date.now() - lastActive.current > ASK_TIMEOUT_MS && !held && !working) return mark(stale.id, "told");
-      const a = nextUp(alerts);
+      // Updates that may not speak right now leave the line; they stay in the standup.
+      const kept = sieve(alerts, interruptions);
+      if (kept !== alerts) return setAlerts((all) => sieve(all, interruptions));
+      const a = nextSpoken(alerts, interruptions, offered);
       if (!a || draining.current || !live || held || convo.isSpeaking || working || awaiting || Date.now() < quietUntil.current) return;
       const talking = TALK_GAP_MS - (Date.now() - lastActive.current);
       if (talking > 0) {
@@ -368,7 +431,9 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       setStarting(false);
       return setError(e instanceof Error ? e.message : "Could not start a session.");
     }
-    convo.startSession({ ...session, dynamicVariables: { repo, now: localNow() } });
+    // The agent's own voice is the default; any other choice is a per-session override (the agent must allow it, see scripts/sync-agent.ts).
+    const tts = !asText && voiceId !== COWORKER_VOICE.id ? { overrides: { tts: { voiceId } } } : {};
+    convo.startSession({ ...session, dynamicVariables: { repo, now: localNow() }, ...tts });
   }
 
   // `src` is "key", "pointer" or "event"; the mic is held while any source is down.
@@ -590,9 +655,10 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     card,
     speaker,
     waiting: { count: waitingNow.length, stuck: waitingNow.some((a) => a.kind === "stuck") },
+    settings: { interruptions, voiceId, voices: COWORKER_VOICES, queued, offered },
     focus: focused ?? null,
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, createBoard, endSession: () => convo.endSession() },
+    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, createBoard, setInterruptions, setVoice, endSession: () => convo.endSession(), readQueued: () => setOffer(false), holdQueued: () => { setOffer(false); setAlerts(deferQueued); } },
   };
 }
