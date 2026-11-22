@@ -74,8 +74,8 @@ export const alertMessage = (alerts: BoardAlert[]) =>
 
 // Browser and Node client for GET /api/board/new. First call (no cursor) only
 // returns the baseline cursor; later calls return alerts for newer posts.
-export async function pollBoard(repo: string, cursor?: BoardCursor, base = ""): Promise<{ cursor: BoardCursor; alerts: BoardAlert[] }> {
-  const q = new URLSearchParams({ repo, ...(cursor ? { since: String(cursor.since), at: cursor.at } : {}) });
+export async function pollBoard(repo: string, cursor?: BoardCursor, base = "", board?: number): Promise<{ cursor: BoardCursor; alerts: BoardAlert[] }> {
+  const q = new URLSearchParams({ repo, ...(board ? { board: String(board) } : {}), ...(cursor ? { since: String(cursor.since), at: cursor.at } : {}) });
   const res = await fetch(`${base}/api/board/new?${q}`, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
   const j = (await res.json().catch(() => ({}))) as { cursor?: BoardCursor; alerts?: BoardAlert[]; error?: string };
   if (!res.ok || !j.cursor || !j.alerts) throw new Error(j.error ?? `Board check failed (HTTP ${res.status}).`);

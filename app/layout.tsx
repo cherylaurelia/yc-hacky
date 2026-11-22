@@ -6,7 +6,7 @@ const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-hanken" })
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: "Repo Coworker",
+  title: "Coworker",
   description: "Talk to your GitHub repo. A voice agent that reads and writes it live.",
 };
 
