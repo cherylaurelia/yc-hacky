@@ -101,6 +101,7 @@ async function main() {
         },
       },
       tts: { model_id: "eleven_v3_conversational", agent_output_audio_format: "pcm_24000", optimize_streaming_latency: 1, stability: 0.45, similarity_boost: 0.8 },
+      asr: { keywords: ["Cheryl", "Eithan", "Aidan", "Coworker", "Claude", "Codex", "yc-hacky", "allow", "deny", "stop it", "show me", "standup", "migration", "pull request"] },
     },
     platform_settings: {
     auth: { enable_auth: true },
