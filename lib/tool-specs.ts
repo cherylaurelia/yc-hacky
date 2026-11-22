@@ -178,6 +178,7 @@ export const TOOL_SPECS = [
         request_id: { type: "string", description: "The id after 'req' in the alert, for example 3fa9c1." },
         decision: { type: "string", enum: ["allow", "deny", "stop"], description: "allow to let the agent run it, deny to refuse a permission request, stop to halt an agent that is stuck in a loop." },
         note: { type: "string", description: "Short reason to pass to the agent, for example 'wrong folder'. Optional." },
+        board: { type: "integer", description: "Board issue number. Optional: defaults to the repo's board issue." },
       },
     },
   },

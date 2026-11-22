@@ -135,7 +135,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
           async (args: Record<string, unknown>) => {
             const id = ++seq.current;
             const t0 = performance.now();
-            const sent = board && s.name.startsWith("board_") ? { ...args, board } : args;
+            const sent = board && (s.name.startsWith("board_") || s.name === "answer_request") ? { ...args, board } : args;
             lastActive.current = Date.now();
             setCalls((c) => [...c, { id, name: s.name, args: sent, state: "running", text: "" }]);
             const finish = (state: Call["state"], text: string) =>

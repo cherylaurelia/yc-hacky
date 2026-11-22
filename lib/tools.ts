@@ -192,7 +192,7 @@ export const HANDLERS: Record<ServerToolName, Handler> = {
     if (!/^[0-9a-f]{4,12}$/.test(id)) throw new GhError("That is not a request id.", 400);
     const decision = args.decision === "deny" || args.decision === "stop" ? args.decision : "allow";
     const note = str(args.note).replace(/\s+/g, " ").slice(0, 300);
-    await boardPost(repo, token, undefined, `req ${id} ${decision}${note ? ` ${note}` : ""}`, "");
+    await boardPost(repo, token, num(args.board, 0, 0, 1e9) || undefined, `req ${id} ${decision}${note ? ` ${note}` : ""}`, "");
     return `Sent ${decision} for request ${id}.`;
   },
 };
