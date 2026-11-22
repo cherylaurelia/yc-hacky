@@ -16,9 +16,9 @@ export const HEIGHT = 1080;
 //            and the mic pill fall outside the frame, so only the card shows.
 // Screens are real screenshots from the app, see video/README.md for how to retake them.
 // ---------------------------------------------------------------------------------------------------
-type Cam = [scale: number, x: number, y: number];
-type ScreenShot = { kind: "screen"; file: string; seconds: number; caption: string; camera: [Cam, Cam] };
-type EndCard = { kind: "end"; seconds: number; title: string; line: string; url: string };
+export type Cam = [scale: number, x: number, y: number];
+export type ScreenShot = { kind: "screen"; file: string; seconds: number; caption: string; camera: [Cam, Cam] };
+export type EndCard = { kind: "end"; seconds: number; title: string; line: string; url: string };
 export type Shot = ScreenShot | EndCard;
 
 export const SHOTS: Shot[] = [
@@ -30,26 +30,26 @@ export const SHOTS: Shot[] = [
 ];
 
 // ---- look: the app's own tokens (app/globals.css) -------------------------------------------------
-const PAPER = "#f3eee6";
-const CARD = "#fbf8f3";
-const INK = "#221d17";
-const SOFT = "#5f564b";
-const LINE = "#ddd3c5";
+export const PAPER = "#f3eee6";
+export const CARD = "#fbf8f3";
+export const INK = "#221d17";
+export const SOFT = "#5f564b";
+export const LINE = "#ddd3c5";
 
-const serif = loadSerif("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily;
-const sans = loadSans("normal", { weights: ["400", "500"], subsets: ["latin"] }).fontFamily;
-const mono = loadMono("normal", { weights: ["500"], subsets: ["latin"] }).fontFamily;
+export const serif = loadSerif("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily;
+export const sans = loadSans("normal", { weights: ["400", "500"], subsets: ["latin"] }).fontFamily;
+export const mono = loadMono("normal", { weights: ["500"], subsets: ["latin"] }).fontFamily;
 
 // ---- timing ---------------------------------------------------------------------------------------
-const FADE = 14; // frames a screen takes to cross-fade over the one before it
+export const FADE = 14; // frames a screen takes to cross-fade over the one before it
 const frames = (s: number) => Math.round(s * FPS);
 const starts = SHOTS.reduce<number[]>((acc, s, i) => [...acc, i === 0 ? 0 : acc[i - 1] + frames(SHOTS[i - 1].seconds)], []);
 export const TOTAL_FRAMES = SHOTS.reduce((n, s) => n + frames(s.seconds), 0);
 
 // The screen sits in a rounded frame sized to the screenshots' 2100 x 1350 shape.
-const FRAME_H = 850;
-const FRAME_W = Math.round((FRAME_H * 2100) / 1350);
-const FRAME_TOP = 44;
+export const FRAME_H = 850;
+export const FRAME_W = Math.round((FRAME_H * 2100) / 1350);
+export const FRAME_TOP = 44;
 
 export const Launch = () => (
   <AbsoluteFill style={{ background: `radial-gradient(120% 90% at 50% 20%, #efe8dc 0%, #e6dccd 100%)`, fontFamily: sans }}>
@@ -80,7 +80,7 @@ export const Launch = () => (
   </AbsoluteFill>
 );
 
-const Screen = ({ shot, dur, first }: { shot: ScreenShot; dur: number; first: boolean }) => {
+export const Screen = ({ shot, dur, first }: { shot: Pick<ScreenShot, "file" | "camera">; dur: number; first: boolean }) => {
   const f = useCurrentFrame();
   const fade = first ? 12 : FADE;
   const opacity = interpolate(f, [0, fade], [0, 1], { extrapolateRight: "clamp" });
@@ -125,7 +125,7 @@ const Caption = ({ text, dur }: { text: string; dur: number }) => {
 // The pill from the app, with its voice bars, carrying the link.
 const BARS = [0.25, 0.4, 0.6, 0.35, 0.8, 0.5, 0.3, 0.65, 0.45, 0.25];
 
-const End = ({ shot }: { shot: EndCard }) => {
+export const End = ({ shot }: { shot: Pick<EndCard, "title" | "line" | "url"> }) => {
   const f = useCurrentFrame();
   const rise = (start: number) => ({
     opacity: interpolate(f, [start, start + 16], [0, 1], { extrapolateRight: "clamp" }),
