@@ -42,6 +42,7 @@ const clientTools = Object.fromEntries(
       touch();
       const t0 = Date.now();
       try {
+        if ("local" in s) return `(headless: ${s.name} has no screen to show on)`;
         const res = await fetch(`${BASE}/api/tool/${s.name}`, {
           method: "POST",
           headers: { "content-type": "application/json" },

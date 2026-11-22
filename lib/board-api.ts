@@ -1,6 +1,6 @@
 // GitHub side of the agent board: which issue is the board, who the token
 // belongs to, and the comment reads and writes the board tools and route use.
-import { type BoardAlert, type BoardCursor, type Comment, alertsFrom, digest, parsePost } from "./board";
+import { type BoardAlert, type BoardCursor, type Comment, alertsFrom, answeredFrom, digest, parsePost } from "./board";
 import { gh, GhError } from "./github";
 
 const boards = new Map<string, number>();
@@ -62,20 +62,20 @@ export async function boardPost(repo: string, token: string | undefined, board: 
 }
 
 // One cheap call per poll: comments updated since the cursor, keep the ones newer than its id.
-export async function boardUpdates(repo: string, token: string | undefined, board: number | undefined, cursor?: BoardCursor): Promise<{ cursor: BoardCursor; alerts: BoardAlert[] }> {
+export async function boardUpdates(repo: string, token: string | undefined, board: number | undefined, cursor?: BoardCursor): Promise<{ cursor: BoardCursor; alerts: BoardAlert[]; answered: string[] }> {
   const n = await boardNumber(repo, token, board);
   if (!cursor) {
     const issue = await gh<{ comments: number }>(`/repos/${repo}/issues/${n}`, { token });
-    if (!issue.comments) return { cursor: { since: 0, at: new Date(Date.now() - 60_000).toISOString() }, alerts: [] };
+    if (!issue.comments) return { cursor: { since: 0, at: new Date(Date.now() - 60_000).toISOString() }, alerts: [], answered: [] };
     const [last] = await gh<Comment[]>(`/repos/${repo}/issues/${n}/comments?per_page=1&page=${issue.comments}`, { token });
-    return { cursor: { since: last.id, at: last.created_at }, alerts: [] };
+    return { cursor: { since: last.id, at: last.created_at }, alerts: [], answered: [] };
   }
   const [rows, user] = await Promise.all([
     gh<Comment[]>(`/repos/${repo}/issues/${n}/comments?per_page=100&since=${encodeURIComponent(cursor.at)}`, { token }),
     ownerOrNull(token),
   ]);
   const fresh = rows.filter((c) => c.id > cursor.since);
-  if (!fresh.length) return { cursor, alerts: [] };
+  if (!fresh.length) return { cursor, alerts: [], answered: [] };
   const last = fresh[fresh.length - 1];
-  return { cursor: { since: last.id, at: last.created_at }, alerts: alertsFrom(fresh.map((c) => parsePost(c, user))).slice(-5) };
+  return { cursor: { since: last.id, at: last.created_at }, alerts: alertsFrom(fresh.map((c) => parsePost(c, user))).slice(-5), answered: answeredFrom(fresh) };
 }

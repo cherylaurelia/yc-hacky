@@ -169,15 +169,29 @@ export const TOOL_SPECS = [
   {
     name: "answer_request",
     description:
-      "Answer a coding agent's permission request from the board, an alert that says 'needs approval (req X)'. Posts your allow or deny so the agent proceeds or stops. WRITE ACTION: the spoken question 'Allow?' is the confirmation, so call it as soon as the user says allow or deny, without reading it back first. Afterwards say the decision word.",
+      "Answer a coding agent's request from the board: a permission alert that says 'needs approval (req X)', or a stuck alert that says 'stuck: ... (req X)'. Posts your allow, deny or stop so the agent proceeds, is refused, or is halted. Always use the req id of the alert you just asked about. WRITE ACTION: your spoken question ('Allow?' or 'Want me to stop it?') is the confirmation, so call it as soon as the user says yes or no, without reading it back first. Afterwards say the decision word.",
     write: true,
     parameters: {
       type: "object",
       required: ["request_id", "decision"],
       properties: {
         request_id: { type: "string", description: "The id after 'req' in the alert, for example 3fa9c1." },
-        decision: { type: "string", enum: ["allow", "deny"], description: "allow to let the agent run it, deny to stop it." },
+        decision: { type: "string", enum: ["allow", "deny", "stop"], description: "allow to let the agent run it, deny to refuse a permission request, stop to halt an agent that is stuck in a loop." },
         note: { type: "string", description: "Short reason to pass to the agent, for example 'wrong folder'. Optional." },
+      },
+    },
+  },
+  {
+    name: "show_me",
+    description:
+      "Put a board alert's context on the user's screen as a full-screen card: what the agent is doing, the command, the diff and the file. Use when the user says 'show me', 'let me see', 'pull it up' or asks about the diff. Afterwards say one short line like \"Here's the diff.\" and never read the diff aloud. It runs in the browser, so it is instant and needs no GitHub call.",
+    write: false,
+    local: true,
+    parameters: {
+      type: "object",
+      properties: {
+        agent: { type: "string", description: "Agent name from the alert, for example Eithan's Claude. Optional: defaults to the most recent alert." },
+        req: { type: "string", description: "The id after 'req' in the alert. Optional." },
       },
     },
   },
@@ -185,3 +199,6 @@ export const TOOL_SPECS = [
 
 export type ToolSpec = (typeof TOOL_SPECS)[number];
 export type ToolName = ToolSpec["name"];
+// Local tools run in the browser: no /api/tool route, no server handler.
+export type LocalToolName = Extract<ToolSpec, { local: true }>["name"];
+export type ServerToolName = Exclude<ToolName, LocalToolName>;

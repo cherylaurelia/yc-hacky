@@ -3,15 +3,16 @@
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import agent from "@/agent.json";
+import FocusCard from "@/components/FocusCard";
 import Standup from "@/components/Standup";
+import { type Alert, type AlertState, checkAnswer, findAlert, markAnswered, nextUp, normReq, waiting } from "@/lib/alerts";
 import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/lib/board";
 import { localNow } from "@/lib/now";
 import { parseRepo } from "@/lib/repo";
 import { speakPost } from "@/lib/speak-client";
-import { TOOL_SPECS } from "@/lib/tool-specs";
+import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
 
 type Msg = { id: number; role: "user" | "agent"; text: string };
-type Alert = BoardAlert & { seq: number; state: "queued" | "playing" | "told" };
 type Call = { id: number; name: string; args: Record<string, unknown>; state: "running" | "ok" | "error"; text: string; ms?: number };
 type Phase = "idle" | "listening" | "thinking" | "speaking";
 type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m: unknown): void } } } };
@@ -20,6 +21,13 @@ const POLL_MS = 15_000;
 const REPO_KEY = "coworker.repo";
 const TAP_MS = 350; // a hold shorter than this is a tap: nothing to answer, so no "thinking"
 const PLAY_GAP_MS = 4_000; // after an alert is injected, wait for the agent to start talking before the next one
+const ANSWER_GAP_MS = 2_500; // after an answer is posted, let the agent say "Allowed." before the next alert
+const ASK_TIMEOUT_MS = 90_000; // an unanswered question stops holding the line after this much silence
+
+// The chip on each alert card: where it is in the line.
+const STATE_LABEL: Record<AlertState, string> = { waiting: "waiting", playing: "speaking", asking: "asking", told: "told", answered: "answered" };
+const soon = (ms: number) => Date.now() + ms;
+const isLocalhost = () => typeof window !== "undefined" && /^(?:localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
 
 const LOOK: Record<Phase, { box: string; bar: string; word: string }> = {
   idle: { box: "border-line bg-panel", bar: "bg-line", word: "text-text" },
@@ -72,8 +80,13 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   const [starting, setStarting] = useState(false);
   const [awaiting, setAwaiting] = useState(false);
   const [standup, setStandup] = useState(false);
+  const [focus, setFocus] = useState<number | null>(null);
+  const [pttKey, setPttKey] = useState("fn");
 
   const seq = useRef(0);
+  const alertsRef = useRef<Alert[]>([]);
+  const answeredReqs = useRef(new Set<string>());
+  const lastActive = useRef(0);
   const repoRef = useRef("");
   const sources = useRef(new Set<string>());
   const pressedAt = useRef(0);
@@ -81,7 +94,6 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   const msgEnd = useRef<HTMLDivElement>(null);
   const feedEnd = useRef<HTMLDivElement>(null);
   const cursor = useRef<BoardCursor | undefined>(undefined);
-  const queue = useRef<BoardAlert[]>([]);
   const draining = useRef(false);
   const quietUntil = useRef(0);
   const pressRef = useRef<(src: string, on: boolean, cancelled?: boolean) => void>(() => {});
@@ -113,19 +125,54 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
 
   // One generic client tool per spec. Reads the repo from a ref because the SDK
   // freezes these closures when the session starts. The URL's board wins for board tools.
-  const clientTools = useMemo(
-    () =>
-      Object.fromEntries(
+  // Local tools (no /api/tool route) run in the browser; the rest go to the server.
+  const clientTools = useMemo(() => {
+    const strArg = (v: unknown) => (typeof v === "string" ? v : undefined);
+    const local: Record<LocalToolName, (a: Record<string, unknown>) => string> = {
+      show_me(a) {
+        const r = findAlert(alertsRef.current, strArg(a.agent), strArg(a.req));
+        if ("error" in r) throw new Error(r.error);
+        setFocus(r.alert.seq);
+        return `Showing the ${r.alert.kind ?? "alert"} from ${r.alert.from} on screen${r.alert.ctx?.diff ? ", with its diff" : ""}.`;
+      },
+    };
+    // An answer posted on the board frees the line: close the alert it belongs to, give the agent
+    // a moment to say "Allowed.", then the next one may speak.
+    const settle = (name: string, a: Record<string, unknown>) => {
+      if (name === "answer_request") {
+        answeredReqs.current.add(normReq(a.request_id));
+        setAlerts((all) => markAnswered(all, answeredReqs.current));
+      } else if (name === "board_post") {
+        const to = (strArg(a.to) ?? "").replace(/^@/, "").toLowerCase();
+        setAlerts((all) => all.map((x) => (!x.req && x.state !== "answered" && (to ? x.login.toLowerCase() === to : x.state === "asking") ? { ...x, state: "answered" } : x)));
+      } else return;
+      quietUntil.current = soon(ANSWER_GAP_MS);
+      setAwaiting(true);
+      clearTimeout(awaitTimer.current);
+      awaitTimer.current = setTimeout(() => setAwaiting(false), 12_000);
+      setTimeout(() => drainRef.current(), ANSWER_GAP_MS + 100);
+    };
+    return Object.fromEntries(
         TOOL_SPECS.map((s) => [
           s.name,
           async (args: Record<string, unknown>) => {
             const id = ++seq.current;
             const t0 = performance.now();
             const sent = board && s.name.startsWith("board_") ? { ...args, board } : args;
+            lastActive.current = Date.now();
             setCalls((c) => [...c, { id, name: s.name, args: sent, state: "running", text: "" }]);
             const finish = (state: Call["state"], text: string) =>
               setCalls((c) => c.map((x) => (x.id === id ? { ...x, state, text, ms: Math.round(performance.now() - t0) } : x)));
             try {
+              if ("local" in s) {
+                const text = local[s.name](sent);
+                finish("ok", text);
+                return text;
+              }
+              if (s.name === "answer_request") {
+                const wrong = checkAnswer(alertsRef.current, normReq(sent.request_id));
+                if (wrong) throw new Error(wrong);
+              }
               const res = await fetch(`/api/tool/${s.name}`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -133,6 +180,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
               });
               const j = (await res.json().catch(() => ({}))) as { result?: string; error?: string };
               if (!res.ok || typeof j.result !== "string") throw new Error(j.error ?? `Tool failed (HTTP ${res.status}).`);
+              settle(s.name, sent);
               finish("ok", j.result);
               return j.result;
             } catch (e) {
@@ -142,14 +190,14 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             }
           },
         ]),
-      ),
-    [board],
-  );
+      );
+  }, [board]);
 
   const convo = useConversation({
     clientTools,
     onMessage: ({ role, message }) => {
       setMsgs((m) => [...m, { id: ++seq.current, role, text: message }]);
+      lastActive.current = Date.now();
       if (role === "agent") setAwaiting(false);
     },
     onError: (message) => {
@@ -168,6 +216,8 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   const working = calls.some((c) => c.state === "running");
   const playing = alerts.find((a) => a.state === "playing");
   const feed = [...calls.map((c) => ({ seq: c.id, c })), ...alerts.map((a) => ({ seq: a.seq, a }))].sort((x, y) => x.seq - y.seq);
+  const waitingNow = waiting(alerts);
+  const focused = alerts.find((a) => a.seq === focus);
 
   // The one state the whole UI (and the Mac menu-bar icon) follows.
   const phase: Phase = held && live ? "listening" : playing || convo.isSpeaking ? "speaking" : connecting || working || awaiting ? "thinking" : "idle";
@@ -199,33 +249,45 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     }
   }, [live, textOnly, held, setMuted]);
 
-  // Speak the queued board posts in their posters' voices, then hand them to the agent as one message.
-  // Runs when the agent is idle and the user is not talking, so audio never overlaps.
+  useEffect(() => {
+    alertsRef.current = alerts;
+  }, [alerts]);
+
+  // The waiting line: one alert at a time. Its poster speaks in their own voice, the agent asks the
+  // user, and only after the answer is posted (or skipped, or 90 s of silence) does the next alert
+  // speak. Runs when the agent is idle and the user is not talking, so audio never overlaps.
   useEffect(() => {
     drainRef.current = async () => {
-      if (draining.current || !live || !queue.current.length || held || convo.isSpeaking || working || awaiting || Date.now() < quietUntil.current) return;
+      const mark = (id: number, state: AlertState) => setAlerts((all) => all.map((a) => (a.id === id && a.state !== "answered" ? { ...a, state } : a)));
+      const stale = alerts.find((a) => a.state === "asking");
+      if (stale && Date.now() - lastActive.current > ASK_TIMEOUT_MS && !held && !working) return mark(stale.id, "told");
+      const a = nextUp(alerts);
+      if (!a || draining.current || !live || held || convo.isSpeaking || working || awaiting || Date.now() < quietUntil.current) return;
       draining.current = true;
-      const played: BoardAlert[] = [];
-      const missed: BoardAlert[] = [];
-      const mark = (id: number, state: Alert["state"]) => setAlerts((all) => all.map((a) => (a.id === id ? { ...a, state } : a)));
       try {
-        for (let a = queue.current.shift(); a; a = queue.current.shift()) {
-          mark(a.id, "playing");
+        mark(a.id, "playing");
+        let played = false;
+        // A stuck loop is the coworker's own sentence ("has retried ... Want me to stop it?"), not a post to replay.
+        if (a.kind !== "stuck") {
           try {
+            console.info(`[coworker] voice start ${a.from} ${new Date().toISOString()}`);
             await speakPost(a.from, a.text);
-            played.push(a);
+            played = true;
           } catch (e) {
-            missed.push(a);
             setError(e instanceof Error ? e.message : "Could not play that board post.");
+          } finally {
+            console.info(`[coworker] voice end ${a.from} ${new Date().toISOString()}`);
           }
         }
         quietUntil.current = Date.now() + PLAY_GAP_MS;
-        convo.sendUserMessage(spokenAlerts(played, missed));
+        lastActive.current = Date.now();
+        convo.sendUserMessage(spokenAlerts(played ? [a] : [], played ? [] : [a]));
         setAwaiting(true); // shows "thinking" until the agent starts its question
         clearTimeout(awaitTimer.current);
         awaitTimer.current = setTimeout(() => setAwaiting(false), 12_000);
-        for (const a of [...played, ...missed]) mark(a.id, "told");
+        mark(a.id, a.why === "blocked" ? "asking" : "told");
       } catch (e) {
+        mark(a.id, "told");
         setError(e instanceof Error ? e.message : "Could not tell the agent about the board post.");
       } finally {
         draining.current = false;
@@ -240,7 +302,6 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     let stopped = false;
     let inFlight = false;
     cursor.current = undefined;
-    queue.current = [];
     const tick = async () => {
       if (inFlight) return;
       inFlight = true;
@@ -249,10 +310,9 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
         if (stopped) return;
         cursor.current = r.cursor;
         setBoardError(null);
-        if (r.alerts.length) {
-          setAlerts((a) => [...a, ...r.alerts.map((x) => ({ ...x, seq: ++seq.current, state: "queued" as const }))]);
-          queue.current.push(...r.alerts);
-        }
+        for (const q of r.answered) answeredReqs.current.add(q);
+        const fresh: Alert[] = r.alerts.map((x) => ({ ...x, seq: ++seq.current, state: "waiting" }));
+        if (fresh.length || r.answered.length) setAlerts((a) => markAnswered([...a, ...fresh], answeredReqs.current));
       } catch (e) {
         if (!stopped) setBoardError(e instanceof Error ? e.message : "Board check failed.");
       } finally {
@@ -278,6 +338,8 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     setMsgs([]);
     setCalls([]);
     setAlerts([]);
+    setFocus(null);
+    answeredReqs.current.clear();
     setBoardError(null);
     if (!asText) {
       const fail = (msg: string) => {
@@ -341,6 +403,12 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
       const d = (e as CustomEvent<{ down?: boolean; cancelled?: boolean }>).detail;
       pressRef.current("event", d?.down === true, d?.cancelled === true);
     };
+    // The Mac app says which key it listens to: "fn", "Right Option", ...
+    const pttKeyName = (e: Event) => {
+      const k = (e as CustomEvent<{ key?: unknown }>).detail?.key;
+      if (typeof k === "string" && k.trim()) setPttKey(k.trim().slice(0, 24));
+    };
+    window.addEventListener("coworker-ptt-key", pttKeyName);
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", lost);
@@ -354,6 +422,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
       window.removeEventListener("pointerup", pointerUp);
       window.removeEventListener("pointercancel", pointerUp);
       window.removeEventListener("coworker-ptt", ptt);
+      window.removeEventListener("coworker-ptt-key", pttKeyName);
     };
   }, []);
 
@@ -365,7 +434,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     setDraft("");
   }
 
-  const hint = embed ? "Hold fn to talk" : "Hold Space to talk";
+  const hint = embed ? `Hold ${pttKey} to talk` : "Hold Space to talk";
   const sub =
     phase === "listening"
       ? "Mic live. Let go to send."
@@ -411,6 +480,12 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           />
           {repoError && !repoError.ok && <span className="px-1 text-sm text-warn">{repoError.error}</span>}
         </form>
+      )}
+
+      {(live || alerts.length > 0) && (
+        <p data-waiting={waitingNow.length} className={`self-center rounded-full border px-3.5 py-1.5 text-sm ${waitingNow.length ? (waitingNow.some((a) => a.kind === "stuck") ? "border-bad/60 bg-bad/10 text-bad" : "border-signal/50 bg-signal/10 text-signal") : "border-line text-dim"}`}>
+          Agents waiting on you: <span className="font-semibold tabular-nums">{waitingNow.length}</span>
+        </p>
       )}
 
       <div className="flex flex-col items-center gap-2">
@@ -500,14 +575,35 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
               {feed.length === 0 && <li className="px-4 py-1 text-sm text-dim">GitHub calls and board posts that need you show up here.</li>}
               {feed.map((f) =>
                 "a" in f ? (
-                  <li key={`a${f.seq}`} data-alert={f.a.state} className="mx-3 my-1.5 rounded-xl border border-signal/50 bg-signal/10 px-3.5 py-2.5">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-signal">
-                      <span className={`h-1.5 w-1.5 rounded-full bg-signal ${f.a.state === "told" ? "" : "animate-pulse"}`} />
-                      {f.a.why === "blocked" ? "Blocked, needs you" : "Mentions you"}
-                      <span className="ml-auto rounded-full bg-signal/20 px-2 py-0.5 font-medium">{f.a.state}</span>
-                    </div>
-                    <p className="mt-1 text-sm font-semibold">{f.a.from}</p>
-                    <p className="mt-0.5 line-clamp-3 text-sm text-text/85">{f.a.text}</p>
+                  <li
+                    key={`a${f.seq}`}
+                    data-alert={f.a.state}
+                    data-kind={f.a.kind ?? f.a.why}
+                    className={`mx-3 my-1.5 rounded-xl border ${f.a.kind === "stuck" ? "border-bad/60 bg-bad/10" : "border-signal/50 bg-signal/10"} ${f.a.state === "answered" ? "opacity-60" : ""}`}
+                  >
+                    <button type="button" onClick={() => setFocus(f.a.seq)} className="block w-full px-3.5 py-2.5 text-left">
+                      <div className={`flex items-center gap-2 text-xs font-semibold ${f.a.kind === "stuck" ? "text-bad" : "text-signal"}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full bg-current ${f.a.state === "told" || f.a.state === "answered" || f.a.state === "waiting" ? "" : "animate-pulse"}`} />
+                        {f.a.kind === "stuck" ? "Stuck in a loop" : f.a.why === "blocked" ? "Blocked, needs you" : "Mentions you"}
+                        <span className="ml-auto rounded-full bg-current/20 px-2 py-0.5 font-medium">{STATE_LABEL[f.a.state]}</span>
+                      </div>
+                      <p className="mt-1 text-sm font-semibold">{f.a.from}</p>
+                      <p className="mt-0.5 line-clamp-3 text-sm text-text/85">{f.a.text}</p>
+                      {f.a.ctx?.stuck && (
+                        <p data-chips className="mt-1.5 flex gap-1.5 text-xs font-semibold tabular-nums text-bad">
+                          <span className="rounded-full bg-bad/15 px-2 py-0.5">{f.a.ctx.stuck.count} retries</span>
+                          <span className="rounded-full bg-bad/15 px-2 py-0.5">{f.a.ctx.stuck.minutes} min</span>
+                          <span className="rounded-full bg-bad/15 px-2 py-0.5">${f.a.ctx.stuck.cost_usd.toFixed(2)}</span>
+                        </p>
+                      )}
+                    </button>
+                    {f.a.state === "asking" && (
+                      <div className="flex justify-end px-3.5 pb-2">
+                        <button type="button" onClick={() => setAlerts((all) => all.map((x) => (x.id === f.a.id && x.state === "asking" ? { ...x, state: "told" } : x)))} className="text-xs text-dim underline underline-offset-4 hover:text-text">
+                          Skip for now
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ) : (
                   <li key={`c${f.seq}`} className="border-t border-line/70 px-4 py-2 first:border-t-0">
@@ -554,6 +650,8 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           {standup && <Standup repo={repo} board={board} hours={3} />}
         </footer>
       )}
+
+      {focused && <FocusCard alert={focused} onClose={() => setFocus(null)} canOpen={isLocalhost()} />}
     </div>
   );
 }
