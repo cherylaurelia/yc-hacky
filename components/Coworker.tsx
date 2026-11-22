@@ -2,6 +2,7 @@
 
 import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
+import AgentLog from "@/components/AgentLog";
 import AccountControl, { type Account, useAccount } from "@/components/AccountControl";
 import RepoPicker, { RepoChip } from "@/components/RepoPicker";
 import TextChat from "@/components/TextChat";
@@ -50,6 +51,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   } = useCoworker({ initialRepo, board, embed });
 
   const account = useAccount();
+  const [logOpen, setLogOpen] = useState(false);
   const captions = msgs.slice(-1);
   const behind = card ? open.length - 1 : 0;
 
@@ -58,6 +60,11 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
       <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
         <span className="shrink-0 font-display text-base text-ink">Terminal 1</span>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
+          {repo && (
+            <button type="button" onClick={() => setLogOpen((o) => !o)} aria-expanded={logOpen} aria-controls="agent-log" className="underline-offset-4 hover:text-ink hover:underline">
+              Log
+            </button>
+          )}
           {embed ? (
             repo && (
               <span className="max-w-[10rem] truncate" title={repo}>
@@ -72,6 +79,8 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           )}
         </div>
       </header>
+
+      {logOpen && repo && <AgentLog repo={repo} board={board} embed={embed} onClose={() => setLogOpen(false)} />}
 
       <main className={`mx-auto flex w-full flex-1 flex-col items-center ${embed ? "min-h-0 max-w-sm justify-safe-center overflow-y-auto py-3" : "max-w-xl justify-center py-10"}`}>
         {ready && !repo ? (
