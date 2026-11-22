@@ -5,7 +5,6 @@
 // can render it. components/Coworker.tsx is the current view.
 import { useConversation } from "@elevenlabs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import agent from "@/agent.json";
 import { type Alert, type AlertState, checkAnswer, findAlert, markAnswered, nextUp, normReq, waiting } from "@/lib/alerts";
 import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/lib/board";
 import { localNow } from "@/lib/now";
@@ -301,7 +300,6 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
 
   async function start(asText: boolean) {
     if (!repo || starting || convo.status === "connecting" || convo.status === "connected") return;
-    if (!agent.agent_id) return setError("The voice agent is not set up yet. Run scripts/sync-agent.ts.");
     setError(null);
     setCanType(false);
     setStarting(true);
@@ -326,11 +324,19 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
         return fail(denied ? "Microphone access is blocked. Allow it in your browser's address bar, then hold again." : "I could not open a microphone. Plug one in, then hold again.");
       }
     }
-    convo.startSession({
-      agentId: agent.agent_id,
-      dynamicVariables: { repo, now: localNow() },
-      ...(asText ? { textOnly: true, connectionType: "websocket" as const } : {}),
-    });
+    let session: { conversationToken: string } | { signedUrl: string; textOnly: true; connectionType: "websocket" };
+    try {
+      const res = await fetch(`/api/convai-token${asText ? "?text=1" : ""}`, { cache: "no-store" });
+      const j = (await res.json().catch(() => ({}))) as { conversationToken?: string; signedUrl?: string; error?: string };
+      if (!res.ok) throw new Error(j.error ?? `Could not start a session (HTTP ${res.status}).`);
+      if (j.signedUrl) session = { signedUrl: j.signedUrl, textOnly: true, connectionType: "websocket" };
+      else if (j.conversationToken) session = { conversationToken: j.conversationToken };
+      else throw new Error("The server sent back no session.");
+    } catch (e) {
+      setStarting(false);
+      return setError(e instanceof Error ? e.message : "Could not start a session.");
+    }
+    convo.startSession({ ...session, dynamicVariables: { repo, now: localNow() } });
   }
 
   // `src` is "key", "pointer" or "event"; the mic is held while any source is down.

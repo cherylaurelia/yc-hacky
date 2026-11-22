@@ -2,6 +2,8 @@ import { resolveToken } from "@/lib/auth";
 import { GhError } from "@/lib/github";
 import { boardPosts } from "@/lib/board-read";
 import { ElevenError, TTS_MODEL, elevenAudio } from "@/lib/eleven";
+import { rateLimit } from "@/lib/ratelimit";
+import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
 import { type Line, HOST, standupScript } from "@/lib/standup";
 import { COWORKER_VOICE, assignVoices } from "@/lib/voices";
@@ -15,6 +17,8 @@ const fail = (status: number, error: string) => Response.json({ error }, { statu
 // X-Standup-Script (base64 of the JSON lines [{speaker, voice, text}]). format=json returns the
 // script only and spends no credits.
 export async function GET(req: Request) {
+  const limited = rateLimit(req, "standup");
+  if (limited) return limited;
   const q = new URL(req.url).searchParams;
   const parsed = parseRepo(q.get("repo"));
   if (!parsed.ok) return fail(400, parsed.error);
@@ -23,9 +27,10 @@ export async function GET(req: Request) {
   const board = q.has("board") ? Number(q.get("board")) : undefined;
   if (board !== undefined && !(Number.isInteger(board) && board > 0)) return fail(400, "board must be an issue number.");
 
-  const { token } = await resolveToken(req);
+  const { token, session } = await resolveToken(req);
 
   try {
+    await assertReadable(parsed.repo, { signedIn: !!session });
     const posts = await boardPosts(parsed.repo, token, board, hours);
     const script = standupScript(posts, hours);
     if (!script) return fail(404, `The board has been quiet for the last ${hours === 1 ? "hour" : `${hours} hours`}. Nothing to stand up on.`);

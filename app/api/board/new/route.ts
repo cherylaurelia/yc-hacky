@@ -1,6 +1,8 @@
 import { resolveToken } from "@/lib/auth";
 import { boardUpdates } from "@/lib/board-api";
 import { gh, GhError } from "@/lib/github";
+import { rateLimit } from "@/lib/ratelimit";
+import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
@@ -9,6 +11,8 @@ const fail = (status: number, error: string) => Response.json({ error }, { statu
 // No `since`: returns the baseline cursor. With `since`: alerts for newer posts. `at` is
 // the GitHub `since` time of that comment; without it we look the comment up (one extra call).
 export async function GET(req: Request) {
+  const limited = rateLimit(req, "board");
+  if (limited) return limited;
   const q = new URL(req.url).searchParams;
   const parsed = parseRepo(q.get("repo"));
   if (!parsed.ok) return fail(400, parsed.error);
@@ -16,9 +20,10 @@ export async function GET(req: Request) {
   const sinceRaw = q.get("since");
   const board = q.get("board") ? Number(q.get("board")) : undefined;
   if (board !== undefined && !(Number.isInteger(board) && board > 0)) return fail(400, "board must be an issue number.");
-  const { token } = await resolveToken(req);
+  const { token, session } = await resolveToken(req);
 
   try {
+    await assertReadable(parsed.repo, { signedIn: !!session });
     let cursor;
     if (sinceRaw !== null) {
       const since = Number(sinceRaw);
