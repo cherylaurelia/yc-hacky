@@ -7,9 +7,10 @@ import Standup from "@/components/Standup";
 import { type Phase, useCoworker } from "@/components/useCoworker";
 import type { Alert } from "@/lib/alerts";
 import { diffRows } from "@/lib/diff";
+import { type Interruptions, QUIET_MS, endQuiet, goQuiet } from "@/lib/interruptions";
 import { parseRepo } from "@/lib/repo";
-import { ago } from "@/lib/spoken";
-import { voiceFor } from "@/lib/voices";
+import { ago, plural } from "@/lib/spoken";
+import { COWORKER_VOICE, type Voice, voiceFor } from "@/lib/voices";
 
 // Each poster keeps one colour everywhere, keyed by the voice they speak in. All pass AA with white text.
 const VOICE_COLOR: Record<string, string> = {
@@ -24,6 +25,9 @@ const INK = "#221d17";
 const colorOf = (who: string) => (who === "coworker" || who === "you" ? INK : (VOICE_COLOR[voiceFor(who).name] ?? INK));
 const firstName = (who: string) => who.replace(/[[\]]/g, "").split(/['’\s]/)[0] || who;
 const isLocalhost = () => typeof window !== "undefined" && /^(?:localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+
+const MODE_LABEL = { all: "All updates", blockers: "Blockers only" } as const;
+const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 const PILL_WORD: Record<Phase, string> = { idle: "", listening: "Listening", thinking: "Thinking", speaking: "Speaking" };
 
@@ -45,14 +49,17 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     card,
     speaker,
     focus,
+    settings: { interruptions, voiceId, voices, queued, offered },
     standup,
     draft,
     repo: { current: repo, ready, input: repoInput, error: repoError },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo, setRepoInput, setStandup, setFocus, answer, dismiss, endSession },
+    actions: { start, press, send, setDraft, setRepo, setRepoInput, setStandup, setFocus, answer, dismiss, setInterruptions, setVoice, readQueued, holdQueued, endSession },
   } = useCoworker({ initialRepo, board, embed });
 
+  const [settings, setSettings] = useState(false);
   const captions = msgs.slice(-2);
+  const quiet = interruptions.mode === "dnd" ? interruptions : null;
   const behind = card ? open.length - 1 : 0;
 
   return (
@@ -66,12 +73,36 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           <span className="font-display text-base text-ink">Coworker</span>
         )}
         {boardError && <span className="text-stop">{boardError}</span>}
-        {!embed && (
-          <div className="account">
-            <AccountControl repo={repo} onRepo={setRepo} />
-          </div>
-        )}
+        <div className="flex items-start gap-4">
+          {quiet && (
+            <span role="status" className="rounded-full bg-chip px-3 py-0.5 font-semibold text-ink">
+              Do Not Disturb{queued > 0 ? ` · ${plural(queued, "agent")} waiting` : ""}
+            </span>
+          )}
+          <button type="button" onClick={() => setSettings((o) => !o)} aria-expanded={settings} aria-controls="settings" className="underline-offset-4 hover:text-ink hover:underline">
+            Settings
+          </button>
+          {!embed && (
+            <div className="account">
+              <AccountControl repo={repo} onRepo={setRepo} />
+            </div>
+          )}
+        </div>
       </header>
+
+      {settings && (
+        <SettingsPanel
+          embed={embed}
+          interruptions={interruptions}
+          queued={queued}
+          voiceId={voiceId}
+          voices={voices}
+          live={live}
+          onInterruptions={setInterruptions}
+          onVoice={setVoice}
+          onClose={() => setSettings(false)}
+        />
+      )}
 
       <main className={`mx-auto flex w-full flex-1 flex-col items-center ${embed ? "min-h-0 max-w-sm justify-safe-center overflow-y-auto py-3" : "max-w-xl justify-center py-10"}`}>
         {ready && !repo ? (
@@ -119,7 +150,13 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
                     ? `${agents[0].name} is working.`
                     : "Your agents are working."}
               </h1>
-              <p className={`-mt-3 text-soft ${embed ? "text-sm" : "text-base"}`}>I&rsquo;ll speak up if one needs you.</p>
+              <p className={`-mt-3 text-soft ${embed ? "text-sm" : "text-base"}`}>
+                {quiet
+                  ? `Do Not Disturb ${quiet.quietUntil === null ? "until you turn it off" : `until ${clock(quiet.quietUntil)}`}. Blockers wait here.`
+                  : interruptions.mode === "blockers"
+                    ? "I’ll speak up if one is blocked."
+                    : "I’ll speak up if one needs you."}
+              </p>
               {agents.length > 0 && (
                 <ul className="flex flex-wrap justify-center gap-2" aria-label="Agents on the board">
                   {agents.map((a) => (
@@ -132,7 +169,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
               )}
               {!embed && standup && (
                 <div className="mt-4 w-full text-left">
-                  <Standup repo={repo} board={board} hours={3} />
+                  <Standup repo={repo} board={board} hours={3} voice={voiceId} />
                 </div>
               )}
             </section>
@@ -142,6 +179,17 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
 
       {repo && (
         <footer className="flex flex-col items-center gap-3">
+          {offered && (
+            <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl bg-card px-4 py-2.5 text-[13px] text-ink shadow-[0_1px_2px_rgba(60,40,20,0.06)]">
+              <span>{plural(queued, "agent")} waiting on you. Read them one at a time?</span>
+              <button type="button" onClick={readQueued} className="h-8 rounded-full bg-ink px-4 font-semibold text-paper hover:bg-ink/90">
+                Read them
+              </button>
+              <button type="button" onClick={holdQueued} className="h-8 rounded-full px-3 font-semibold text-ink hover:bg-paper">
+                Not now
+              </button>
+            </div>
+          )}
           <div aria-live="polite" className={`flex w-full flex-col items-center gap-1 text-center ${embed ? "max-w-sm" : "max-w-lg"}`}>
             {captions.map((m, i) => (
               <p
@@ -230,6 +278,99 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
         </footer>
       )}
     </div>
+  );
+}
+
+// Interruptions and Coworker's voice. Both save in this browser as soon as they change.
+function SettingsPanel({
+  embed,
+  interruptions,
+  queued,
+  voiceId,
+  voices,
+  live,
+  onInterruptions,
+  onVoice,
+  onClose,
+}: {
+  embed: boolean;
+  interruptions: Interruptions;
+  queued: number;
+  voiceId: string;
+  voices: readonly Voice[];
+  live: boolean;
+  onInterruptions: (s: Interruptions) => void;
+  onVoice: (id: string) => void;
+  onClose: () => void;
+}) {
+  const quiet = interruptions.mode === "dnd" ? interruptions : null;
+  const pick = "h-9 rounded-full px-4 text-[13px] font-semibold transition-colors";
+  return (
+    <section
+      id="settings"
+      aria-label="Settings"
+      className={`card-rise mx-auto mt-3 flex w-full flex-col rounded-[28px] bg-card text-[14px] text-ink ${embed ? "max-h-[70vh] max-w-sm gap-4 overflow-y-auto p-4" : "max-w-xl gap-5 p-6"}`}
+    >
+      <fieldset className="flex flex-col gap-3">
+        <legend className="mb-1 font-display text-lg">Interruptions</legend>
+        {(["all", "blockers"] as const).map((m) => (
+          <label key={m} className="flex cursor-pointer items-start gap-3">
+            <input type="radio" name="interruptions" checked={!quiet && interruptions.mode === m} onChange={() => onInterruptions({ mode: m })} className="mt-1 accent-[var(--ink)]" />
+            <span>
+              <span className="block font-semibold">{MODE_LABEL[m]}</span>
+              <span className="text-soft">
+                {m === "all" ? "Blockers and milestones, like a PR ready, are read aloud." : "Only questions and approval requests that are holding up agents. Milestones wait for the standup."}
+              </span>
+            </span>
+          </label>
+        ))}
+        <div className="flex items-start gap-3">
+          <span aria-hidden className={`mt-1 size-3.5 shrink-0 rounded-full border ${quiet ? "border-ink bg-ink" : "border-faint"}`} />
+          <div className="flex flex-col gap-2">
+            <span className="font-semibold">Do Not Disturb</span>
+            <span className="text-soft">Nothing speaks on its own. Blockers stay queued, and push to talk still works.</span>
+            {quiet ? (
+              <div className="flex flex-wrap items-center gap-3" role="status">
+                <span>
+                  On {quiet.quietUntil === null ? "until you turn it off" : `until ${clock(quiet.quietUntil)}`}. {queued ? `${plural(queued, "agent")} waiting.` : "No agents waiting."}
+                </span>
+                <button type="button" onClick={() => onInterruptions(endQuiet(interruptions))} className={`${pick} bg-ink text-paper hover:bg-ink/90`}>
+                  Turn off, back to {MODE_LABEL[quiet.previousMode]}
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => onInterruptions(goQuiet(interruptions, Date.now(), QUIET_MS))} className={`${pick} bg-ink text-paper hover:bg-ink/90`}>
+                  Quiet for 30 minutes
+                </button>
+                <button type="button" onClick={() => onInterruptions(goQuiet(interruptions, Date.now(), null))} className={`${pick} bg-chip text-ink hover:bg-line`}>
+                  Until I turn it off
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </fieldset>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="coworker-voice" className="font-display text-lg">
+          Coworker&rsquo;s voice
+        </label>
+        <select id="coworker-voice" value={voiceId} onChange={(e) => onVoice(e.target.value)} className="h-10 max-w-60 rounded-full border border-line bg-paper px-4 text-ink">
+          {voices.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+              {v.id === COWORKER_VOICE.id ? " (default)" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="text-soft">Only Coworker&rsquo;s own voice changes. Each agent keeps its own voice in alerts and the standup.{live ? " Your next session uses the new voice." : ""}</p>
+      </div>
+
+      <button type="button" onClick={onClose} className="self-start text-[13px] text-soft underline-offset-4 hover:text-ink hover:underline">
+        Close
+      </button>
+    </section>
   );
 }
 

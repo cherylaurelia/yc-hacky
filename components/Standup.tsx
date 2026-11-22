@@ -7,8 +7,8 @@ type Standup = { url: string; lines: Line[]; mode: string };
 
 // Self-contained: <Standup repo="owner/name" hours={3} />. One click builds the standup on the
 // server (GET /api/standup), plays it, and shows each line under its speaker. Pass `board`
-// to read a board issue other than the repo's pinned one.
-export default function Standup({ repo, hours = 3, board }: { repo: string; hours?: number; board?: number }) {
+// to read a board issue other than the repo's pinned one, and `voice` to change the host's voice.
+export default function Standup({ repo, hours = 3, board, voice }: { repo: string; hours?: number; board?: number; voice?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [standup, setStandup] = useState<Standup | null>(null);
@@ -19,7 +19,7 @@ export default function Standup({ repo, hours = 3, board }: { repo: string; hour
     setBusy(true);
     setError(null);
     try {
-      const q = new URLSearchParams({ repo, hours: String(hours), ...(board ? { board: String(board) } : {}) });
+      const q = new URLSearchParams({ repo, hours: String(hours), ...(board ? { board: String(board) } : {}), ...(voice ? { voice } : {}) });
       const res = await fetch(`/api/standup?${q}`, { cache: "no-store" });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };

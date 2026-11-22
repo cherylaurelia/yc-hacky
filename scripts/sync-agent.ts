@@ -104,7 +104,8 @@ async function main() {
     },
     platform_settings: {
     auth: { enable_auth: true },
-      overrides: { conversation_config_override: { conversation: { text_only: true } } },
+      // Each key is a field the app may override per session: the text-only chat, and Coworker's voice (the settings panel).
+      overrides: { conversation_config_override: { conversation: { text_only: true }, tts: { voice_id: true } } },
     },
   };
   let agent_id = current.agent_id;
