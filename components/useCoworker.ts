@@ -52,11 +52,9 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const [error, setError] = useState<string | null>(null);
   const [canType, setCanType] = useState(false);
   const [textOnly, setTextOnly] = useState(false);
-  const [draft, setDraft] = useState("");
   const [held, setHeld] = useState(false);
   const [starting, setStarting] = useState(false);
   const [awaiting, setAwaiting] = useState(false);
-  const [standup, setStandup] = useState(false);
   const [focus, setFocus] = useState<number | null>(null);
   const [pttKey, setPttKey] = useState("fn");
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
@@ -406,7 +404,6 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     if (!t || !live) return;
     setMsgs((m) => [...m, { id: ++seq.current, role: "user", text: t }]);
     convo.sendUserMessage(t);
-    setDraft("");
   }
 
   const hint = embed ? `Hold ${pttKey} to talk` : "Hold Space to talk";
@@ -500,10 +497,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     speaker,
     waiting: { count: waitingNow.length, stuck: waitingNow.some((a) => a.kind === "stuck") },
     focus: focused ?? null,
-    standup,
-    draft,
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo: switchRepo, setStandup, setFocus, skip, answer, dismiss, endSession: () => convo.endSession() },
+    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, endSession: () => convo.endSession() },
   };
 }

@@ -4,7 +4,7 @@ import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
 import AccountControl, { useAccount } from "@/components/AccountControl";
 import RepoPicker, { RepoChip } from "@/components/RepoPicker";
-import Standup from "@/components/Standup";
+import TextChat from "@/components/TextChat";
 import { type Phase, useCoworker } from "@/components/useCoworker";
 import type { Alert } from "@/lib/alerts";
 import { diffRows } from "@/lib/diff";
@@ -23,7 +23,6 @@ const VOICE_COLOR: Record<string, string> = {
 const INK = "#221d17";
 const colorOf = (who: string) => (who === "coworker" || who === "you" ? INK : (VOICE_COLOR[voiceFor(who).name] ?? INK));
 const firstName = (who: string) => who.replace(/[[\]]/g, "").split(/['’\s]/)[0] || who;
-const isLocalhost = () => typeof window !== "undefined" && /^(?:localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
 
 const PILL_WORD: Record<Phase, string> = { idle: "", listening: "Listening", thinking: "Thinking", speaking: "Speaking" };
 
@@ -38,18 +37,16 @@ export default function Coworker({ initialRepo, board, embed }: { initialRepo: s
 // Presentation only: every piece of state and every action comes from useCoworker().
 function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const {
-    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError },
+    status: { phase, sub, hint, mic, live, textOnly, canType, error, boardError },
     transcript: msgs,
     agents,
     open,
     card,
     speaker,
     focus,
-    standup,
-    draft,
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setDraft, setRepo, setStandup, setFocus, answer, dismiss, endSession },
+    actions: { start, press, send, setRepo, setFocus, answer, dismiss },
   } = useCoworker({ initialRepo, board, embed });
 
   const account = useAccount();
@@ -106,21 +103,6 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
                     : "Your agents are working."}
               </h1>
               <p className={`-mt-3 text-soft ${embed ? "text-sm" : "text-base"}`}>I&rsquo;ll speak up if one needs you.</p>
-              {agents.length > 0 && (
-                <ul className="flex flex-wrap justify-center gap-2" aria-label="Agents on the board">
-                  {agents.map((a) => (
-                    <li key={a.name} className="flex items-center gap-2 rounded-full bg-card/70 py-1 pl-1 pr-3 text-[13px] text-ink shadow-[0_1px_2px_rgba(60,40,20,0.06)]">
-                      <Avatar who={a.name} size={22} />
-                      {a.name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {!embed && standup && (
-                <div className="mt-4 w-full text-left">
-                  <Standup repo={repo} board={board} hours={3} />
-                </div>
-              )}
             </section>
           )
         )}
@@ -128,17 +110,19 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
 
       {repo && (
         <footer className="flex flex-col items-center gap-3">
-          <div aria-live="polite" className={`flex w-full flex-col items-center gap-1 text-center ${embed ? "max-w-sm" : "max-w-lg"}`}>
-            {captions.map((m, i) => (
-              <p
-                key={m.id}
-                className={`text-balance ${i === captions.length - 1 ? "max-h-40 overflow-y-auto text-ink" : "line-clamp-1 text-faint"} ${m.role === "user" ? "text-soft" : ""} ${embed ? "text-[13px]" : "text-[15px]"}`}
-              >
-                {m.role === "user" && <span className="sr-only">You: </span>}
-                {m.text}
-              </p>
-            ))}
-          </div>
+          {!(live && textOnly) && (
+            <div aria-live="polite" className={`flex w-full flex-col items-center gap-1 text-center ${embed ? "max-w-sm" : "max-w-lg"}`}>
+              {captions.map((m, i) => (
+                <p
+                  key={m.id}
+                  className={`text-balance ${i === captions.length - 1 ? "max-h-40 overflow-y-auto text-ink" : "line-clamp-1 text-faint"} ${m.role === "user" ? "text-soft" : ""} ${embed ? "text-[13px]" : "text-[15px]"}`}
+                >
+                  {m.role === "user" && <span className="sr-only">You: </span>}
+                  {m.text}
+                </p>
+              ))}
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="max-w-md text-balance text-center text-[13px] text-stop">
@@ -152,28 +136,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           )}
 
           {live && textOnly ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                send(draft);
-              }}
-              className="flex w-full max-w-md items-center gap-2 rounded-full bg-ink p-1.5 pl-5"
-            >
-              <label htmlFor="draft" className="sr-only">
-                Message
-              </label>
-              <input
-                id="draft"
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Type to your coworker"
-                className="min-w-0 flex-1 bg-transparent text-[15px] text-paper outline-none placeholder:text-paper/60"
-              />
-              <button type="submit" disabled={!draft.trim()} className="h-9 rounded-full bg-paper px-4 text-sm font-semibold text-ink disabled:opacity-40">
-                Send
-              </button>
-            </form>
+            <TextChat messages={msgs} onSend={send} />
           ) : (
             <button
               type="button"
@@ -195,24 +158,6 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             </button>
           )}
 
-          {!embed && (
-            <nav className="flex items-center gap-5 text-[13px] text-soft">
-              <button type="button" onClick={() => setStandup((s) => !s)} aria-expanded={standup} className="underline-offset-4 hover:text-ink hover:underline">
-                Standup
-              </button>
-              {live ? (
-                <button type="button" onClick={endSession} className="underline-offset-4 hover:text-ink hover:underline">
-                  End session
-                </button>
-              ) : (
-                !connecting && (
-                  <button type="button" onClick={() => setRepo("")} className="underline-offset-4 hover:text-ink hover:underline">
-                    Change repo
-                  </button>
-                )
-              )}
-            </nav>
-          )}
         </footer>
       )}
 
@@ -265,7 +210,6 @@ function AlertCard({
   const stuck = a.kind === "stuck";
   const rows = c?.diff ? diffRows(c.diff) : [];
   const [busy, setBusy] = useState(false);
-  const [opening, setOpening] = useState<{ state: "busy" | "ok" | "error"; text: string } | null>(null);
 
   const act = async (d: "allow" | "deny" | "stop") => {
     setBusy(true);
@@ -275,23 +219,6 @@ function AlertCard({
       setBusy(false);
     }
   };
-
-  async function openInEditor() {
-    if (!c?.cwd || !c.file) return;
-    setOpening({ state: "busy", text: "Opening" });
-    try {
-      const res = await fetch("/api/open", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cwd: c.cwd, file: c.file, line: c.line }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(j.error ?? `Could not open it (HTTP ${res.status}).`);
-      setOpening({ state: "ok", text: "Opened in your editor" });
-    } catch (e) {
-      setOpening({ state: "error", text: e instanceof Error ? e.message : "Could not open it." });
-    }
-  }
 
   const btn = `rounded-full font-semibold transition-[background-color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:opacity-50 ${embed ? "h-10 flex-1 px-4 text-sm" : "h-12 px-7 text-[15px]"}`;
 
@@ -312,11 +239,6 @@ function AlertCard({
         <div className="flex items-center gap-2.5 text-[13px]">
           <Avatar who={a.from} size={embed ? 22 : 26} />
           <span className="text-soft">{ago(a.at)}</span>
-          {stuck && c?.stuck && (
-            <span className="ml-auto rounded-full bg-stoptint px-2.5 py-0.5 font-semibold tabular-nums text-stop">
-              {c.stuck.minutes} min · ~${Math.round(c.stuck.cost_usd)}
-            </span>
-          )}
         </div>
 
         <h2 className={`font-display text-balance leading-[1.15] tracking-[-0.01em] text-ink ${embed ? "text-xl" : "text-[2rem]"}`}>{headline(a)}</h2>
@@ -339,12 +261,6 @@ function AlertCard({
                   {c.line ? `:${c.line}` : ""}
                 </span>
               )}
-              {!embed && isLocalhost() && c?.cwd && c.file && (
-                <button type="button" onClick={openInEditor} disabled={opening?.state === "busy"} className="text-soft underline-offset-4 hover:text-ink hover:underline">
-                  Open in editor
-                </button>
-              )}
-              {opening && <span className={opening.state === "error" ? "text-stop" : "text-soft"}>{opening.text}</span>}
             </div>
             {showDiff && rows.length > 0 && (
               <div className={`diff-open overflow-auto rounded-2xl bg-paper py-2 font-mono ${embed ? "max-h-28 text-[11px] leading-5" : "max-h-72 text-[12.5px] leading-6"}`} data-diff>
@@ -379,11 +295,6 @@ function AlertCard({
               <button type="button" disabled={busy} onClick={() => act("deny")} className={`${btn} text-ink hover:bg-paper`}>
                 Deny
               </button>
-              {!embed && (
-                <button type="button" disabled={busy} onClick={() => act("stop")} className={`${btn} ml-auto text-soft hover:bg-stoptint hover:text-stop`}>
-                  Stop agent
-                </button>
-              )}
             </>
           ) : (
             <button type="button" onClick={onDismiss} className={`${btn} bg-ink text-paper hover:bg-ink/90`}>
