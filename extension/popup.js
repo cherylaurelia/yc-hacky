@@ -1,15 +1,10 @@
-// Coworker popup — UI demo. All data below is made up; nothing talks to GitHub or ElevenLabs yet.
+// Coworker popup: the board as a priority queue. Reads and writes go through the Coworker app
+// (GET /api/board/recent, POST /api/tool/answer_request and /api/tool/board_post) from a hidden
+// frame on the app's origin (extension/relay.js), so they run as the Coworker page would.
 "use strict";
 
-const ME = "aidanyee17";
-
-const AGENTS = {
-  cheryl: { name: "Cheryl's Claude", short: "C", color: "#f0883e" },
-  eithan: { name: "Eithan's Codex", short: "E", color: "#58a6ff" },
-  aidan: { name: "Aidan's Claude", short: "A", color: "#bc8cff" },
-  worker: { name: "Board worker", short: "W", color: "#56d364" },
-  coworker: { name: "Coworker", short: "◉", color: "#8b949e" },
-};
+const $ = (id) => document.getElementById(id);
+const body = $("body");
 
 // Highest priority first. The queue is grouped and ordered by this list.
 const KINDS = [
@@ -19,70 +14,153 @@ const KINDS = [
   { key: "progress", label: "In progress", cls: "p3" },
   { key: "done", label: "Done", cls: "p4" },
 ];
+const AVATAR_COLORS = ["#f0883e", "#58a6ff", "#bc8cff", "#56d364", "#e3b341", "#ff7b72", "#79c0ff"];
+const ANSWER = /^\s*req\s+[0-9a-f]{4,12}\s+(?:allow|approved?|yes|deny|denied|no|reject(?:ed)?|stop)\b/i;
+const POLL_MS = 15_000;
 
-let items = [
-  { id: 1, agent: "aidan", kind: "approval", mins: 1, req: "3fa9c1", mine: true,
-    text: "wants to run <code>npm install @elevenlabs/client</code> in yc-hacky",
-    thread: [{ from: "aidan", text: "Needs approval (req 3fa9c1): Bash <code>npm install @elevenlabs/client</code> in yc-hacky", mins: 1 }] },
-  { id: 2, agent: "eithan", kind: "approval", mins: 4, req: "b71e02", mine: false,
-    text: "wants to edit <code>app/api/standup/route.ts</code> (Cheryl's folder)",
-    thread: [{ from: "eithan", text: "Needs approval (req b71e02): Edit <code>app/api/standup/route.ts</code>. It's in Cheryl's folder, asking for a handoff.", mins: 4 }] },
-  { id: 3, agent: "cheryl", kind: "blocked", mins: 6, mine: false,
-    text: "chat page needs <b>ANTHROPIC_API_KEY</b> in .env before <code>app/api/chat</code> works",
-    thread: [
-      { from: "cheryl", text: "Installed assistant-ui into the root app. New: <code>app/chat</code>, <code>app/api/chat</code>.", mins: 11 },
-      { from: "cheryl", text: "Blocked: chat page needs <b>ANTHROPIC_API_KEY</b> in .env before <code>app/api/chat</code> works. Who has one?", mins: 6 },
-    ] },
-  { id: 4, agent: "eithan", kind: "ask", mins: 9, mine: true,
-    text: "<b>@aidanyee17</b> can you own the Chrome extension? I'll keep the Mac app",
-    thread: [{ from: "eithan", text: "<b>@aidanyee17</b> can you own the Chrome extension? I'll keep the Mac app. Needs the board queue + a mic.", mins: 9 }] },
-  { id: 5, agent: "worker", kind: "progress", mins: 3, mine: false,
-    text: "on it: add retry to <code>lib/eleven.ts</code> when the dialogue API rate-limits",
-    thread: [{ from: "worker", text: "On it: add retry to <code>lib/eleven.ts</code> when the dialogue API rate-limits. Worktree <code>task-412</code>.", mins: 3 }] },
-  { id: 6, agent: "eithan", kind: "progress", mins: 14, mine: false,
-    text: "wiring fn push-to-talk into <code>macos/Coworker/PttMonitor.swift</code>",
-    thread: [{ from: "eithan", text: "Wiring fn push-to-talk into <code>macos/Coworker/PttMonitor.swift</code>. ETA 20 min.", mins: 14 }] },
-  { id: 7, agent: "cheryl", kind: "done", mins: 22, mine: false,
-    text: "merged multi-voice standup, PR #9. Try <code>/api/standup?hours=3</code>",
-    thread: [{ from: "cheryl", text: "Done: merged multi-voice standup, PR #9. Try <code>/api/standup?hours=3</code>.", mins: 22 }] },
-  { id: 8, agent: "worker", kind: "done", mins: 31, mine: false,
-    text: "done: dark redesign tokens, PR #7",
-    thread: [{ from: "worker", text: "Done: dark redesign tokens, PR #7.", mins: 31 }] },
-];
+const state = { view: "queue", filter: "all", open: null, data: null, error: "", busy: new Set(), sent: new Map() };
+let settings;
+let windowId = null;
 
-const state = { view: "queue", filter: "all", open: null, coworkerThread: [] };
+// ---------- the relay frame ----------
 
-const $ = (id) => document.getElementById(id);
-const body = $("body");
-const ago = (m) => (m < 1 ? "now" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h`);
-const plain = (html) => html.replace(/<[^>]+>/g, "");
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let relay = null;
+let relayReady = null;
+const waiting = new Map();
+let seq = 0;
 
-function avatar(agentKey) {
-  const a = AGENTS[agentKey];
-  return `<span class="av" style="--a:${a.color}" aria-hidden="true">${a.short}</span>`;
+function startRelay() {
+  relayReady = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("offline")), 8000);
+    window.addEventListener("message", function ready(e) {
+      if (e.origin !== appOrigin(settings) || !e.data) return;
+      if (e.data.coworker === "relay-ready") {
+        clearTimeout(timer);
+        window.removeEventListener("message", ready);
+        resolve();
+      }
+    });
+  });
+  relay = document.createElement("iframe");
+  relay.hidden = true;
+  relay.title = "Coworker relay";
+  relay.src = `${appOrigin(settings)}/ext/relay`;
+  document.body.append(relay);
+}
+
+window.addEventListener("message", (e) => {
+  if (!settings || e.origin !== appOrigin(settings) || !e.data || e.data.coworker !== "api-reply") return;
+  const done = waiting.get(e.data.id);
+  if (done) { waiting.delete(e.data.id); done(e.data); }
+});
+
+async function api(path, { method = "GET", body: payload } = {}) {
+  await relayReady;
+  const id = ++seq;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { waiting.delete(id); resolve({ ok: false, status: 0, json: { error: "Coworker took too long to answer." } }); }, 20_000);
+    waiting.set(id, (r) => { clearTimeout(timer); resolve(r); });
+    relay.contentWindow.postMessage({ coworker: "api", id, method, path, body: payload }, appOrigin(settings));
+  });
+}
+
+// ---------- data ----------
+
+async function refresh() {
+  const q = new URLSearchParams({ repo: settings.repo, minutes: "240", limit: "80" });
+  if (settings.board) q.set("board", settings.board);
+  const r = await api(`/api/board/recent?${q}`);
+  if (r.ok) {
+    state.data = r.json;
+    state.error = "";
+  } else {
+    state.error = (r.json && r.json.error) || `Coworker answered ${r.status}.`;
+  }
+  render();
+}
+
+// Turns posts (oldest first) into queue items. Every open request and blocker shows; for anything
+// else only each agent's latest post shows, so the queue stays short.
+function queue(data) {
+  const me = (data.me || "").toLowerCase();
+  const answered = new Set([...(data.answered || []), ...state.sent.keys()]);
+  const posts = data.posts.filter((p) => !p.relay && !ANSWER.test(p.text));
+  const latest = new Map();
+  for (const p of posts) latest.set(p.agent, p);
+  // A question to you counts as answered once you (or your agent) post after it.
+  const myLast = Math.max(0, ...data.posts.filter((p) => p.login.toLowerCase() === me).map((p) => p.id));
+
+  const items = [];
+  for (const p of posts) {
+    const isLatest = latest.get(p.agent) === p;
+    let kind = null;
+    let resolved = null;
+    if ((p.kind === "approval" || p.kind === "stuck") && p.req) {
+      if (answered.has(p.req)) {
+        if (!isLatest) continue;
+        resolved = state.sent.get(p.req) || "answered";
+        kind = "done";
+      } else {
+        kind = p.kind === "approval" ? "approval" : "blocked";
+      }
+    } else if (p.mention && !p.ctx) {
+      // Typed posts that mention you are questions, even when a word like "blocks" matches.
+      if (p.id > myLast) kind = "ask";
+      else if (isLatest) kind = "progress";
+    } else if (p.blocked && isLatest) kind = "blocked";
+    else if (isLatest) kind = p.kind === "done" || /\b(?:done|merged|shipped|landed|finished|fixed)\b/i.test(p.text) ? "done" : "progress";
+    if (kind) items.push({ ...p, q: kind, resolved, mine: p.mention || p.login.toLowerCase() === me });
+  }
+  return items;
+}
+
+// ---------- rendering ----------
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const backticks = (s) => esc(s).replace(/`([^`]{1,200})`/g, "<code>$1</code>");
+
+function ago(iso) {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  return m < 1 ? "now" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h`;
+}
+
+function avatar(agent) {
+  let h = 0;
+  for (const c of agent) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const letter = (agent.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase();
+  return `<span class="av" style="--a:${AVATAR_COLORS[h % AVATAR_COLORS.length]}" aria-hidden="true">${esc(letter)}</span>`;
 }
 
 function render() {
   const inThread = state.view === "thread";
   $("back").hidden = !inThread;
   $("seg").hidden = inThread;
+  $("input").placeholder = inThread ? `Reply to ${state.open}…` : "Post to the board…";
+  body.setAttribute("aria-busy", "false");
   if (inThread) renderThread();
   else renderQueue();
 }
 
 function renderQueue() {
   $("title").textContent = "Coworker";
-  const open = items.filter((i) => i.kind === "approval" && !i.resolved).length;
-  $("sub").textContent = `yc-hacky · board #1${open ? ` · ${open} waiting` : ""}`;
+  if (state.error && !state.data) {
+    $("sub").textContent = settings.repo;
+    $("live").className = "live off";
+    body.innerHTML = `<div class="empty"><p>${esc(state.error)}</p></div>`;
+    return;
+  }
+  const items = queue(state.data);
+  const waitingCount = items.filter((i) => i.q === "approval").length;
+  $("live").className = state.error ? "live off" : "live";
+  $("sub").textContent = `${settings.repo} · board #${state.data.board}${waitingCount ? ` · ${waitingCount} waiting` : ""}`;
 
   const shown = items.filter((i) => state.filter === "all" || i.mine);
   if (!shown.length) {
-    body.innerHTML = `<p class="empty">Nothing needs you right now.</p>`;
+    body.innerHTML = `<p class="empty">${state.filter === "mine" ? "Nothing needs you right now." : "The board has been quiet for 4 hours."}</p>`;
     return;
   }
   body.innerHTML = KINDS.map((k) => {
-    const list = shown.filter((i) => i.kind === k.key).sort((a, b) => a.mins - b.mins);
+    const list = shown.filter((i) => i.q === k.key).sort((a, b) => b.id - a.id);
     if (!list.length) return "";
     return `<section class="group ${k.cls}">
       <h2><i></i>${k.label} <span class="n">${list.length}</span></h2>
@@ -92,156 +170,113 @@ function renderQueue() {
 }
 
 function row(i, k) {
-  const a = AGENTS[i.agent];
-  const acts = i.kind === "approval"
-    ? i.resolved
-      ? `<div class="resolved ${i.resolved === "deny" ? "no" : ""}">${i.resolved === "allow" ? "✓ Allowed" : "✕ Denied"} · posted to board</div>`
+  let acts = "";
+  if (i.resolved) {
+    const word = i.resolved === "allow" ? "✓ Allowed" : i.resolved === "deny" ? "✕ Denied" : i.resolved === "stop" ? "■ Stopped" : "✓ Answered";
+    acts = `<div class="resolved ${i.resolved === "deny" || i.resolved === "stop" ? "no" : ""}">${word} · req ${esc(i.req)}</div>`;
+  } else if (i.req && (i.q === "approval" || i.q === "blocked")) {
+    const busy = state.busy.has(i.req) ? "disabled" : "";
+    acts = i.kind === "stuck"
+      ? `<div class="acts"><button class="btn" data-act="stop" data-req="${esc(i.req)}" ${busy}>Stop it</button><span class="req">req ${esc(i.req)}</span></div>`
       : `<div class="acts">
-          <button class="btn go" data-act="allow" data-id="${i.id}">Allow</button>
-          <button class="btn" data-act="deny" data-id="${i.id}">Deny</button>
-          <span class="req">req ${i.req}</span>
-        </div>`
-    : "";
-  return `<div class="item ${k.cls}" role="button" tabindex="0" data-open="${i.id}" aria-label="${esc(a.name)}: ${esc(plain(i.text))}">
+          <button class="btn go" data-act="allow" data-req="${esc(i.req)}" ${busy}>Allow</button>
+          <button class="btn" data-act="deny" data-req="${esc(i.req)}" ${busy}>Deny</button>
+          <span class="req">req ${esc(i.req)}</span>
+        </div>`;
+  }
+  return `<div class="item ${k.cls}" role="button" tabindex="0" data-open="${esc(i.agent)}" aria-label="${esc(i.agent)}: ${esc(i.text)}">
     ${avatar(i.agent)}
     <div>
-      <div class="meta"><span class="who">${a.name}</span><span class="time">${ago(i.mins)}</span></div>
-      <div class="text">${i.text}</div>
+      <div class="meta"><span class="who">${esc(i.agent)}</span><span class="time">${ago(i.at)}</span></div>
+      <div class="text">${backticks(i.text)}</div>
       ${acts}
     </div>
   </div>`;
 }
 
 function renderThread() {
-  const item = state.open === "coworker" ? null : items.find((i) => i.id === state.open);
-  const msgs = item ? item.thread : state.coworkerThread;
-  $("title").textContent = item ? AGENTS[item.agent].name : "Coworker";
-  $("sub").textContent = item ? `${KINDS.find((k) => k.key === item.kind).label.toLowerCase()} · board #1` : "voice assistant · yc-hacky";
-  body.innerHTML = `<div class="thread">${msgs.map(bubble).join("")}</div>`;
+  const agent = state.open;
+  const me = (state.data.me || "").toLowerCase();
+  const first = agent.split(/['’]/)[0].toLowerCase();
+  const msgs = state.data.posts.filter((p) => p.agent === agent || (p.relay && p.login.toLowerCase() === me && p.text.toLowerCase().includes(first)));
+  $("title").textContent = agent;
+  $("sub").textContent = `last 4 hours · board #${state.data.board}`;
+  body.innerHTML = msgs.length
+    ? `<div class="thread">${msgs.map((p) => {
+        const mine = p.relay && p.login.toLowerCase() === me;
+        return `<div class="msg ${mine ? "me" : ""}">${avatar(p.agent)}<div class="bubble">${backticks(p.text)}<span class="t">${esc(p.agent)} · ${ago(p.at)}</span></div></div>`;
+      }).join("")}</div>`
+    : `<p class="empty">No posts from ${esc(agent)} in the last 4 hours.</p>`;
   body.scrollTop = body.scrollHeight;
 }
 
-function bubble(m) {
-  const me = m.from === "me";
-  const who = me ? `<span class="av" style="--a:#bc8cff" aria-hidden="true">A</span>` : avatar(m.from);
-  if (m.typing) return `<div class="msg typing">${who}<div class="bubble"><span class="dots">Thinking</span></div></div>`;
-  return `<div class="msg ${me ? "me" : ""}">${who}<div class="bubble">${m.text}<span class="t">${me ? "you" : AGENTS[m.from].name} · ${ago(m.mins)}</span></div></div>`;
+function toast(text, bad) {
+  const t = $("toast");
+  t.textContent = text;
+  t.className = `toast ${bad ? "bad" : ""}`;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 3500);
 }
 
-// ---- actions ----
+// ---------- actions ----------
 
-function openThread(id) {
-  state.view = "thread";
-  state.open = id;
+async function answer(req, decision) {
+  if (state.busy.has(req)) return;
+  state.busy.add(req);
+  render();
+  const args = { request_id: req, decision };
+  if (settings.board) args.board = Number(settings.board);
+  const r = await api("/api/tool/answer_request", { method: "POST", body: { repo: settings.repo, args } });
+  state.busy.delete(req);
+  if (r.ok) {
+    state.sent.set(req, decision);
+    toast(`Sent ${decision} for req ${req}.`);
+  } else {
+    toast((r.json && r.json.error) || "That didn't go through.", true);
+  }
   render();
 }
 
-function resolve(id, verdict) {
-  const i = items.find((x) => x.id === id);
-  if (!i || i.resolved) return;
-  i.resolved = verdict;
-  i.thread.push({ from: "me", text: `req ${i.req} ${verdict}`, mins: 0 });
-  render();
-}
-
-function send(text) {
+async function post(text) {
   text = text.trim();
   if (!text) return;
-  if (state.view === "queue") {
-    state.open = "coworker";
-    state.view = "thread";
+  const args = { text };
+  if (state.view === "thread") {
+    args.text = `${state.open}, ${text}`;
+    const p = [...state.data.posts].reverse().find((x) => x.agent === state.open);
+    if (p) args.to = p.login;
   }
-  const thread = state.open === "coworker" ? state.coworkerThread : items.find((i) => i.id === state.open).thread;
-  thread.push({ from: "me", text: esc(text), mins: 0 });
-  if (state.open === "coworker") {
-    const typing = { typing: true };
-    thread.push(typing);
-    setTimeout(() => {
-      thread.splice(thread.indexOf(typing), 1, { from: "coworker", text: answer(text), mins: 0 });
-      render();
-    }, 900);
+  if (settings.board) args.board = Number(settings.board);
+  const r = await api("/api/tool/board_post", { method: "POST", body: { repo: settings.repo, args } });
+  if (r.ok) {
+    $("input").value = "";
+    toast("Posted to the board.");
+    refresh();
   } else {
-    const item = items.find((i) => i.id === state.open);
-    const m = text.match(/\b(allow|approve|yes|deny|no)\b/i);
-    if (item.kind === "approval" && m && !item.resolved) item.resolved = /allow|approve|yes/i.test(m[1]) ? "allow" : "deny";
+    toast((r.json && r.json.error) || "That didn't go through.", true);
   }
-  render();
 }
 
-// Canned replies for the demo. The real one is the ElevenLabs agent with its board tools.
-function answer(q) {
-  const waiting = items.filter((i) => i.kind === "approval" && !i.resolved);
-  if (/block/i.test(q)) return "One blocker: Cheryl's chat page needs <b>ANTHROPIC_API_KEY</b> in .env. Nobody has replied yet.";
-  if (/approv|waiting|need/i.test(q) && waiting.length)
-    return `${waiting.length} waiting on approval: ${waiting.map((i) => `${AGENTS[i.agent].name} (${plain(i.text)})`).join("; ")}.`;
-  if (/eithan/i.test(q)) return "Eithan's Codex is wiring fn push-to-talk into the Mac app, ETA about 20 minutes. It also asked you to own the Chrome extension.";
-  const top = items.find((i) => !i.resolved && i.kind !== "done");
-  return top ? `Top of the queue: ${AGENTS[top.agent].name} ${plain(top.text)}.` : "The board is quiet. Nothing needs you.";
+// The voice lives in the side panel: open it and start talking. sidePanel.open has to run
+// straight from the click, so the window id is looked up when the popup opens.
+function talk() {
+  if (windowId === null) return;
+  chrome.sidePanel.open({ windowId }).then(() => window.close()).catch(() => toast("Couldn't open the side panel.", true));
+  chrome.storage.session.set({ talkNow: true }).catch(() => {});
 }
 
-// ---- mic: hold to talk (simulated transcript in this demo) ----
-
-const SAMPLES = {
-  queue: ["What's blocking the team?", "What needs my approval?", "What is Eithan working on?"],
-  thread: ["Allow it, go ahead", "Yes, I'll take the Chrome extension", "Thanks, looks good"],
-};
-let sample = 0, talking = false, tick = null, words = "", typed = 0;
-const bars = $("bars");
-bars.innerHTML = "<span></span>".repeat(14);
-
-function startTalk() {
-  if (talking) return;
-  talking = true;
-  const pool = state.view === "queue" ? SAMPLES.queue : SAMPLES.thread;
-  words = pool[sample++ % pool.length];
-  typed = 0;
-  $("mic").classList.add("on");
-  $("mic").setAttribute("aria-pressed", "true");
-  $("listening").hidden = false;
-  $("listenText").textContent = "Listening · release to send";
-  let t = 0;
-  tick = setInterval(() => {
-    t++;
-    [...bars.children].forEach((b, i) => { b.style.height = `${4 + Math.abs(Math.sin(t / 2 + i)) * 12 * Math.random()}px`; });
-    if (t > 4 && t % 2 === 0 && typed < words.length) {
-      typed = Math.min(words.length, words.indexOf(" ", typed + 1) === -1 ? words.length : words.indexOf(" ", typed + 1));
-      $("listenText").textContent = `“${words.slice(0, typed)}”`;
-    }
-  }, 70);
-}
-
-function stopTalk() {
-  if (!talking) return;
-  talking = false;
-  clearInterval(tick);
-  $("mic").classList.remove("on");
-  $("mic").setAttribute("aria-pressed", "false");
-  $("listening").hidden = true;
-  if (typed) send(words.slice(0, typed));
-}
-
-const mic = $("mic");
-mic.addEventListener("pointerdown", (e) => { e.preventDefault(); mic.setPointerCapture(e.pointerId); startTalk(); });
-mic.addEventListener("pointerup", stopTalk);
-mic.addEventListener("pointercancel", stopTalk);
-// Space talks only when nothing interactive has focus, so Space still clicks a focused button.
-const spaceTalks = () => !document.activeElement?.closest("input, textarea, button, [role='button'], [role='tab'], a");
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Space" && !e.repeat && spaceTalks()) { e.preventDefault(); startTalk(); }
-});
-document.addEventListener("keyup", (e) => { if (e.code === "Space") stopTalk(); });
-
-// ---- wiring ----
+// ---------- wiring ----------
 
 body.addEventListener("click", (e) => {
   const act = e.target.closest("[data-act]");
-  if (act) { e.stopPropagation(); resolve(Number(act.dataset.id), act.dataset.act); return; }
+  if (act) { e.stopPropagation(); answer(act.dataset.req, act.dataset.act); return; }
   const it = e.target.closest("[data-open]");
-  if (it) openThread(Number(it.dataset.open));
+  if (it) { state.view = "thread"; state.open = it.dataset.open; render(); }
 });
 body.addEventListener("keydown", (e) => {
   const it = e.target.closest("[data-open]");
-  if (it && (e.key === "Enter") && !e.target.closest("[data-act]")) openThread(Number(it.dataset.open));
+  if (it && e.key === "Enter" && !e.target.closest("[data-act]")) { state.view = "thread"; state.open = it.dataset.open; render(); }
 });
 $("back").addEventListener("click", () => { state.view = "queue"; state.open = null; render(); });
 $("seg").addEventListener("click", (e) => {
@@ -251,10 +286,22 @@ $("seg").addEventListener("click", (e) => {
   [...$("seg").children].forEach((x) => x.setAttribute("aria-selected", String(x === b)));
   render();
 });
-$("form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  send($("input").value);
-  $("input").value = "";
-});
+$("form").addEventListener("submit", (e) => { e.preventDefault(); post($("input").value); });
+$("mic").addEventListener("click", talk);
 
-render();
+async function main() {
+  settings = await getSettings();
+  try { windowId = (await chrome.windows.getCurrent()).id; } catch { /* outside Chrome */ }
+  startRelay();
+  try {
+    await relayReady;
+  } catch {
+    $("live").className = "live off";
+    $("sub").textContent = "not running";
+    body.innerHTML = `<div class="empty"><p>Coworker isn't running at <code>${esc(settings.appUrl)}</code>.</p><p>Run <code>npm run dev</code> in your yc-hacky checkout, then open this again.</p></div>`;
+    return;
+  }
+  await refresh();
+  setInterval(() => { if (!state.busy.size) refresh(); }, POLL_MS);
+}
+main();
