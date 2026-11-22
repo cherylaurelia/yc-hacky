@@ -31,7 +31,7 @@ export const SHOTS: Shot[] = [
   { kind: "screen", file: "screens/02-approval.png", seconds: 4.5, caption: "One needs your OK.", camera: [[1.3, 50, 46], [1.55, 50, 46]] },
   { kind: "screen", file: "screens/03-diff.png", seconds: 5, caption: "Ask to see what it changed.", camera: [[1.3, 50, 46], [1.4, 50, 46]] },
   { kind: "screen", file: "screens/04-stuck.png", seconds: 4.5, caption: "Another is stuck in a loop.", camera: [[1.3, 50, 46], [1.55, 50, 46]] },
-  { kind: "end", seconds: 4.5, title: "Coworker", line: "Your agents tap you on the shoulder." },
+  { kind: "end", seconds: 4.5, title: "Terminal 1", line: "Your agents tap you on the shoulder." },
 ];
 
 // ---- look: the app's own tokens (app/globals.css) -------------------------------------------------
@@ -106,10 +106,12 @@ export const Screen = ({ shot, dur, first }: { shot: Pick<ScreenShot, "file" | "
           boxShadow: "0 2px 4px rgba(60,40,20,0.08), 0 44px 80px -30px rgba(60,40,20,0.38)",
         }}
       >
-        <Img
-          src={staticFile(shot.file)}
-          style={{ width: "100%", height: "100%", transform: `scale(${scale}) translate(${50 - x}%, ${50 - y}%)` }}
-        />
+        <div style={{ position: "relative", width: "100%", height: "100%", transform: `scale(${scale}) translate(${50 - x}%, ${50 - y}%)` }}>
+          <Img src={staticFile(shot.file)} style={{ display: "block", width: "100%", height: "100%" }} />
+          {/* The screenshots still show the old wordmark top left. This patch is the page's own background colour
+              (rgb 244,239,231 there). Delete it once the screens are retaken with the new name. */}
+          <div style={{ position: "absolute", left: "2%", top: "1.8%", width: "7%", height: "3%", background: "rgb(244,239,231)" }} />
+        </div>
       </div>
     </AbsoluteFill>
   );

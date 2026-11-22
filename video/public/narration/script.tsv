@@ -1,7 +1,7 @@
 01	You run five coding agents. One has been stuck in a loop for twenty minutes, burning money. Another has been waiting for your OK since lunch. You'd never know.
-02	This is Coworker. It watches all your agents, and when one needs you, it taps you on the shoulder. Out loud.
+02	This is Terminal One. It watches all your agents, and when one needs you, it taps you on the shoulder. Out loud.
 03	Eithan's agent wants to run a database migration. I don't switch windows. I hold a key and say: show me. There's the exact change. Yes, allow it. And the agent keeps going.
-04	This one's worse. Aidan's agent keeps retrying the same failing test. Nothing errors in a retry loop, so no tool warns you. Coworker does. Stop it. Done.
+04	This one's worse. Aidan's agent keeps retrying the same failing test. Nothing errors in a retry loop, so no tool warns you. Terminal One does. Stop it. Done.
 05	Every agent speaks in its own voice, and it works across the whole team. Today my teammate's agent handed work to mine through the board, and a task posted there became a pull request in thirty-four seconds.
-06	ElevenLabs is the whole interface. Their agent hears me and acts, and every agent gets its own voice. Coworker runs on Maritime, every decision is traced in TraceRoot, and we built it with agents running in Codevisor.
-07	One command to install. Your agents shouldn't need babysitting. They should tap you on the shoulder. This is Coworker.
+06	ElevenLabs is the whole interface. Their agent hears me and acts, and every agent gets its own voice. Terminal One runs on Maritime, every decision is traced in TraceRoot, and we built it with agents running in Codevisor.
+07	Your agents shouldn't need babysitting. They should tap you on the shoulder. This is Terminal One.

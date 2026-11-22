@@ -26,7 +26,7 @@ const SCENES: Scene[] = [
   {
     audio: "narration/narr-02.mp3",
     audioSeconds: 6.037,
-    captions: ["This is Coworker.", "It watches all your agents, and when one needs you,", "it taps you on the shoulder.", "Out loud."],
+    captions: ["This is Terminal 1.", "It watches all your agents, and when one needs you,", "it taps you on the shoulder.", "Out loud."],
     Visual: Intro,
   },
   {
@@ -37,8 +37,8 @@ const SCENES: Scene[] = [
   },
   {
     audio: "narration/narr-04.mp3",
-    audioSeconds: 10.867,
-    captions: ["This one's worse.", "Aidan's agent keeps retrying the same failing test.", "Nothing errors in a retry loop, so no tool warns you.", "Coworker does.", "Stop it.", "Done."],
+    audioSeconds: 10.913,
+    captions: ["This one's worse.", "Aidan's agent keeps retrying the same failing test.", "Nothing errors in a retry loop, so no tool warns you.", "Terminal 1 does.", "Stop it.", "Done."],
     Visual: Stuck,
   },
   {
@@ -49,14 +49,14 @@ const SCENES: Scene[] = [
   },
   {
     audio: "narration/narr-06.mp3",
-    audioSeconds: 13.793,
-    captions: ["ElevenLabs is the whole interface.", "Their agent hears me and acts,", "and every agent gets its own voice.", "Coworker runs on Maritime,", "every decision is traced in TraceRoot,", "and we built it with agents running in Codevisor."],
+    audioSeconds: 13.096,
+    captions: ["ElevenLabs is the whole interface.", "Their agent hears me and acts,", "and every agent gets its own voice.", "Terminal 1 runs on Maritime,", "every decision is traced in TraceRoot,", "and we built it with agents running in Codevisor."],
     Visual: Partners,
   },
   {
     audio: "narration/narr-07.mp3",
-    audioSeconds: 7.616,
-    captions: ["One command to install.", "Your agents shouldn't need babysitting.", "They should tap you on the shoulder.", "This is Coworker."],
+    audioSeconds: 5.805,
+    captions: ["Your agents shouldn't need babysitting.", "They should tap you on the shoulder.", "This is Terminal 1."],
     Visual: Close,
     hold: HOLD,
   },
@@ -272,11 +272,11 @@ const VOICES = [
 ];
 type Post = { who: string; color: string; text: string; chip?: string };
 const HANDOFF: Post[] = [
-  { who: "Eithan's Codex", color: "#3b6788", text: "TASK for Cheryl's Claude: Add a waiting line for Coworker's spoken blocker alerts. If two agents need help at once, read the first question aloud and show the second as waiting…" },
+  { who: "Eithan's Codex", color: "#3b6788", text: "TASK for Cheryl's Claude: Add a waiting line for [Terminal 1]'s spoken blocker alerts. If two agents need help at once, read the first question aloud and show the second as waiting…" },
   { who: "Cheryl's Claude", color: "#a84c73", text: "@EithanY-Coder on it: alert waiting line (one spoken alert at a time, quiet while the user talks or the answer is sending, answers bound to the right agent)…" },
 ];
 const SPOKEN: Post[] = [
-  { who: "Cheryl's Coworker", color: "#2a7474", text: "TASK for Cheryl's Claude: add a small footer that says \"Built at YC x ElevenLabs Hackathon\"" },
+  { who: "Cheryl's Terminal 1", color: "#2a7474", text: "TASK for Cheryl's Claude: add a small footer that says \"Built at YC x ElevenLabs Hackathon\"" },
   { who: "Cheryl's Claude", color: "#a84c73", text: "on it: add a small footer that says \"Built at YC x ElevenLabs Hackathon\"" },
   { who: "Cheryl's Claude", color: "#a84c73", text: "done: [demo] feat(ui): add hackathon footer, PR #5", chip: "PR #5" },
 ];
@@ -301,7 +301,7 @@ function Team() {
           </PanelPage>
         </Sequence>
         <Sequence from={f(8.8)}>
-          <PanelPage title="A task, spoken to Coworker" sub="issue #4">
+          <PanelPage title="A task, spoken to Terminal 1" sub="issue #4">
             <Posts posts={SPOKEN} at={[9.2, 10.6, 12.2]} t={t} size={40} />
           </PanelPage>
         </Sequence>
@@ -353,10 +353,10 @@ const PanelPage = ({ title, sub, children }: { title: string; sub: string; child
 // ---- 6. partners: a plain wordmark row over the app ------------------------------------------------
 const PARTNERS: { name: string; note: string; on: [number, number] }[] = [
   { name: "ElevenLabs", note: "the whole interface", on: [0.3, 6.5] },
-  { name: "Maritime", note: "runs on", on: [6.9, 9.0] },
-  { name: "TraceRoot", note: "every decision traced", on: [9.0, 11.6] },
+  { name: "Maritime", note: "runs on", on: [6.6, 8.3] },
+  { name: "TraceRoot", note: "every decision traced", on: [8.3, 10.5] },
   { name: "assistant-ui", note: "text chat", on: [99, 99] },
-  { name: "Codevisor", note: "built with", on: [11.7, 99] },
+  { name: "Codevisor", note: "built with", on: [10.8, 99] },
 ];
 function Partners() {
   const t = useT();
@@ -384,5 +384,5 @@ function Partners() {
 
 // ---- 7. close ---------------------------------------------------------------------------------------
 function Close() {
-  return <End shot={{ title: "Coworker", line: "Your agents tap you on the shoulder." }} />;
+  return <End shot={{ title: "Terminal 1", line: "Your agents tap you on the shoulder." }} />;
 }

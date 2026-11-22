@@ -1,4 +1,9 @@
-# Coworker videos (Remotion)
+# Terminal 1 videos (Remotion)
+
+The product is now called Terminal 1. The composition id `CoworkerDemo` and the file names `out/coworker-*.mp4` keep the old name so paths do not move. Two leftovers from the old name, both on purpose:
+
+- The screenshots in `public/screens/` still show the old wordmark top left. `Screen` in `src/Launch.tsx` covers it with a patch in the page's own background colour. Delete the patch after retaking the screens with the new name.
+- The board scene shows two real posts that say "Coworker" (the `[Cheryl's Coworker]` relay tag on issue 4, and "Coworker's spoken blocker alerts" in Eithan's Codex post on issue 1). They are shown as `[Cheryl's Terminal 1]` and `[Terminal 1]'s`. The posts on GitHub still say Coworker.
 
 Two videos, one project. The app does not depend on anything here.
 
