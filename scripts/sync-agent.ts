@@ -100,7 +100,7 @@ async function main() {
           tool_ids: Object.values(tool_ids),
         },
       },
-      tts: { model_id: "eleven_flash_v2" },
+      tts: { model_id: "eleven_v3_conversational", agent_output_audio_format: "pcm_24000", optimize_streaming_latency: 1, stability: 0.45, similarity_boost: 0.8 },
     },
     platform_settings: {
     auth: { enable_auth: true },
