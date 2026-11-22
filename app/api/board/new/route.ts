@@ -4,6 +4,7 @@ import { gh, GhError } from "@/lib/github";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
+import { audited, clip } from "@/lib/trace";
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
 
@@ -35,7 +36,17 @@ export async function GET(req: Request) {
       }
       cursor = { since, at };
     }
-    return Response.json(await boardUpdates(parsed.repo, token, board, cursor));
+    const t0 = Date.now();
+    const updates = await boardUpdates(parsed.repo, token, board, cursor);
+    // The audit trail starts here: one span per poll that found an alert or an answer. Quiet polls leave none.
+    const { alerts, answered } = updates;
+    if (alerts.length || answered.length) {
+      const list = (xs: (string | null)[]) => xs.filter(Boolean).join(",");
+      await audited("board.alert", { repo: parsed.repo, user: session?.login, alerts: alerts.length, from: list(alerts.map((x) => x.from)), kinds: list(alerts.map((x) => x.kind)), requests: list(alerts.map((x) => x.req)), answered: list(answered) }, async (a) => {
+        a.set({ input: alerts.map((x) => ({ from: x.from, kind: x.kind, req: x.req, text: clip(x.text, 200) })), attrs: { detect_ms: Date.now() - t0 } });
+      });
+    }
+    return Response.json(updates);
   } catch (e) {
     if (e instanceof GhError) return fail(e.status, e.message);
     console.error("board poll failed:", e instanceof Error ? e.message : "unknown error");

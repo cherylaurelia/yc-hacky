@@ -1,18 +1,6 @@
 import AppKit
 import AVFoundation
 
-enum Phase: String {
-    case idle, listening, speaking
-
-    var symbol: String {
-        switch self {
-        case .idle: "waveform"
-        case .listening: "waveform.circle.fill"
-        case .speaking: "speaker.wave.2.fill"
-        }
-    }
-}
-
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static let defaultURL = "http://localhost:3000/?repo=cherylaurelia/yc-hacky&embed=1"
@@ -20,9 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let ptt = PttMonitor()
+    private let pillWindow = PillWindow()
+    private let mic = MicLevel()
     private var panel: CoworkerPanel!
     private var activity: NSObjectProtocol?
-    private var phase = Phase.idle { didSet { render() } }
+    private var alertExpiry: DispatchWorkItem?
+    private var pill = PillState() { didSet { render() } }
 
     private func item(_ title: String, _ action: Selector, _ key: String = "") -> NSMenuItem {
         let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
@@ -57,7 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Voice coworker session")
 
         panel = CoworkerPanel(url: configuredURL)
-        panel.onPageState = { [weak self] in self?.phase = $0 }
+        panel.onPageMessage = { [weak self] in self?.apply(.page($0)) }
+        panel.onVisibilityChange = { [weak self] in self?.apply(.panelOpen($0)) }
+        pillWindow.onClick = { [weak self] in self?.panel.setVisible(true) }
+        mic.onLevel = { [weak self] in self?.pillWindow.setLevel($0) }
+        pill.panelOpen = panel.isVisible
+        pill.talkKey = ptt.key.title
 
         let menu = NSMenu()
         menu.delegate = self
@@ -70,8 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ptt.onEvent = { [weak self] event in
             guard let self else { return }
             switch event {
-            case .down: phase = .listening
-            case .up: if phase == .listening { phase = .idle }
+            case .down:
+                apply(.talkDown)
+                mic.start()
+            case .up(let cancelled):
+                mic.stop()
+                apply(.talkUp(cancelled: cancelled))
             }
             panel.deliver(event)
         }
@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if !granted { NSLog("Coworker: microphone access denied; enable it in System Settings > Privacy & Security > Microphone") }
         }
 
-        let after = UserDefaults.standard.double(forKey: "simulateAfter")  // launch arg for scripted checks
+        let after = UserDefaults.standard.double(forKey: "simulateAfter")  // launch args for scripted checks: -simulateAfter 5 -simulateSeconds 3
         if after > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.simulate() } }
     }
 
@@ -98,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func renderTalkKey() {
+        pill.talkKey = ptt.key.title
         talkKeyItem.title = "Talk key: \(ptt.key.title)"
         for i in talkKeyItem.submenu?.items ?? [] { i.state = i.representedObject as? String == ptt.key.rawValue ? .on : .off }
         panel.sendTalkKey(ptt.key.title)
@@ -110,15 +111,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         renderTalkKey()
     }
 
+    private func apply(_ input: PillState.Input) {
+        let hadAlert = pill.alert
+        pill.apply(input)
+        guard pill.alert != hadAlert else { return }
+        alertExpiry?.cancel()
+        guard pill.alert != nil else { return }
+        let work = DispatchWorkItem { [weak self] in self?.apply(.alertExpired) }  // never leave a stale alert on screen
+        alertExpiry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120, execute: work)
+    }
+
     private func render() {
-        guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: phase.symbol, accessibilityDescription: "Coworker \(phase.rawValue)")
-        button.contentTintColor = phase == .listening ? .systemRed : nil
+        if let button = statusItem.button {
+            button.image = NSImage(systemSymbolName: pill.phase.symbol, accessibilityDescription: "Coworker \(pill.phase.rawValue)")
+            button.contentTintColor = pill.phase == .listening ? .systemRed : nil
+        }
+        pillWindow.render(pill)
+        Probe.log("icon=\(pill.phase.symbol) pill=\(pill.mode) \"\(pill.label)\" meter=\(pill.meterLive)")
     }
 
     @objc private func togglePanel() { panel.setVisible(!panel.isVisible) }
     @objc private func reload() { panel.load() }
-    @objc private func simulate() { ptt.simulateHold(seconds: 1) }
+    @objc private func simulate() {
+        let seconds = UserDefaults.standard.double(forKey: "simulateSeconds")
+        ptt.simulateHold(seconds: seconds > 0 ? seconds : 1)
+    }
 
     @objc private func grantAccess() {
         KeyboardAccess.openInputMonitoring()

@@ -1,17 +1,18 @@
 import AppKit
 import WebKit
 
-/// Floating non-activating panel hosting the coworker web page.
+/// Floating non-activating panel hosting the coworker web page. It starts hidden: the pill is the default face.
 /// "Hidden" is alpha 0 while still ordered in, so the page keeps running and speaking.
 @MainActor
 final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
-    private static let visibleKey = "panelVisible"
-    var onPageState: ((Phase) -> Void)?
+    var onPageMessage: ((PageMessage) -> Void)?
+    var onVisibilityChange: ((Bool) -> Void)?
     private let panel: NSPanel
     private let webView: WKWebView
     private var url: URL
     private var retry: DispatchWorkItem?
     private var talkKey = ""
+    private var pageReady = false
 
     var isVisible: Bool { panel.alphaValue > 0 }
 
@@ -19,6 +20,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         self.url = url
         let cfg = WKWebViewConfiguration()
         cfg.mediaTypesRequiringUserActionForPlayback = []  // the agent speaks without a click
+        if Probe.enabled { cfg.userContentController.addUserScript(Probe.script) }
         webView = WKWebView(frame: .zero, configuration: cfg)
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 520),
                         styleMask: [.titled, .closable, .resizable, .utilityWindow, .nonactivatingPanel],
@@ -41,19 +43,15 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         }
         panel.setFrameAutosaveName("CoworkerPanel")
         panel.orderFrontRegardless()
-        let d = UserDefaults.standard
-        apply(d.object(forKey: Self.visibleKey) == nil || d.bool(forKey: Self.visibleKey))
+        setVisible(UserDefaults.standard.bool(forKey: "showPanel"))  // launch arg -showPanel 1
         load()
+        Probe.start(webView)
     }
 
     func setVisible(_ visible: Bool) {
-        apply(visible)
-        UserDefaults.standard.set(visible, forKey: Self.visibleKey)
-    }
-
-    private func apply(_ visible: Bool) {
         panel.alphaValue = visible ? 1 : 0
         panel.ignoresMouseEvents = !visible
+        onVisibilityChange?(visible)
     }
 
     func setURL(_ new: URL) { url = new; load() }
@@ -64,7 +62,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     }
 
     /// Tells the page which key to hint: window event `coworker-ptt-key` with detail {key:"Right Option"}.
-    /// Sent on every change and again after each page load.
+    /// Sent on every change, after each page load, and again on the page's first message (the page's listener only exists once it has hydrated).
     func sendTalkKey(_ name: String? = nil) {
         if let name { talkKey = name }
         guard !talkKey.isEmpty else { return }
@@ -73,7 +71,10 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         }
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { sendTalkKey() }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pageReady = false
+        sendTalkKey()
+    }
 
     func deliver(_ event: PttEvent) {
         let detail: String
@@ -84,6 +85,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('coworker-ptt',{detail:\(detail)}))") { _, error in
             if let error { NSLog("Coworker: could not deliver ptt event: \(error.localizedDescription)") }
         }
+        Probe.log("ptt \(detail)", webView)
     }
 
     // Hide instead of close: closing would stop the voice session.
@@ -96,13 +98,18 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         decisionHandler(.grant)
     }
 
-    // Optional page -> app state: window.webkit.messageHandlers.coworker.postMessage({state:'speaking'})
+    // Page -> app: window.webkit.messageHandlers.coworker.postMessage({state:'speaking', alert:{agent, text}})
     func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let state = (message.body as? [String: Any])?["state"] as? String, let phase = Phase(rawValue: state) else {
+        guard let msg = PageMessage.parse(message.body) else {
             NSLog("Coworker: ignored page message \(message.body)")
             return
         }
-        onPageState?(phase)
+        Probe.log("page \(message.body)", webView)
+        if !pageReady {
+            pageReady = true
+            sendTalkKey()
+        }
+        onPageMessage?(msg)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {

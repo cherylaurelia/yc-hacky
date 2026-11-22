@@ -8,7 +8,7 @@ export class ElevenError extends Error {
   }
 }
 
-export const TTS_MODEL = "eleven_flash_v2_5";
+export const TTS_MODEL = "eleven_v4_turbo";
 
 const BASE = process.env.ELEVENLABS_API_BASE || "https://api.elevenlabs.io";
 const cache = new Map<string, Buffer>();

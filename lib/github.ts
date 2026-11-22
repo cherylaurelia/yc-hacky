@@ -8,8 +8,17 @@ export class GhError extends Error {
 
 type Opts = { token?: string; method?: string; body?: unknown };
 
+// With no token, an OAuth app's client credentials still read public data, at 5,000 requests an hour
+// instead of 60 per server IP. They cannot write or see private repos, so only GETs use them.
+function clientAuth(): string | undefined {
+  const id = process.env.GITHUB_CLIENT_ID?.trim();
+  const secret = process.env.GITHUB_CLIENT_SECRET?.trim();
+  return id && secret ? `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}` : undefined;
+}
+
 // Plain fetch wrapper. Errors are short sentences the voice agent can say aloud.
 export async function gh<T = unknown>(path: string, { token, method = "GET", body }: Opts = {}): Promise<T> {
+  const auth = token ? `Bearer ${token}` : method === "GET" ? clientAuth() : undefined;
   let res: Response;
   try {
     res = await fetch(`https://api.github.com${path}`, {
@@ -18,7 +27,7 @@ export async function gh<T = unknown>(path: string, { token, method = "GET", bod
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "repo-coworker",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(auth ? { Authorization: auth } : {}),
         ...(body ? { "Content-Type": "application/json" } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
