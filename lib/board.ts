@@ -139,13 +139,17 @@ const alertLine = (a: BoardAlert) => {
 // the [BOARD ALERT] prefix as a system notice.
 export const alertMessage = (alerts: BoardAlert[]) => `[BOARD ALERT] ${alerts.map(alertLine).join("\n")}`;
 
+// The repo is fine but nothing there is a board yet.
+export class NoBoardError extends Error {}
+
 // Browser and Node client for GET /api/board/new. First call (no cursor) only
 // returns the baseline cursor; later calls return alerts for newer posts, plus the request
 // ids that got an answer on the board.
 export async function pollBoard(repo: string, cursor?: BoardCursor, base = "", board?: number): Promise<{ cursor: BoardCursor; alerts: BoardAlert[]; answered: string[] }> {
   const q = new URLSearchParams({ repo, ...(board ? { board: String(board) } : {}), ...(cursor ? { since: String(cursor.since), at: cursor.at } : {}) });
   const res = await fetch(`${base}/api/board/new?${q}`, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
-  const j = (await res.json().catch(() => ({}))) as { cursor?: BoardCursor; alerts?: BoardAlert[]; answered?: string[]; error?: string };
+  const j = (await res.json().catch(() => ({}))) as { cursor?: BoardCursor; alerts?: BoardAlert[]; answered?: string[]; error?: string; code?: string };
+  if (j.code === "no_board") throw new NoBoardError(j.error ?? "This repo has no agent board yet.");
   if (!res.ok || !j.cursor || !j.alerts) throw new Error(j.error ?? `Board check failed (HTTP ${res.status}).`);
   return { cursor: j.cursor, alerts: j.alerts, answered: j.answered ?? [] };
 }

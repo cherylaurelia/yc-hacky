@@ -6,7 +6,7 @@
 import { useConversation } from "@elevenlabs/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswered, nextUp, normReq, waiting } from "@/lib/alerts";
-import { type BoardAlert, type BoardCursor, alertMessage, pollBoard } from "@/lib/board";
+import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { localNow } from "@/lib/now";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost } from "@/lib/speak-client";
@@ -15,6 +15,8 @@ import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
 export type Msg = { id: number; role: "user" | "agent"; text: string };
 export type Call = { id: number; name: string; args: Record<string, unknown>; state: "running" | "ok" | "error"; text: string; ms?: number };
 export type Phase = "idle" | "listening" | "thinking" | "speaking";
+// Where the repo's board stands: not checked yet, found and polling, the repo has none, or the check failed.
+export type BoardState = { kind: "checking" | "ok" | "none" } | { kind: "error"; message: string };
 type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m: unknown): void } } } };
 
 const POLL_MS = 15_000;
@@ -59,7 +61,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [boardError, setBoardError] = useState<string | null>(null);
+  const [boardState, setBoardState] = useState<BoardState>({ kind: "checking" });
+  const [madeBoard, setMadeBoard] = useState<number | null>(null); // the board this page just created: GitHub's label list lags a few seconds behind
   const [error, setError] = useState<string | null>(null);
   const [canType, setCanType] = useState(false);
   const [textOnly, setTextOnly] = useState(false);
@@ -290,15 +293,18 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       if (inFlight) return;
       inFlight = true;
       try {
-        const r = await pollBoard(repo, cursor.current, "", board);
+        const r = await pollBoard(repo, cursor.current, "", board ?? madeBoard ?? undefined);
         if (stopped) return;
         cursor.current = r.cursor;
-        setBoardError(null);
+        setBoardState((s) => (s.kind === "ok" ? s : { kind: "ok" }));
         for (const q of r.answered) answeredReqs.current.add(q);
         const fresh: Alert[] = r.alerts.map((x) => ({ ...x, seq: ++seq.current, state: "waiting" }));
         if (fresh.length || r.answered.length) setAlerts((a) => markAnswered([...a, ...fresh], answeredReqs.current));
       } catch (e) {
-        if (!stopped) setBoardError(e instanceof Error ? e.message : "Board check failed.");
+        if (stopped) return;
+        // A dropped connection reads "Failed to fetch" in the browser, which says nothing to the user.
+        const offline = e instanceof TypeError || (e instanceof DOMException && e.name === "TimeoutError");
+        setBoardState(e instanceof NoBoardError ? { kind: "none" } : { kind: "error", message: offline ? "I can't reach the server. Trying again." : e instanceof Error ? e.message : "Board check failed." });
       } finally {
         inFlight = false;
       }
@@ -310,7 +316,16 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       stopped = true;
       clearInterval(timer);
     };
-  }, [repo, board]);
+  }, [repo, board, madeBoard]);
+
+  // Open this repo's board as the signed-in user, then look at it again. Throws a sentence for the page to show.
+  async function createBoard() {
+    const res = await fetch("/api/board", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repo }) });
+    const j = (await res.json().catch(() => ({}))) as { number?: number; error?: string };
+    if (!res.ok || !j.number) throw new Error(j.error ?? `Could not create the board (HTTP ${res.status}).`);
+    setBoardState({ kind: "checking" });
+    setMadeBoard(j.number); // restarts the board check, now pointed at this issue
+  }
 
   async function start(asText: boolean) {
     if (!repo || starting || convo.status === "connecting" || convo.status === "connected") return;
@@ -526,7 +541,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     setFocus(null);
     setMsgs([]);
     setCalls([]);
-    setBoardError(null);
+    setBoardState({ kind: "checking" });
+    setMadeBoard(null);
     setError(null);
     answeredReqs.current.clear();
     try {
@@ -540,7 +556,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   }
 
   return {
-    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError, gesture },
+    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, board: boardState, madeBoard, gesture },
     transcript: msgs,
     feed,
     alerts,
@@ -559,6 +575,6 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     focus: focused ?? null,
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, endSession: () => convo.endSession() },
+    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, createBoard, endSession: () => convo.endSession() },
   };
 }

@@ -5,12 +5,13 @@
 // Board writes go to issue #4 only, and every post this run creates is deleted before it exits.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { type Browser, type BrowserContext, type Page, chromium } from "playwright";
+import { type Browser, type BrowserContext, type Page, chromium, webkit } from "playwright";
 import { seal } from "../lib/session.ts";
 
+const WEBKIT = process.env.E2E_BROWSER === "webkit";
 const BASE = process.env.E2E_BASE ?? "http://localhost:3600";
 const REPO = "cherylaurelia/yc-hacky";
-const BOARD = 4;
+const BOARD = Number(process.env.E2E_BOARD ?? 4);
 const PAGE = `${BASE}/?repo=${REPO}&board=${BOARD}`;
 const SECRET = process.env.SESSION_SECRET ?? "";
 
@@ -56,14 +57,14 @@ const hookApproval = (id: string, command = "") =>
 const hookStuck = (id: string) =>
   `[E2E's Claude] stuck: retried npm test 3 times in 5 min, about $1 (req ${id})\n\n${ctxBlock({ v: 1, kind: "stuck", req: id, session: "e2e00002", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Bash", command: "npm test", file: null, line: null, diff: null, stuck: { count: 3, minutes: 5, cost_usd: 1.2, signature: "npm test" } })}`;
 
-let browser: Browser;
+// E2E_BROWSER=webkit runs the same flows in the Safari engine (no fake mic there, so the voice flows need chromium).
 const watchErrors = (page: Page) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text()}`));
   return errors;
 };
-const newCtx = (opts: Parameters<Browser["newContext"]>[0] = {}) => browser.newContext({ baseURL: BASE, permissions: ["microphone"], ...opts });
+const newCtx = (opts: Parameters<Browser["newContext"]>[0] = {}) => browser.newContext({ baseURL: BASE, permissions: WEBKIT ? [] : ["microphone"], ...opts });
 
 async function signedInCtx(opts: Parameters<Browser["newContext"]>[0] = {}): Promise<BrowserContext> {
   must(SECRET.length >= 32, "SESSION_SECRET (32+ chars) must be set to build a session cookie.");
@@ -106,6 +107,7 @@ async function layoutProblems(page: Page, sels: string[], pairs: [string, string
 
 const results: { name: string; ok: boolean }[] = [];
 async function flow(name: string, fn: () => Promise<void>) {
+  if (process.env.E2E_ONLY && !new RegExp(process.env.E2E_ONLY, "i").test(name)) return; // E2E_ONLY="board" runs the matching flows
   const t0 = Date.now();
   try {
     await fn();
@@ -547,11 +549,93 @@ async function notifications() {
   }
 }
 
+// A repo with a board and one without, one that does not exist, and creating a board.
+const noRaw = async (page: Page) => {
+  const header = await page.locator("header").innerText();
+  must(!/could not find|has no agent board|failed to fetch|http \d/i.test(header), `an error is shown in the header: ${header.replace(/\s+/g, " ")}`);
+};
+
+async function boardStates() {
+  const ctx = await newCtx({ permissions: WEBKIT ? [] : ["microphone", "clipboard-read", "clipboard-write"] });
+  try {
+    const page = await ctx.newPage();
+    const errors = watchErrors(page);
+    // A repo with a board: the calm line, no error anywhere, a way to connect agents.
+    await page.goto(PAGE);
+    await page.locator("h1").filter({ hasText: "Your agents are working." }).waitFor(VISIBLE);
+    await noRaw(page);
+    must((await page.locator("main").getByRole("alert").count()) === 0, "an error is showing next to the calm headline");
+    must((await page.locator("[data-connect]").count()) === 1, "the calm page has no way to connect agents");
+
+    // A public repo with no board: its own state, not an error and not "working".
+    await page.goto(`${BASE}/?repo=cherylaurelia/sail`);
+    const h1 = page.locator("h1");
+    await h1.filter({ hasText: /No agents connected to sail yet/ }).waitFor(VISIBLE);
+    await noRaw(page);
+    must(!/agents are working/i.test(await page.locator("main").innerText()), 'a repo with no board says "agents are working"');
+    must((await page.locator("main").getByRole("alert").count()) === 0, "no board is shown as an error");
+    must(await page.locator("[data-connect]").evaluate((el) => (el as HTMLDetailsElement).open), "the connect step is closed when there is no board");
+    const command = (await page.locator("[data-connect] code").first().innerText()).trim();
+    must(/^gh api repos\/.+install\.sh .*\| bash$/.test(command), `unexpected install command: ${command}`);
+    await page.locator("[data-connect]").getByRole("button", { name: "Copy" }).first().click();
+    await page.getByRole("button", { name: "Copied" }).waitFor(VISIBLE);
+    if (!WEBKIT) must((await page.evaluate(() => navigator.clipboard.readText())) === command, "Copy did not put the command on the clipboard");
+    must((await page.locator("[data-create-board]").innerText()) === "Sign in to create the board", "signed out, the board button should ask to sign in");
+
+    // A repo that does not exist: a plain sentence in the main area.
+    await page.goto(`${BASE}/?repo=nonexistent-zz/nope-zz`);
+    await h1.filter({ hasText: "Can't open nope-zz." }).waitFor(VISIBLE);
+    await noRaw(page);
+    must(/could not find/i.test(await page.locator("main").getByRole("alert").innerText()), "no sentence under the headline");
+    must(!/agents are working/i.test(await page.locator("main").innerText()), 'a missing repo says "agents are working"');
+
+    // The server cannot be reached: still plain words.
+    await page.route("**/api/board/new*", (r) => r.abort());
+    await page.goto(PAGE);
+    await page.locator("main").getByRole("alert").waitFor(VISIBLE);
+    const said = await page.locator("main").getByRole("alert").innerText();
+    must(/can.t reach the server/i.test(said), `unfriendly error: ${said}`);
+    must(errors.filter((e) => !/Failed to load resource|net::ERR/i.test(e)).length === 0, `console errors: ${errors.join(" | ")}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
+async function createBoardFlow() {
+  const scratch = `cherylaurelia/coworker-qa-${randomBytes(3).toString("hex")}`;
+  gh("repo", "create", scratch, "--public", "--add-readme");
+  const ctx = await signedInCtx();
+  try {
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/?repo=${scratch}`);
+    const make = page.locator("[data-create-board]");
+    await make.filter({ hasText: "Create the board" }).waitFor(VISIBLE);
+    await make.click();
+    await page.locator("h1").filter({ hasText: "Your agents are working." }).waitFor({ state: "visible", timeout: 20_000 });
+    must((await page.locator("[data-connect]").count()) === 1, "no connect step after creating the board");
+    // GitHub's issue lists lag a few seconds behind a new issue, so read the labels off the issues and wait for it.
+    const boards = () => (JSON.parse(gh("api", `repos/${scratch}/issues?state=open`)) as { title: string; labels: { name: string }[] }[]).filter((i) => i.labels.some((l) => l.name === "board"));
+    for (let i = 0; i < 20 && !boards().length; i++) await page.waitForTimeout(1000);
+    must(boards().length === 1 && boards()[0].title === "Coworker board", `expected one "Coworker board" issue labeled board, got ${JSON.stringify(boards())}`);
+    // Asking again on a repo that has one creates nothing more.
+    const again = await ctx.request.post("/api/board", { data: { repo: scratch } });
+    must((await again.json()).created === false, "a second create made another board");
+    must(boards().length === 1, "two boards now");
+  } finally {
+    await ctx.close();
+    try {
+      gh("repo", "delete", scratch, "--yes");
+    } catch (e) {
+      console.log(`could not delete ${scratch}: ${(e as Error).message}`);
+    }
+  }
+}
+
 // ---------- run ----------
 
-browser = await chromium.launch({
-  args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
-});
+const browser: Browser = await (WEBKIT
+  ? webkit.launch()
+  : chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"] }));
 try {
   await flow("1 calm page, three viewports", calmPage);
   await flow("2 signed out: sign in", signedOutLogin);
@@ -563,6 +647,8 @@ try {
   await flow("8 voice session", voiceSession);
   await flow("9 type instead", typeInstead);
   await flow("10 desktop notifications", notifications);
+  await flow("11 repo with a board, without one, missing, offline", boardStates);
+  await flow("12 create the board", createBoardFlow);
 } finally {
   await browser.close();
   teardown();

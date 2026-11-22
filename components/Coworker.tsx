@@ -2,7 +2,7 @@
 
 import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
-import AccountControl, { useAccount } from "@/components/AccountControl";
+import AccountControl, { type Account, useAccount } from "@/components/AccountControl";
 import RepoPicker, { RepoChip } from "@/components/RepoPicker";
 import TextChat from "@/components/TextChat";
 import { type Phase, useCoworker } from "@/components/useCoworker";
@@ -37,7 +37,7 @@ export default function Coworker({ initialRepo, board, embed }: { initialRepo: s
 // Presentation only: every piece of state and every action comes from useCoworker().
 function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const {
-    status: { phase, sub, hint, mic, live, textOnly, canType, error, boardError, gesture },
+    status: { phase, sub, hint, mic, live, textOnly, canType, error, board: boardState, madeBoard, gesture },
     transcript: msgs,
     agents,
     open,
@@ -46,7 +46,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     focus,
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setRepo, setFocus, answer, dismiss },
+    actions: { start, press, send, setRepo, setFocus, answer, dismiss, createBoard },
   } = useCoworker({ initialRepo, board, embed });
 
   const account = useAccount();
@@ -58,7 +58,6 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
       <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
         <span className="shrink-0 font-display text-base text-ink">Coworker</span>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
-          {boardError && <span className="text-stop">{boardError}</span>}
           {embed ? (
             repo && (
               <span className="max-w-[10rem] truncate" title={repo}>
@@ -95,15 +94,39 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           />
         ) : (
           repo && (
-            <section className="flex w-full flex-col items-center gap-7 text-center calm-in">
+            <section className={`flex w-full flex-col items-center text-center calm-in ${embed ? "gap-4" : "gap-6"}`} key={boardState.kind}>
               <h1 className={`font-display text-balance leading-[1.12] tracking-[-0.01em] text-ink ${embed ? "text-[1.6rem]" : "text-[2.6rem] sm:text-5xl"}`}>
-                {agents.length > 1
-                  ? `All ${agents.length} agents are working.`
-                  : agents.length === 1
-                    ? `${agents[0].name} is working.`
-                    : "Your agents are working."}
+                {boardState.kind === "checking"
+                  ? "Looking for your agents…"
+                  : boardState.kind === "none"
+                    ? `No agents connected to ${repo.split("/")[1]} yet.`
+                    : boardState.kind === "error"
+                      ? `Can't open ${repo.split("/")[1]}.`
+                      : agents.length > 1
+                        ? `All ${agents.length} agents are working.`
+                        : agents.length === 1
+                          ? `${agents[0].name} is working.`
+                          : "Your agents are working."}
               </h1>
-              <p className={`-mt-3 text-soft ${embed ? "text-sm" : "text-base"}`}>I&rsquo;ll speak up if one needs you.</p>
+              {boardState.kind === "ok" && <p className={`text-soft ${embed ? "text-sm" : "text-base"}`}>I&rsquo;ll speak up if one needs you.</p>}
+              {boardState.kind === "error" && (
+                <p role="alert" className={`max-w-md text-balance text-stop ${embed ? "text-sm" : "text-base"}`}>
+                  {boardState.message}
+                </p>
+              )}
+              {boardState.kind === "error" && account.ready && !account.user && /sign in/i.test(boardState.message) && (
+                <button type="button" onClick={account.signIn} className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98]">
+                  Sign in with GitHub
+                </button>
+              )}
+              {boardState.kind === "none" && (
+                <>
+                  <p className={`max-w-md text-balance text-soft ${embed ? "text-sm" : "text-base"}`}>Agents tell me what they need on a board in this repo. Connect them, then create the board.</p>
+                  <ConnectAgents boardNo={madeBoard} open />
+                  <CreateBoard account={account} onCreate={createBoard} />
+                </>
+              )}
+              {boardState.kind === "ok" && agents.length === 0 && !embed && <ConnectAgents boardNo={madeBoard} />}
             </section>
           )
         )}
@@ -163,6 +186,88 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
       )}
 
       {!embed && <p className="mt-6 text-center text-[12px] text-faint">Built at YC × ElevenLabs Hackathon</p>}
+    </div>
+  );
+}
+
+const INSTALL = "gh api repos/cherylaurelia/yc-hacky/contents/hooks/install.sh -H 'Accept: application/vnd.github.raw' | bash";
+
+// A command on one line with a button that copies it. If the browser refuses the clipboard, the
+// command is selected so Cmd+C works.
+function CopyCommand({ command }: { command: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "selected">("idle");
+  const code = useRef<HTMLElement>(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setState("copied");
+    } catch {
+      if (code.current) window.getSelection()?.selectAllChildren(code.current);
+      setState("selected");
+    }
+    setTimeout(() => setState("idle"), 2500);
+  };
+  return (
+    <div className="flex w-full flex-col items-stretch gap-2 rounded-2xl bg-chip p-3 text-left sm:flex-row sm:items-center">
+      <code ref={code} className="min-w-0 flex-1 select-all break-all font-mono text-[12.5px] leading-5 text-ink">
+        {command}
+      </code>
+      <button type="button" onClick={copy} className="h-9 shrink-0 rounded-full bg-ink px-4 text-[13px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98]">
+        {state === "copied" ? "Copied" : state === "selected" ? "Press Cmd+C" : "Copy"}
+      </button>
+    </div>
+  );
+}
+
+// The one-time hook install, as a quiet disclosure on the calm page and open when there is no board yet.
+function ConnectAgents({ boardNo, open = false }: { boardNo: number | null; open?: boolean }) {
+  return (
+    <details open={open} data-connect className="w-full text-left text-[13px] text-soft [&[open]>summary]:mb-3">
+      <summary className="cursor-pointer select-none text-center font-semibold text-ink underline decoration-ink/30 underline-offset-4 hover:decoration-ink">Connect your agents</summary>
+      <div className="flex flex-col gap-3">
+        <p>Run this once on the computer where your agents run, then restart them.</p>
+        <CopyCommand command={INSTALL} />
+        {boardNo !== null && boardNo !== 1 && (
+          <>
+            <p>Your board is issue #{boardNo}. Set this in the same terminal.</p>
+            <CopyCommand command={`export COWORKER_BOARD=${boardNo}`} />
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function CreateBoard({ account, onCreate }: { account: Account; onCreate: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!account.ready) return null;
+  const go = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await onCreate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create the board.");
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <button
+        type="button"
+        data-create-board
+        disabled={busy}
+        onClick={account.user ? go : account.signIn}
+        className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98] disabled:opacity-50"
+      >
+        {busy ? "Creating…" : account.user ? "Create the board" : "Sign in to create the board"}
+      </button>
+      {error && (
+        <p role="alert" className="max-w-md text-balance text-[13px] text-stop">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

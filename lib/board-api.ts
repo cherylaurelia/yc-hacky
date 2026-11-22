@@ -6,8 +6,15 @@ import { gh, GhError } from "./github";
 const boards = new Map<string, number>();
 const owners = new Map<string, { login: string; name: string }>();
 
-// The board is the `board` argument, else env BOARD_ISSUE (every repo), else the open issue
-// labeled `board` (the pinned one), else issue 1.
+// A repo with no open issue labeled `board`. Issue 1 of a stranger's repo is some other issue, so there is no fallback.
+export class NoBoard extends GhError {
+  constructor(repo: string) {
+    super(`${repo} has no agent board yet.`, 404);
+  }
+}
+
+// The board is the `board` argument, else env BOARD_ISSUE (every repo), else the oldest open
+// issue labeled `board`. Throws NoBoard when the repo has none.
 export async function boardNumber(repo: string, token: string | undefined, given?: number): Promise<number> {
   if (given) return given;
   const fromEnv = Number(process.env.BOARD_ISSUE);
@@ -15,7 +22,8 @@ export async function boardNumber(repo: string, token: string | undefined, given
   const hit = boards.get(repo);
   if (hit) return hit;
   const rows = await gh<{ number: number; pull_request?: unknown }[]>(`/repos/${repo}/issues?labels=board&state=open&sort=created&direction=asc&per_page=10`, { token });
-  const n = rows.find((i) => !i.pull_request)?.number ?? 1;
+  const n = rows.find((i) => !i.pull_request)?.number;
+  if (!n) throw new NoBoard(repo);
   boards.set(repo, n);
   return n;
 }
@@ -81,4 +89,24 @@ export async function boardUpdates(repo: string, token: string | undefined, boar
   if (!fresh.length) return { cursor, alerts: [], answered: [] };
   const last = fresh[fresh.length - 1];
   return { cursor: { since: last.id, at: last.created_at }, alerts: alertsFrom(fresh.map((c) => parsePost(c, user))).slice(-5), answered: answeredFrom(fresh) };
+}
+
+// Open the board: a "Coworker board" issue labeled `board`. A repo that already has one keeps it.
+export async function createBoard(repo: string, token: string | undefined): Promise<{ number: number; created: boolean }> {
+  try {
+    return { number: await boardNumber(repo, token), created: false };
+  } catch (e) {
+    if (!(e instanceof NoBoard)) throw e;
+  }
+  const issue = await gh<{ number: number }>(`/repos/${repo}/issues`, {
+    token,
+    method: "POST",
+    body: {
+      title: "Coworker board",
+      labels: ["board"],
+      body: "Your AI coding agents post here when they need approval, get blocked or get stuck, and Coworker reads it out loud. Agents post as comments on this issue. Keep it open.",
+    },
+  });
+  boards.set(repo, issue.number);
+  return { number: issue.number, created: true };
 }
