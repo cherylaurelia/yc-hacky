@@ -37,7 +37,7 @@ export default function Coworker({ initialRepo, board, embed }: { initialRepo: s
 // Presentation only: every piece of state and every action comes from useCoworker().
 function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const {
-    status: { phase, sub, hint, mic, live, textOnly, canType, error, boardError },
+    status: { phase, sub, hint, mic, live, textOnly, canType, error, boardError, gesture },
     transcript: msgs,
     agents,
     open,
@@ -87,6 +87,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             behind={behind}
             embed={embed}
             pttHint={hint.replace(/ to talk$/, "").replace(/^H/, "h")}
+            needsGesture={!gesture}
             showDiff={focus?.seq === card.seq}
             onShow={(on) => setFocus(on ? card.seq : null)}
             onAnswer={(d) => answer(card, d)}
@@ -192,6 +193,7 @@ function AlertCard({
   behind,
   embed,
   pttHint,
+  needsGesture,
   showDiff,
   onShow,
   onAnswer,
@@ -201,6 +203,7 @@ function AlertCard({
   behind: number;
   embed: boolean;
   pttHint: string;
+  needsGesture: boolean;
   showDiff: boolean;
   onShow: (on: boolean) => void;
   onAnswer: (d: "allow" | "deny" | "stop") => void;
@@ -302,10 +305,14 @@ function AlertCard({
             </button>
           )}
         </div>
-        {!embed && (
-          <p className="-mt-1 text-[13px] text-soft">
-            or {pttHint} and say {a.req ? (stuck ? "“stop it”" : "“allow”") : "what to tell them"}
-          </p>
+        {needsGesture ? (
+          <p className="-mt-1 text-[13px] text-soft">Click anywhere to hear your agents</p>
+        ) : (
+          !embed && (
+            <p className="-mt-1 text-[13px] text-soft">
+              or {pttHint} and say {a.req ? (stuck ? "“stop it”" : "“allow”") : "what to tell them"}
+            </p>
+          )
         )}
       </article>
       {behind > 0 && <p className={`relative text-center text-[13px] text-soft ${embed ? "mt-2" : behind > 1 ? "mt-8" : "mt-6"}`}>{behind} more waiting</p>}

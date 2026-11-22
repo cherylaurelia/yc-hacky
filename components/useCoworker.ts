@@ -41,6 +41,17 @@ function spokenAlerts(played: BoardAlert[], missed: BoardAlert[]): string {
   return parts.join("\n");
 }
 
+// An alert still on the user's plate: unanswered blocked/stuck ones, and mentions not yet spoken or dismissed.
+const isOpen = (a: Alert, hidden: ReadonlySet<number>) => a.state !== "answered" && !hidden.has(a.id) && !(a.why === "mention" && a.state === "told");
+
+// What a desktop notification says under "<agent> needs you".
+function noticeBody(a: Alert): string {
+  const c = a.ctx;
+  if (a.kind === "approval") return c?.command ? `Wants to run ${c.command}` : c?.file ? `Wants to edit ${c.file.split("/").pop()}` : "Needs your OK";
+  if (a.kind === "stuck") return "Keeps failing at the same step";
+  return a.text;
+}
+
 export function useCoworker({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const first = parseRepo(initialRepo);
   const [repo, setRepoState] = useState(first.ok ? first.repo : "");
@@ -58,8 +69,11 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const [focus, setFocus] = useState<number | null>(null);
   const [pttKey, setPttKey] = useState("fn");
   const [hidden, setHidden] = useState<ReadonlySet<number>>(new Set());
+  const [gesture, setGesture] = useState(false);
 
   const seq = useRef(0);
+  const noticed = useRef(new Set<number>());
+  const notices = useRef(new Map<number, Notification>());
   const alertsRef = useRef<Alert[]>([]);
   const answeredReqs = useRef(new Set<string>());
   const lastActive = useRef(0);
@@ -427,10 +441,56 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
 
   const skip = (id: number) => setAlerts((all) => all.map((x) => (x.id === id && x.state === "asking" ? { ...x, state: "told" } : x)));
 
-  // Alerts still on the user's plate: unanswered blocked/stuck ones, and mentions not yet spoken or dismissed.
-  const open = alerts.filter((a) => a.state !== "answered" && !hidden.has(a.id) && !(a.why === "mention" && a.state === "told"));
+  const open = alerts.filter((a) => isOpen(a, hidden));
   // The one card on screen: what "show me" asked for, else the one being spoken about, else the oldest open.
   const card = (focused && open.includes(focused) ? focused : undefined) ?? (current(alerts) && open.includes(current(alerts)!) ? current(alerts) : undefined) ?? open[0] ?? null;
+  // The first click or key press is the browser's licence to play audio, and the moment to ask once for notification permission.
+  useEffect(() => {
+    const first = () => {
+      window.removeEventListener("pointerdown", first, true);
+      window.removeEventListener("keydown", first, true);
+      setGesture(true);
+      try {
+        if ("Notification" in window && Notification.permission === "default") Promise.resolve(Notification.requestPermission()).catch((e) => console.warn("Notification permission failed:", e));
+      } catch (e) {
+        console.warn("Could not ask for notification permission:", e);
+      }
+    };
+    window.addEventListener("pointerdown", first, true);
+    window.addEventListener("keydown", first, true);
+    return () => {
+      window.removeEventListener("pointerdown", first, true);
+      window.removeEventListener("keydown", first, true);
+    };
+  }, []);
+
+  // An alert that arrives while the tab is hidden or unfocused gets one desktop notification, closed once it is answered
+  // or dismissed. Clicking it brings the window forward and opens that alert's card.
+  useEffect(() => {
+    for (const a of alerts) {
+      if (noticed.current.has(a.id)) continue;
+      noticed.current.add(a.id);
+      if (!(document.hidden || !document.hasFocus()) || !("Notification" in window) || Notification.permission !== "granted") continue;
+      try {
+        const n = new Notification(`${a.from} ${a.why === "blocked" ? "needs you" : "has news for you"}`, { body: noticeBody(a), tag: a.req ?? String(a.id), requireInteraction: true });
+        n.onclick = () => {
+          window.focus();
+          setFocus(a.seq);
+        };
+        notices.current.set(a.id, n);
+      } catch (e) {
+        console.warn("Could not show a notification:", e);
+      }
+    }
+    for (const [id, n] of notices.current) {
+      const a = alerts.find((x) => x.id === id);
+      if (!a || !isOpen(a, hidden)) {
+        n.close();
+        notices.current.delete(id);
+      }
+    }
+  }, [alerts, hidden]);
+
   const speaker = phase === "speaking" ? (playing?.from ?? "coworker") : phase === "listening" ? "you" : null;
 
   // A click on Allow, Deny or Stop: the user named the alert by looking at it, so it is posted for
@@ -480,7 +540,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   }
 
   return {
-    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError },
+    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, boardError, gesture },
     transcript: msgs,
     feed,
     alerts,
