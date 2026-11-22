@@ -51,8 +51,8 @@ function teardown() {
 
 const ctxBlock = (o: object) => `<!-- coworker:${JSON.stringify(o).replace(/@/g, "\\u0040").replace(/</g, "\\u003c").replace(/>/g, "\\u003e")} -->`;
 const DIFF = "--- a/app/api/demo.ts\n+++ b/app/api/demo.ts\n@@ -1,3 +1,3 @@\n const a = 1;\n-const b = 2;\n+const b = 3;\n const c = 4;\n";
-const hookApproval = (id: string) =>
-  `[E2E's Claude] needs approval (req ${id}): Edit demo.ts in yc-hacky\n\n${ctxBlock({ v: 1, kind: "approval", req: id, session: "e2e00001", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Edit", command: "", file: "app/api/demo.ts", line: 2, diff: DIFF, stuck: null })}`;
+const hookApproval = (id: string, command = "") =>
+  `[E2E's Claude] needs approval (req ${id}): ${command ? `Bash ${command}` : "Edit demo.ts"} in yc-hacky\n\n${ctxBlock({ v: 1, kind: "approval", req: id, session: "e2e00001", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: command ? "Bash" : "Edit", command, file: command ? null : "app/api/demo.ts", line: command ? null : 2, diff: command ? null : DIFF, stuck: null })}`;
 const hookStuck = (id: string) =>
   `[E2E's Claude] stuck: retried npm test 3 times in 5 min, about $1 (req ${id})\n\n${ctxBlock({ v: 1, kind: "stuck", req: id, session: "e2e00002", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Bash", command: "npm test", file: null, line: null, diff: null, stuck: { count: 3, minutes: 5, cost_usd: 1.2, signature: "npm test" } })}`;
 
@@ -454,6 +454,96 @@ async function typeInstead() {
   }
 }
 
+async function notifications() {
+  const [a, b] = [randomBytes(3).toString("hex"), randomBytes(3).toString("hex")];
+  reqIds.push(a, b);
+  const ctx = await newCtx({ permissions: ["notifications"] });
+  try {
+    // A Notification that records what the page does with it, and a page that reports itself hidden.
+    await ctx.addInitScript(() => {
+      class FakeNotification {
+        static permission = "default";
+        static requestPermission() {
+          w.__asked++;
+          FakeNotification.permission = "granted";
+          return Promise.resolve("granted");
+        }
+        title: string;
+        options: NotificationOptions;
+        closed = false;
+        onclick: (() => void) | null = null;
+        constructor(title: string, options: NotificationOptions = {}) {
+          this.title = title;
+          this.options = options;
+          w.__notes.push(this);
+        }
+        close() {
+          this.closed = true;
+        }
+      }
+      const w = window as unknown as { __asked: number; __notes: FakeNotification[] };
+      w.__asked = 0;
+      w.__notes = [];
+      Object.defineProperty(window, "Notification", { value: FakeNotification, configurable: true, writable: true });
+      Object.defineProperty(document, "hidden", { get: () => true, configurable: true });
+      document.hasFocus = () => false;
+    });
+    const page = await ctx.newPage();
+    const seen = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __asked: number; __notes: { title: string; options: NotificationOptions; closed: boolean }[] };
+        return { asked: w.__asked, notes: w.__notes.map((n) => ({ title: n.title, body: n.options.body, tag: n.options.tag, requireInteraction: n.options.requireInteraction, closed: n.closed })) };
+      });
+
+    const first = page.waitForResponse((r) => r.url().includes("/api/board/new"));
+    await page.goto(PAGE);
+    await first;
+    postBoard(hookApproval(a));
+    const card = page.locator("article[data-alert]");
+    await card.waitFor({ state: "visible", timeout: 30_000 });
+
+    // Before any click the browser would block audio, so the card says what to do. No permission yet, so no notification.
+    const hint = card.getByText("Click anywhere to hear your agents");
+    await hint.waitFor(VISIBLE);
+    must((await seen()).notes.length === 0, "a notification was shown before the user had interacted");
+
+    // The first click asks for notification permission, once.
+    await page.mouse.click(20, 400);
+    await hint.waitFor({ state: "hidden", timeout: 5_000 });
+    await page.mouse.click(30, 420);
+    must((await seen()).asked === 1, `notification permission was asked ${(await seen()).asked} time(s), not once`);
+
+    // An alert arriving while the tab is hidden gets one notification.
+    postBoard(hookApproval(b, "npm run migrate"));
+    let notes = (await seen()).notes;
+    for (let i = 0; i < 70 && notes.length === 0; i++) {
+      await page.waitForTimeout(500);
+      notes = (await seen()).notes;
+    }
+    must(notes.length === 1, `expected 1 notification, got ${notes.length}`);
+    const n = notes[0];
+    must(n.title === "E2E's Claude needs you", `notification title is "${n.title}"`);
+    must(n.body === "Wants to run npm run migrate", `notification body is "${n.body}"`);
+    must(n.tag === b && n.requireInteraction === true, `notification tag/requireInteraction are ${n.tag}/${n.requireInteraction}`);
+    await page.waitForResponse((r) => r.url().includes("/api/board/new"), { timeout: 20_000 });
+    must((await seen()).notes.length === 1, "the next poll notified again for the same alert");
+
+    // Clicking it opens that alert's card, behind the one already open.
+    await page.evaluate(() => {
+      const w = window as unknown as { __notes: { onclick: (() => void) | null }[] };
+      w.__notes[0].onclick?.();
+    });
+    await card.getByText("npm run migrate").first().waitFor(VISIBLE);
+
+    // Answering closes it.
+    await card.getByRole("button", { name: "Allow", exact: true }).click();
+    for (let i = 0; i < 20 && !(await seen()).notes[0].closed; i++) await page.waitForTimeout(250);
+    must((await seen()).notes[0].closed, "the notification stayed open after the request was answered");
+  } finally {
+    await ctx.close();
+  }
+}
+
 // ---------- run ----------
 
 browser = await chromium.launch({
@@ -469,6 +559,7 @@ try {
   await flow("7 standup", standup);
   await flow("8 voice session", voiceSession);
   await flow("9 type instead", typeInstead);
+  await flow("10 desktop notifications", notifications);
 } finally {
   await browser.close();
   teardown();
