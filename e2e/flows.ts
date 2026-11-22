@@ -578,7 +578,8 @@ async function boardStates() {
     const command = (await page.locator("[data-connect] code").first().innerText()).trim();
     must(/^gh api repos\/.+install\.sh .*\| bash$/.test(command), `unexpected install command: ${command}`);
     await page.locator("[data-connect]").getByRole("button", { name: "Copy" }).first().click();
-    await page.getByRole("button", { name: "Copied" }).waitFor(VISIBLE);
+    // Playwright's WebKit refuses clipboard writes, so there the button falls back to selecting the text.
+    await page.getByRole("button", { name: WEBKIT ? /Copied|Press Cmd\+C/ : "Copied" }).waitFor(VISIBLE);
     if (!WEBKIT) must((await page.evaluate(() => navigator.clipboard.readText())) === command, "Copy did not put the command on the clipboard");
     must((await page.locator("[data-create-board]").innerText()) === "Sign in to create the board", "signed out, the board button should ask to sign in");
 
@@ -631,6 +632,47 @@ async function createBoardFlow() {
   }
 }
 
+// A long agent name and a long command at the projector, phone and embed sizes: nothing cut off or overlapping.
+async function longTextLayout() {
+  const id = randomBytes(3).toString("hex");
+  reqIds.push(id);
+  const agent = "Alexandrina-Konstantinopoulou's Claude Code";
+  const command = "npm run build && npx playwright test --project=chromium --reporter=html,list,junit --output=/tmp/very/long/path/to/results/that/never/ends/anywhere";
+  const body = `[${agent}] needs approval (req ${id}): Bash\n\n${ctxBlock({ v: 1, kind: "approval", req: id, session: "e2e00003", agent, repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Bash", command, file: null, line: null, diff: null, stuck: null })}`;
+  const sizes = [
+    { w: 1280, h: 720, q: "" },
+    { w: 390, h: 844, q: "" },
+    { w: 360, h: 520, q: "&embed=1" },
+  ];
+  const ctxs = await Promise.all(sizes.map((s) => newCtx({ viewport: { width: s.w, height: s.h } })));
+  try {
+    const pages = await Promise.all(ctxs.map((c) => c.newPage()));
+    const firsts = pages.map((p) => p.waitForResponse((r) => r.url().includes("/api/board/new")));
+    await Promise.all(pages.map((p, i) => p.goto(`${PAGE}${sizes[i].q}`)));
+    await Promise.all(firsts);
+    postBoard(body);
+    for (const [i, page] of pages.entries()) {
+      const label = `${sizes[i].w}x${sizes[i].h}${sizes[i].q}`;
+      await page.locator("article[data-alert]").waitFor({ state: "visible", timeout: 35_000 });
+      await page.waitForTimeout(600);
+      const sels = ["header", "article[data-alert]", "article[data-alert] code", "article[data-alert] h2", "footer", "button[data-phase]"];
+      const pairs: [string, string][] = [["header", "article[data-alert]"], ["article[data-alert]", "footer"]];
+      const problems = await layoutProblems(page, sels, pairs);
+      must(problems.length === 0, `layout at ${label}: ${problems.join("; ")}`);
+      const inside = await page.evaluate(() => {
+        const c = document.querySelector("article[data-alert]")!.getBoundingClientRect();
+        return [...document.querySelectorAll("article[data-alert] *")].filter((e) => e.getBoundingClientRect().right > c.right + 1).map((e) => e.tagName).slice(0, 3);
+      });
+      must(inside.length === 0, `something sticks out of the card at ${label}: ${inside.join(",")}`);
+      const btn = await page.locator("article[data-alert]").getByRole("button", { name: "Allow", exact: true }).boundingBox();
+      const vh = sizes[i].h;
+      must(!!btn && btn.y + btn.height <= vh && btn.y >= 0, `the Allow button is off screen at ${label}`);
+    }
+  } finally {
+    await Promise.all(ctxs.map((c) => c.close()));
+  }
+}
+
 // ---------- run ----------
 
 const browser: Browser = await (WEBKIT
@@ -649,6 +691,7 @@ try {
   await flow("10 desktop notifications", notifications);
   await flow("11 repo with a board, without one, missing, offline", boardStates);
   await flow("12 create the board", createBoardFlow);
+  await flow("13 long names and commands fit", longTextLayout);
 } finally {
   await browser.close();
   teardown();
