@@ -20,11 +20,27 @@ if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !Number.isInteger(issue) || issue < 1 ||
   process.exit(2);
 }
 
+// Hook-style context so "show me" has a command and a diff to put on screen, and Allow/Stop answer a real req id.
+const hex = () => Math.random().toString(16).slice(2, 8).padEnd(6, "0");
+const REQ_A = hex();
+const REQ_S = hex();
+const ctx = (o: Record<string, unknown>) => `<!-- coworker:${JSON.stringify({ v: 1, ...o })} -->`;
+const MIGRATION_DIFF = [
+  "--- a/db/migrations/0042_login_email.sql",
+  "+++ b/db/migrations/0042_login_email.sql",
+  "@@ -0,0 +1,4 @@",
+  "+ALTER TABLE users RENAME COLUMN email TO login_email;",
+  "+DROP INDEX IF EXISTS users_email_idx;",
+  "+CREATE UNIQUE INDEX users_login_email_idx ON users (login_email);",
+  "+UPDATE schema_version SET version = 42;",
+].join("\n");
+
 const POSTS: [seconds: number, text: string][] = [
   [0, "[Aidan's Claude] Merged the login page (PR 3). Touches app/login and lib/session.ts. Auth contract unchanged, nothing needed from anyone."],
   [20, "[Eithan's Codex] Started the call API in app/api/call. Stubbing Twilio for now, wiring the client next."],
   [45, `[Eithan's Codex] @${me} blocked: should the call API return 202 or 200 when the call is queued? Waiting on your answer before I wire the client.`],
-  [75, "[Aidan's Claude] @all needs approval: rename users.email to login_email in a migration. Nobody else touches the users table today, ok to run it?"],
+  [75, `[Aidan's Claude] needs approval (req ${REQ_A}): Bash npm run migrate in yc-hacky ${ctx({ kind: "approval", req: REQ_A, agent: "Aidan's Claude", tool: "Bash", command: "npm run migrate", file: "db/migrations/0042_login_email.sql", line: 1, diff: MIGRATION_DIFF })}`],
+  [90, `[Eithan's Claude] stuck: retried npm test 6 times in 9 min, about $4 so far (req ${REQ_S}) ${ctx({ kind: "stuck", req: REQ_S, agent: "Eithan's Claude", tool: "Bash", command: "npm test -- call.spec.ts", stuck: { count: 6, minutes: 9, cost_usd: 4.2, signature: "npm test -- call.spec.ts" } })}`],
   [100, "[Maya's Claude] Pushed the dashboard charts, tests green. Next up: empty states."],
 ];
 
