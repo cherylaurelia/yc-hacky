@@ -9,7 +9,7 @@ import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswe
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { localNow } from "@/lib/now";
 import { parseRepo, rememberRecent } from "@/lib/repo";
-import { speakPost } from "@/lib/speak-client";
+import { speakPost, unlockAudio } from "@/lib/speak-client";
 import { TOOL_SPECS, type LocalToolName } from "@/lib/tool-specs";
 
 export type Msg = { id: number; role: "user" | "agent"; text: string };
@@ -476,6 +476,16 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     return () => {
       window.removeEventListener("pointerdown", first, true);
       window.removeEventListener("keydown", first, true);
+    };
+  }, []);
+
+  // Safari only counts a click or key press as licence to play, so unlock the shared audio element on those too.
+  useEffect(() => {
+    window.addEventListener("click", unlockAudio, true);
+    window.addEventListener("keydown", unlockAudio, true);
+    return () => {
+      window.removeEventListener("click", unlockAudio, true);
+      window.removeEventListener("keydown", unlockAudio, true);
     };
   }, []);
 
