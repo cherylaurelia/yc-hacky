@@ -4,11 +4,14 @@ import { type BoardAlert, type BoardCursor, type Comment, alertsFrom, digest, pa
 import { gh, GhError } from "./github";
 
 const boards = new Map<string, number>();
-const owners = new Map<string, string>();
+const owners = new Map<string, { login: string; name: string }>();
 
-// The board is the open issue labeled `board` (the pinned one), else issue 1.
+// The board is the `board` argument, else env BOARD_ISSUE (every repo), else the open issue
+// labeled `board` (the pinned one), else issue 1.
 export async function boardNumber(repo: string, token: string | undefined, given?: number): Promise<number> {
   if (given) return given;
+  const fromEnv = Number(process.env.BOARD_ISSUE);
+  if (Number.isInteger(fromEnv) && fromEnv > 0) return fromEnv;
   const hit = boards.get(repo);
   if (hit) return hit;
   const rows = await gh<{ number: number; pull_request?: unknown }[]>(`/repos/${repo}/issues?labels=board&state=open&sort=created&direction=asc&per_page=10`, { token });
@@ -17,17 +20,20 @@ export async function boardNumber(repo: string, token: string | undefined, given
   return n;
 }
 
-// GitHub login of the server token, from GET /user.
-export async function tokenOwner(token: string | undefined): Promise<string> {
+// The server token's owner from GET /user: `login` decides who is mentioned, `name` is the first
+// name shown in the relay tag. env OWNER_NAME overrides it; no profile name falls back to the login.
+export async function tokenOwner(token: string | undefined): Promise<{ login: string; name: string }> {
   if (!token) throw new GhError("The board needs a GitHub token on the server.", 502);
   const hit = owners.get(token);
   if (hit) return hit;
-  const { login } = await gh<{ login: string }>("/user", { token });
-  owners.set(token, login);
-  return login;
+  const u = await gh<{ login: string; name: string | null }>("/user", { token });
+  const first = u.name?.trim().split(/\s+/)[0] ?? "";
+  const me = { login: u.login, name: process.env.OWNER_NAME?.trim() || (first && first[0].toUpperCase() + first.slice(1)) || u.login };
+  owners.set(token, me);
+  return me;
 }
 
-const ownerOrNull = (token: string | undefined) => tokenOwner(token).catch(() => null);
+const ownerOrNull = (token: string | undefined) => tokenOwner(token).then((o) => o.login, () => null);
 
 export async function boardDigest(repo: string, token: string | undefined, board: number | undefined, minutes: number): Promise<string> {
   const n = await boardNumber(repo, token, board);
@@ -45,7 +51,7 @@ export async function boardDigest(repo: string, token: string | undefined, board
 }
 
 export async function boardPost(repo: string, token: string | undefined, board: number | undefined, text: string, to: string): Promise<string> {
-  const owner = await tokenOwner(token);
+  const owner = (await tokenOwner(token)).name;
   const n = await boardNumber(repo, token, board);
   await gh(`/repos/${repo}/issues/${n}/comments`, {
     token,
