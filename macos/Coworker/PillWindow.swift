@@ -73,7 +73,6 @@ final class PillWindow {
         content.layer?.backgroundColor = NSColor(white: 0.08, alpha: 0.92).cgColor
         content.layer?.borderColor = NSColor(white: 1, alpha: 0.14).cgColor
         content.layer?.borderWidth = 1
-        content.layer?.cornerRadius = 22  // Core Animation clamps this to half the height, so every size stays a capsule
         content.layer?.masksToBounds = true  // the label is clipped while the capsule is still growing
         content.setAccessibilityRole(.button)
 
@@ -140,6 +139,7 @@ final class PillWindow {
             label.preferredMaxLayoutWidth = labelMaxWidth.constant
         }
         panel.hasShadow = !compact
+        let radius = s.mode == .alert ? 20 : size.height / 2
         guard let screen = NSScreen.main?.visibleFrame else { return }
         let frame = NSRect(x: screen.midX - size.width / 2, y: screen.minY + Self.bottomGap, width: size.width, height: size.height)
         let alpha: CGFloat = compact ? 0.7 : 1
@@ -149,7 +149,16 @@ final class PillWindow {
             panel.setFrame(frame, display: true)
             panel.alphaValue = alpha
             stack.alphaValue = compact ? 0 : 1
+            content.layer?.cornerRadius = radius
             return
+        }
+        if let layer = content.layer {
+            let grow = CABasicAnimation(keyPath: "cornerRadius")
+            grow.fromValue = layer.presentation()?.cornerRadius ?? layer.cornerRadius
+            grow.duration = Self.growDuration
+            grow.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(grow, forKey: "cornerRadius")
+            layer.cornerRadius = radius
         }
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = Self.growDuration

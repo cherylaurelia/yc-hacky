@@ -2,7 +2,7 @@
 
 A menu-bar app that hosts the Coworker web page and adds push-to-talk with a global key. Hold the key anywhere, talk, let go.
 
-On screen it is a small pill at the bottom-center of your display. It shows the state (Hold Right Option, Listening, Thinking, Speaking) and a level meter while the key is held. When an agent posts an alert, the pill expands to `<agent>: <text>` until you answer. Click the pill, or pick Show Panel in the menu-bar menu, to open the full page. Closing the panel does not end the session.
+On screen it is a tiny capsule (44x8) 8 pt above the bottom of your display, above the Dock. Hover it for 300 ms to see the talk key (Hold Right Option). While you hold the key it grows to the pill with a level meter, and the same pill shows Thinking and Speaking. When an agent posts an alert, it expands to `<agent>: <text>`, then shrinks back after you answer or after 8 s (the alert stays in the panel). With Reduce Motion on, the size changes instantly. Click the pill, or pick Show Panel in the menu-bar menu, to open the full page. Closing the panel does not end the session.
 
 ## Install (from Coworker.zip)
 
@@ -40,6 +40,7 @@ Launch args (`open -n Coworker.app --args ...`):
 
 - `-coworkerURL <url>` points the app at a page for this launch only.
 - `-debug 1` shows "Simulate talk key hold" in the menu. `-simulateAfter 5 -simulateSeconds 3` runs one hold on a timer.
+- `-pillSnapshots /tmp/dir` walks idle, hover, hold and alert and saves each state's pixels as PNGs (no Screen Recording access needed; use `-coworkerURL about:blank` so the page does not drive the state).
 - `-simulateAlertAfter 5` posts one fake alert on a timer; the menu has "Simulate alert" with `-debug 1`. Notifications need the app launched as `open build/Coworker.app`, not the raw binary.
 - `-showPanel 1` opens the full panel at launch.
 - `-probe 1` appends the page's mic track state (enabled or muted) and the pill state to `/tmp/coworker-probe.log`.

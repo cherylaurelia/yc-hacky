@@ -175,6 +175,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Debug only: walks idle, hover, hold and alert, saving the pill's pixels after each settles.
     private func snapshotRun(_ dir: String) {
+        pillWindow.onHover = nil  // a real mouse must not change the scripted states
+        pillWindow.onClick = nil
         let steps: [(String, () -> Void)] = [
             ("idle", {}),
             ("hover", { self.apply(.hover(true)) }),
@@ -186,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         var t = 1.0
         for (name, act) in steps {
             DispatchQueue.main.asyncAfter(deadline: .now() + t) { act() }
-            t += name == "alert" ? 8.5 : 0.6
+            t += name == "alert-collapsed" ? 8.5 : 0.6
             DispatchQueue.main.asyncAfter(deadline: .now() + t) { [weak self] in self?.pillWindow.snapshot(to: "\(dir)/\(name).png") }
             t += 0.3
         }
