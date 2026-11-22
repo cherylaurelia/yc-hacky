@@ -160,15 +160,17 @@ async function signedOutLogin() {
     const page = await ctx.newPage();
     const errors = watchErrors(page);
     const hit: { url?: URL } = {};
-    await page.route("https://github.com/**", (route) => {
-      hit.url = new URL(route.request().url());
-      return route.fulfill({ status: 200, contentType: "text/html", body: "<h1>GitHub (stubbed)</h1>" });
+    const authorize = "https://github.com/login/oauth/authorize";
+    page.on("request", (r) => {
+      if (r.url().startsWith(authorize)) hit.url = new URL(r.url());
     });
+    await page.route("https://github.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<h1>GitHub (stubbed)</h1>" }));
     await page.goto(PAGE);
     const btn = page.getByRole("button", { name: "Sign in with GitHub" });
     await btn.waitFor(VISIBLE);
+    const message = page.getByRole("alert").filter({ hasText: /isn.t set up|not set up/i }).first();
     await btn.click();
-    await page.waitForLoadState("load");
+    await Promise.race([page.waitForRequest((r) => r.url().startsWith(authorize), { timeout: 15_000 }).catch(() => null), message.waitFor({ state: "visible", timeout: 15_000 }).catch(() => null)]);
     if (hit.url) {
       const u = hit.url;
       must(u.pathname === "/login/oauth/authorize", `unexpected GitHub path ${u.pathname}`);
@@ -180,8 +182,7 @@ async function signedOutLogin() {
       must(state?.value.startsWith(`${u.searchParams.get("state")}.`), "state cookie does not match the state sent to GitHub");
     } else {
       await page.waitForURL((u) => u.origin === BASE && !u.pathname.startsWith("/api/"), { timeout: 10_000 });
-      const msg = page.getByRole("alert").filter({ hasText: /isn.t set up|not set up/i });
-      await msg.first().waitFor(VISIBLE);
+      await message.waitFor(VISIBLE);
       const body = (await page.locator("body").innerText()).trim();
       must(body.length > 20 && !body.startsWith("{"), "sign-in landed on a blank or raw page");
       // The type-a-repo path must still work.
