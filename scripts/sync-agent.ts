@@ -103,6 +103,7 @@ async function main() {
       tts: { model_id: "eleven_flash_v2" },
     },
     platform_settings: {
+    auth: { enable_auth: true },
       overrides: { conversation_config_override: { conversation: { text_only: true } } },
     },
   };
