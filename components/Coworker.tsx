@@ -146,7 +146,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             {captions.map((m, i) => (
               <p
                 key={m.id}
-                className={`line-clamp-2 text-balance ${i === captions.length - 1 ? "text-ink" : "text-faint"} ${m.role === "user" ? "text-soft" : ""} ${embed ? "text-[13px]" : "text-[15px]"}`}
+                className={`text-balance ${i === captions.length - 1 ? "max-h-40 overflow-y-auto text-ink" : "line-clamp-1 text-faint"} ${m.role === "user" ? "text-soft" : ""} ${embed ? "text-[13px]" : "text-[15px]"}`}
               >
                 {m.role === "user" && <span className="sr-only">You: </span>}
                 {m.text}
