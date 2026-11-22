@@ -96,6 +96,13 @@ export const alertsFrom = (posts: Post[]): BoardAlert[] =>
 // Request ids that already have a reply ("req ab12cd allow") in these comments.
 export const answeredFrom = (comments: Comment[]): string[] => comments.flatMap((c) => c.body.match(ANSWER)?.[1].toLowerCase() ?? []);
 
+// A late tab: approval and stuck requests from the last few minutes that nobody has answered yet.
+export function openRequests(comments: Comment[], user: string | null, now = Date.now(), minutes = 10): BoardAlert[] {
+  const answered = new Set(answeredFrom(comments));
+  const cutoff = now - minutes * 60_000;
+  return alertsFrom(comments.filter((c) => Date.parse(c.created_at) >= cutoff).map((c) => parsePost(c, user)).filter((p) => (p.kind === "approval" || p.kind === "stuck") && p.req && !answered.has(p.req)));
+}
+
 const stop = (s: string) => (/[.?!]$/.test(s) ? s : `${s}.`);
 const list = (xs: string[], max: number) => stop(xs.length > max ? `${xs.slice(0, max).join("; ")}; and ${xs.length - max} more` : xs.join("; "));
 

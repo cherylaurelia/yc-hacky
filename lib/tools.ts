@@ -139,7 +139,7 @@ export const HANDLERS: Record<ServerToolName, Handler> = {
   },
 
   async search_code({ repo, token }, args) {
-    if (!token) throw new GhError("Code search needs a GitHub token on the server.", 502);
+    if (!token) throw new GhError("Code search needs a GitHub token on the server.", 503);
     const query = str(args.query).replace(/\b(?:repo|org|user):\S+/gi, " ").trim().slice(0, 200);
     if (!query) throw new GhError("I need something to search for.", 400);
     const r = await gh<{ total_count: number; items: { path: string }[] }>(

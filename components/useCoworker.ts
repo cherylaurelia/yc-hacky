@@ -238,7 +238,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
             } catch (e) {
               const msg = e instanceof Error ? e.message : "Tool failed.";
               finish("error", msg);
-              throw new Error(msg);
+              // Return, don't throw: a thrown error ends the voice session. The agent says this in one sentence.
+              return `That did not work: ${msg}`;
             }
           },
         ]),
@@ -253,7 +254,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       if (role === "agent") setAwaiting(false);
     },
     onError: (message) => {
-      setError(message);
+      setError(/client tool/i.test(message) ? "A tool call failed. You can ask again." : message);
       setStarting(false);
     },
     onConnect: () => setStarting(false),
@@ -398,7 +399,16 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   }
 
   async function start(asText: boolean) {
-    if (!repo || starting || convo.status === "connecting" || convo.status === "connected") return;
+    if (!repo || starting || convo.status === "connecting") return;
+    // A session left "connected" after an error cannot be reused: end it so this press starts a fresh one.
+    if (convo.status === "connected") {
+      if (!error) return;
+      try {
+        await convo.endSession();
+      } catch (e) {
+        console.warn("Could not end the stuck session:", e);
+      }
+    }
     setError(null);
     setCanType(false);
     setStarting(true);

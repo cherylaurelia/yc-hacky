@@ -1,7 +1,7 @@
 // Run: node --test lib/board.test.ts
 import assert from "node:assert/strict";
 import test from "node:test";
-import { type Comment, alertMessage, alertsFrom, digest, parsePost } from "./board.ts";
+import { type Comment, alertMessage, alertsFrom, digest, openRequests, parsePost } from "./board.ts";
 
 let id = 0;
 const post = (body: string, minsAgo = 5, login = "cheryl"): Comment => ({ id: ++id, user: { login }, body, created_at: new Date(Date.now() - minsAgo * 60_000).toISOString() });
@@ -36,4 +36,17 @@ test("empty window and alert message", () => {
   assert.match(digest([], 90, "x"), /quiet for the last 90 minutes/);
   const [a] = alertsFrom(parse([["[Eithan's Codex] @cherylaurelia blocked: 202 or 200?"]]));
   assert.equal(alertMessage([a]), `[BOARD ALERT] Eithan's Codex (GitHub login cheryl) is blocked or waiting: "blocked: 202 or 200?"`);
+});
+
+test("a late tab gets only open approval/stuck requests from the last 10 minutes", () => {
+  const out = openRequests([
+    post("[Sam's Codex] needs approval to run the migration (req aaaa11)", 4),
+    post("[Sam's Codex] needs approval to drop it (req bbbb22)", 3),
+    post("[cherylaurelia's Coworker] req bbbb22 allow", 2),
+    post("[Ana's Claude] needs approval, too old (req cccc33)", 30),
+    post("[Ana's Claude] stuck: retried the same test (req dddd44)", 6),
+    post("[Eithan's Codex] @cherylaurelia blocked: 202 or 200?", 5),
+    post("[Aidan's Claude] done: login merged (req eeee55)", 5),
+  ], "cherylaurelia");
+  assert.deepEqual(out.map((a) => a.req), ["aaaa11", "dddd44"]);
 });
