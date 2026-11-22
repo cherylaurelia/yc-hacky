@@ -144,6 +144,8 @@ async function calmPage() {
         pairs.push(["header [data-repo-chip]", "header [data-account]"]);
       }
       must(!/cherylaurelia\/yc-hacky/i.test(await page.locator("header").innerText()), `the raw owner/name is still shown in the header at ${label}`);
+      const extras = await page.getByRole("button", { name: /^(standup|change repo|end session)$/i }).count();
+      must(extras === 0, `${extras} extra control(s) under the pill (Standup, Change repo or End session)`);
       const problems = await layoutProblems(page, sels, pairs);
       must(problems.length === 0, `layout at ${label}: ${problems.join("; ")}`);
     } finally {
@@ -338,7 +340,9 @@ async function alertCard() {
     };
 
     await card.waitFor({ state: "visible", timeout: 30_000 });
-    must(/demo\.ts/.test(await card.innerText()), "card does not name the file");
+    const text = await card.innerText();
+    must(/demo\.ts/.test(text), "card does not name the file");
+    must(!/open in editor|stop agent/i.test(text), "the approval card shows more than Allow, Deny and Show me");
     await card.getByRole("button", { name: "Show me the change" }).click();
     const diff = card.locator("[data-diff]");
     await diff.waitFor(VISIBLE);
@@ -356,6 +360,7 @@ async function alertCard() {
 
     const stop = page.locator("article[data-alert]").getByRole("button", { name: /^Stop/ }).first();
     await stop.waitFor(VISIBLE);
+    must(!/\$\d|min ·/.test(await page.locator("article[data-alert]").innerText()), "the stuck card shows cost or time stats");
     await stop.click();
     await waitPosted(ids[2], "stop");
   } finally {
@@ -368,16 +373,17 @@ async function standup() {
   try {
     const page = await ctx.newPage();
     await page.goto(PAGE);
-    await page.getByRole("button", { name: "Standup", exact: true }).click();
-    const res = page.waitForResponse((r) => r.url().includes("/api/standup"), { timeout: 70_000 });
-    await page.getByRole("button", { name: /^Play the \d+-hour standup/ }).click();
-    const r = await res;
+    await page.locator("button[data-phase]").waitFor(VISIBLE);
+    must((await page.getByRole("button", { name: /standup/i }).count()) === 0, "the page still has a Standup button");
+    const r = await ctx.request.get(`/api/standup?repo=${REPO}&board=${BOARD}&hours=3`, { timeout: 70_000 });
     if (r.status() === 200) {
       must((r.headers()["content-type"] ?? "").includes("audio/mpeg"), `standup content-type is ${r.headers()["content-type"]}`);
-      await page.locator("audio").waitFor({ state: "attached", timeout: 10_000 });
+      must((await r.body()).length > 1000, "standup audio is empty");
+      must(!!r.headers()["x-standup-script"], "standup came without its script");
     } else {
       must(r.status() === 404, `standup answered HTTP ${r.status()}`);
-      await page.getByRole("alert").filter({ hasText: /quiet/i }).waitFor(VISIBLE);
+      const j = (await r.json()) as { error?: string };
+      must(/quiet/i.test(j.error ?? ""), `standup error is not friendly: ${j.error}`);
     }
   } finally {
     await ctx.close();
@@ -405,7 +411,6 @@ async function voiceSession() {
       const el = document.querySelector("button[data-phase]");
       return el?.getAttribute("data-mic") === "muted" && el.getAttribute("data-phase") !== "listening";
     }, null, { timeout: 5_000 });
-    await page.getByRole("button", { name: /end session/i }).click();
   } finally {
     await ctx.close();
   }
