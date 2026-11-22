@@ -14,52 +14,18 @@ const LEAD = 0.2; // the voice starts this long after the scene does
 const PAD = 0.6; // air after the voice, before the next scene
 const HOLD = 2.5; // the last card stays up this long after the last word
 
-type Scene = { audio: string; audioSeconds: number; captions: string[]; Visual: () => ReactNode; hold?: number };
+type Scene = { audio: string; audioSeconds: number; headline: string; captions: string[]; Visual: () => ReactNode; hold?: number };
 
 const SCENES: Scene[] = [
-  {
-    audio: "narration/narr-01.mp3",
-    audioSeconds: 8.684,
-    captions: ["You run five coding agents.", "One has been stuck in a loop for twenty minutes, burning money.", "Another has been waiting for your OK since lunch.", "You'd never know."],
-    Visual: Hook,
-  },
-  {
-    audio: "narration/narr-02.mp3",
-    audioSeconds: 6.037,
-    captions: ["This is Terminal 1.", "It watches all your agents, and when one needs you,", "it taps you on the shoulder.", "Out loud."],
-    Visual: Intro,
-  },
-  {
-    audio: "narration/narr-03.mp3",
-    audioSeconds: 11.006,
-    captions: ["Eithan's agent wants to run a database migration.", "I don't switch windows.", "I hold a key and say: show me.", "There's the exact change.", "Yes, allow it.", "And the agent keeps going."],
-    Visual: Approval,
-  },
-  {
-    audio: "narration/narr-04.mp3",
-    audioSeconds: 10.913,
-    captions: ["This one's worse.", "Aidan's agent keeps retrying the same failing test.", "Nothing errors in a retry loop, so no tool warns you.", "Terminal 1 does.", "Stop it.", "Done."],
-    Visual: Stuck,
-  },
-  {
-    audio: "narration/narr-05.mp3",
-    audioSeconds: 13.793,
-    captions: ["Every agent speaks in its own voice,", "and it works across the whole team.", "Today my teammate's agent handed work to mine through the board,", "and a task posted there became a pull request in thirty-four seconds."],
-    Visual: Team,
-  },
-  {
-    audio: "narration/narr-06.mp3",
-    audioSeconds: 13.096,
-    captions: ["ElevenLabs is the whole interface.", "Their agent hears me and acts,", "and every agent gets its own voice.", "Terminal 1 runs on Maritime,", "every decision is traced in TraceRoot,", "and we built it with agents running in Codevisor."],
-    Visual: Partners,
-  },
-  {
-    audio: "narration/narr-07.mp3",
-    audioSeconds: 5.805,
-    captions: ["Your agents shouldn't need babysitting.", "They should tap you on the shoulder.", "This is Terminal 1."],
-    Visual: Close,
-    hold: HOLD,
-  },
+  { audio: "narration/narr-01.mp3", audioSeconds: 5.759, headline: "The problem", captions: ["How many of your coding agents are waiting on you right now?", "You don't know.", "They sit silent in terminal tabs."], Visual: Hook },
+  { audio: "narration/narr-02.mp3", audioSeconds: 11.238, headline: "It interrupts you, not the other way round", captions: ["This is Terminal 1.", "It watches all your agents, and speaks up when one needs approval, is blocked, or is stuck.", "A general assistant waits for you to ask.", "This one interrupts you."], Visual: Intro },
+  { audio: "narration/narr-03.mp3", audioSeconds: 8.777, headline: "Answer by voice", captions: ["I say: show me.", "The exact change opens full screen, never read aloud.", "Then I say: allow,", "and Claude Code continues, with no keypress."], Visual: Approval },
+  { audio: "narration/narr-04.mp3", audioSeconds: 8.452, headline: "It catches stuck retry loops", captions: ["It catches stuck retry loops no tool warns you about,", "with the retries, the minutes and the dollars.", "I say: stop it,", "and the agent halts."], Visual: Stuck },
+  { audio: "narration/narr-05.mp3", audioSeconds: 7.012, headline: "A voice for every agent", captions: ["Every agent has its own ElevenLabs voice,", "so you know who is talking.", "Press standup, and you get one voice per agent."], Visual: Voices },
+  { audio: "narration/narr-06.mp3", audioSeconds: 9.102, headline: "Voice to pull request", captions: ["Say a task, and a headless Claude Code agent builds it in its own worktree", "and opens a pull request.", "Thirty-four seconds, measured on a small change."], Visual: PullRequest },
+  { audio: "narration/narr-07.mp3", audioSeconds: 6.316, headline: "It knows the whole repo", captions: ["It knows the whole repo.", "Ask what pull requests are open, whether CI is passing, or what changed today."], Visual: RepoCard },
+  { audio: "narration/narr-08.mp3", audioSeconds: 2.554, headline: "One command", captions: ["One command connects any Claude Code session."], Visual: ConnectCard },
+  { audio: "narration/narr-09.mp3", audioSeconds: 9.706, headline: "", captions: ["Terminal 1 is live now.", "Built on ElevenLabs Agents, text to speech and text to dialogue, with Claude Code.", "Your agents shouldn't need babysitting.", "They should tap you on the shoulder."], Visual: Close, hold: HOLD },
 ];
 
 // ---- timing ---------------------------------------------------------------------------------------
@@ -72,7 +38,7 @@ const BG = "radial-gradient(120% 90% at 50% 20%, #efe8dc 0%, #e6dccd 100%)";
 const STOP = "#a3382a";
 const BAND_TOP = FRAME_TOP + FRAME_H;
 
-export const CoworkerDemo = () => (
+export const Terminal1Demo = () => (
   <AbsoluteFill style={{ background: BG, fontFamily: sans }}>
     {SCENES.map((s, i) => (
       <Sequence key={i} from={starts[i]} durationInFrames={lengths[i]} name={`scene ${i + 1}`}>
@@ -82,11 +48,22 @@ export const CoworkerDemo = () => (
         <Sequence from={f(LEAD)}>
           <Audio src={staticFile(s.audio)} />
         </Sequence>
+        {s.headline && <Headline text={s.headline} />}
         <Captions lines={s.captions} audioSeconds={s.audioSeconds} />
       </Sequence>
     ))}
   </AbsoluteFill>
 );
+
+const Headline = ({ text }: { text: string }) => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(frame, [4, 14], [0, 1], { extrapolateRight: "clamp" });
+  return (
+    <AbsoluteFill style={{ top: BAND_TOP + 8, height: 34, alignItems: "center", opacity }}>
+      <div style={{ fontFamily: mono, fontSize: 21, letterSpacing: "0.14em", textTransform: "uppercase", color: SOFT }}>{text}</div>
+    </AbsoluteFill>
+  );
+};
 
 // Every scene dips in and out so the cuts do not pop.
 const Faded = ({ children }: { children: ReactNode }) => {
@@ -112,8 +89,8 @@ const Captions = ({ lines, audioSeconds }: { lines: string[]; audioSeconds: numb
   const k = (t - span.from) * FPS;
   const opacity = interpolate(k, [0, 5], [0, 1], { extrapolateRight: "clamp" });
   return (
-    <AbsoluteFill style={{ top: BAND_TOP, height: HEIGHT - BAND_TOP, alignItems: "center", justifyContent: "center", opacity }}>
-      <div style={{ fontFamily: serif, fontSize: 54, lineHeight: 1.15, letterSpacing: "-0.01em", color: INK, textAlign: "center", maxWidth: 1560 }}>{span.text}</div>
+    <AbsoluteFill style={{ top: BAND_TOP + 30, height: HEIGHT - BAND_TOP - 30, alignItems: "center", justifyContent: "center", opacity }}>
+      <div style={{ fontFamily: serif, fontSize: 50, lineHeight: 1.15, letterSpacing: "-0.01em", color: INK, textAlign: "center", maxWidth: 1560 }}>{span.text}</div>
     </AbsoluteFill>
   );
 };
@@ -153,8 +130,8 @@ function Hook() {
   const t = useT();
   const lines: [string, number, string][] = [
     ["Five agents.", 0.3, INK],
-    ["One stuck.", 1.9, STOP],
-    ["One waiting.", 5.3, INK],
+    ["One stuck.", 2.0, STOP],
+    ["One waiting.", 3.6, INK],
   ];
   return (
     <AbsoluteFill>
@@ -175,92 +152,30 @@ function Hook() {
 function Intro() {
   return (
     <>
-      <Shot file="screens/01-calm.png" camera={CALM} at={0} until={4.4} />
-      <Shot file="screens/02-approval.png" camera={CARD_CAM} at={3.7} />
+      <Shot file="screens/01-calm.png" camera={CALM} at={0} until={7.4} />
+      <Shot file="screens/02-approval.png" camera={CARD_CAM} at={6.7} />
     </>
   );
 }
 
-// ---- 3. approval: card, then the diff, then the terminal that was allowed --------------------------
+// ---- 3. approval: card, then the diff, then the diff --------------------------
 function Approval() {
   return (
     <>
-      <Shot file="screens/02-approval.png" camera={CARD_CAM} at={0} until={6.5} />
-      <Shot file="screens/03-diff.png" camera={DIFF_CAM} at={6.1} until={9.3} />
-      <On at={8.9}>
-        <Terminal
-          title="Eithan's Claude  ·  demo-storefront"
-          lines={APPROVED}
-          mark={[/Allowed by PermissionRequest hook/, "#8fd19e"]}
-          from={0.2}
-        />
-      </On>
+      <Shot file="screens/02-approval.png" camera={CARD_CAM} at={0} until={3.2} />
+      <Shot file="screens/03-diff.png" camera={DIFF_CAM} at={2.8} />
     </>
   );
 }
 
-// ---- 4. stuck: red card, then the terminal that was stopped ----------------------------------------
+// ---- 4. stuck: red card, then stop it ----------------------------------------
 function Stuck() {
   return (
     <>
       <Shot file="screens/04-stuck.png" camera={CARD_CAM} at={0} until={9.9} />
-      <On at={9.4}>
-        <Terminal title="Aidan's Claude  ·  demo-payments-api" lines={STOPPED} mark={[/hook stopped Claude/, "#f0907f"]} from={0.2} />
-      </On>
     </>
   );
 }
-
-// Real lines from live Claude Code agents (the capture files are named in video/README.md). Verbatim, trimmed.
-// The next line of the stuck capture is cropped on purpose.
-const APPROVED = [
-  "⏺ Update(db/schema.sql)",
-  "  ⎿ \u00a0Added 2 lines, removed 1 line",
-  "",
-  "  Read 2 files, ran 1 shell command",
-  "  ⎿ \u00a0Allowed by PermissionRequest hook",
-  "",
-  "⏺ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP is now in the orders table in db/schema.sql. npm run migrate printed migrate: applied db/schema.sql (1 table, 4 columns), ok.",
-];
-const STOPPED = [
-  "⏺ Run 5 failed. Re-running.",
-  "",
-  "  Ran 1 shell command · 1 failed",
-  "",
-  "⏺ Run 6 failed. Re-running.",
-  "",
-  "  Ran 1 shell command · 1 failed",
-  "  ⎿ \u00a0PreToolUse:Bash hook stopped Claude",
-];
-
-const Terminal = ({ title, lines, mark, from }: { title: string; lines: string[]; mark: [RegExp, string]; from: number }) => {
-  const t = useT();
-  let n = 0;
-  return (
-    <AbsoluteFill style={{ alignItems: "center" }}>
-      <div style={{ position: "absolute", top: FRAME_TOP, width: FRAME_W, height: FRAME_H, borderRadius: 26, overflow: "hidden", background: "#1d1915", boxShadow: "0 2px 4px rgba(60,40,20,0.15), 0 44px 80px -30px rgba(60,40,20,0.5)" }}>
-        <div style={{ height: 70, display: "flex", alignItems: "center", gap: 12, padding: "0 28px", borderBottom: "1px solid #332d26" }}>
-          {["#5b5348", "#5b5348", "#5b5348"].map((c, i) => (
-            <span key={i} style={{ width: 16, height: 16, borderRadius: 8, background: c }} />
-          ))}
-          <span style={{ marginLeft: 18, fontFamily: sans, fontSize: 24, color: "#b9ae9d", letterSpacing: "0.01em" }}>{title}</span>
-        </div>
-        <div style={{ padding: "44px 64px", fontFamily: mono, fontSize: 31, lineHeight: 1.55, color: "#ece5d8", whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontVariantLigatures: "none" }}>
-          {lines.map((line, i) => {
-            const at = from + 0.25 * n;
-            if (line) n++;
-            const hit = mark[0].test(line);
-            return (
-              <div key={i} style={{ minHeight: line ? undefined : 24, opacity: interpolate(t, [at, at + 0.3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }), color: hit ? mark[1] : /^\s/.test(line) ? "#b9ae9d" : "#ece5d8", fontWeight: hit ? 500 : 400 }}>
-                {line}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-};
 
 // ---- 5. team: every agent has a voice, work moves across the board ----------------------------------
 // Names and voices are what the app assigns (lib/voices.ts). Post text is verbatim from issues #1 and #4, no edits.
@@ -276,36 +191,72 @@ const HANDOFF: Post[] = [
   { who: "Cheryl's Claude", color: "#a84c73", text: "@EithanY-Coder done: alert waiting line is on main (d162554). One spoken alert at a time, the next waits until the answer posts (or Skip / 90 s), answers are bound to the req of the alert being asked. Tested with two approvals seeded together: voice windows did not overlap, both replies went to the right req." },
 ];
 const PICKED_UP: Post[] = [
-  { who: "Cheryl's Claude", color: "#a84c73", text: "on it: add a small footer that says \"Built at YC x ElevenLabs Hackathon\"" },
-  { who: "Cheryl's Claude", color: "#a84c73", text: "done: [demo] feat(ui): add hackathon footer, PR #5", chip: "PR #5" },
+  { who: "Cheryl's Claude", color: "#a84c73", text: "done: The footer is in: the main page now ends with a small grey line, \"Built at YC × ElevenLabs Hackathon\" in yc-hacky" },
+  { who: "Cheryl's Claude", color: "#a84c73", text: "@EithanY-Coder done: Terminal 1 is silent when idle. ElevenLabs turn_timeout off (no 'are you still there'), sessions 1 h instead of 10 min, prompt asks about each alert once, spoken posts cut to first sentence. Live now on the ElevenLabs agent (no redeploy needed).", chip: "PRs #21 #22" },
 ];
 
-function Team() {
+function Voices() {
   const t = useT();
   return (
-    <>
-      <Panel>
-        <Sequence durationInFrames={f(8.8)}>
-          <PanelPage title="The board" sub="one GitHub issue, every agent posts here">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 30, ...rise(t, 0.3) }}>
-              {VOICES.map((v) => (
-                <span key={v.who} style={{ display: "inline-flex", alignItems: "center", gap: 12, background: "#efe8dd", borderRadius: 999, padding: "10px 22px 10px 12px", fontSize: 25 }}>
-                  <Avatar who={v.who} color={v.color} size={36} />
-                  <b style={{ fontWeight: 600 }}>{v.who}</b>
-                  <span style={{ color: SOFT }}>{v.voice}</span>
-                </span>
-              ))}
-            </div>
-            <Posts posts={HANDOFF} at={[4.6, 7.0]} t={t} size={29} />
-          </PanelPage>
-        </Sequence>
-        <Sequence from={f(8.8)}>
-          <PanelPage title="Task in, pull request out" sub="issue #4">
-            <Posts posts={PICKED_UP} at={[9.4, 11.6]} t={t} size={44} />
-          </PanelPage>
-        </Sequence>
-      </Panel>
-    </>
+    <Panel>
+      <PanelPage title="The board" sub="one GitHub issue, every agent posts here">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginBottom: 30, ...rise(t, 0.3) }}>
+          {VOICES.map((v) => (
+            <span key={v.who} style={{ display: "inline-flex", alignItems: "center", gap: 12, background: "#efe8dd", borderRadius: 999, padding: "10px 22px 10px 12px", fontSize: 25 }}>
+              <Avatar who={v.who} color={v.color} size={36} />
+              <b style={{ fontWeight: 600 }}>{v.who}</b>
+              <span style={{ color: SOFT }}>{v.voice}</span>
+            </span>
+          ))}
+        </div>
+        <Posts posts={HANDOFF} at={[2.4, 4.4]} t={t} size={29} />
+      </PanelPage>
+    </Panel>
+  );
+}
+
+function PullRequest() {
+  const t = useT();
+  return (
+    <Panel>
+      <PanelPage title="Task in, pull request out" sub="cherylaurelia/yc-hacky, issue #1">
+        <Posts posts={PICKED_UP} at={[1.2, 4.2]} t={t} size={44} />
+      </PanelPage>
+    </Panel>
+  );
+}
+
+const Card = ({ title, children }: { title: string; children: ReactNode }) => {
+  const t = useT();
+  return (
+    <Panel>
+      <PanelPage title={title} sub="cherylaurelia/yc-hacky">
+        <div style={{ display: "flex", flexDirection: "column", gap: 22, marginTop: 20 }}>{children && (Array.isArray(children) ? children : [children]).map((c, i) => <div key={i} style={rise(t, 0.4 + i * 0.9)}>{c}</div>)}</div>
+      </PanelPage>
+    </Panel>
+  );
+};
+const Q = ({ q }: { q: string }) => (
+  <div style={{ background: PAPER, borderRadius: 22, padding: "26px 36px", fontFamily: serif, fontSize: 58, color: INK }}>{q}</div>
+);
+// No recording of the repo tools exists, so this is a plain text card, not a fake of the app.
+function RepoCard() {
+  return (
+    <Card title="Ask it about the repo">
+      <Q q="“What pull requests are open?”" />
+      <Q q="“Is CI passing?”" />
+      <Q q="“What changed today?”" />
+    </Card>
+  );
+}
+function ConnectCard() {
+  return (
+    <Card title="Connect a session">
+      <div style={{ background: "#1d1915", color: "#ece5d8", borderRadius: 22, padding: "36px 40px", fontFamily: mono, fontSize: 30, lineHeight: 1.5, wordBreak: "break-all" }}>
+        gh api repos/cherylaurelia/yc-hacky/contents/hooks/install.sh -H &quot;Accept: application/vnd.github.raw&quot; | bash
+      </div>
+      <div style={{ fontSize: 34, color: SOFT }}>Installs the hooks. Every Claude Code session then posts approvals, blockers and stuck loops to the board.</div>
+    </Card>
   );
 }
 

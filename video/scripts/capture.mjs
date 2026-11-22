@@ -17,7 +17,7 @@ const run = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, "..", "public", "screens");
 const REPO = "cherylaurelia/yc-hacky";
-const BOARD = 4;
+const BOARD = 1;
 const URL = `http://localhost:3800/?repo=${REPO}&board=${BOARD}`;
 const created = [];
 
@@ -92,19 +92,21 @@ async function clean(kind, page, makeBody, take) {
 
 async function main() {
   await mkdir(OUT, { recursive: true });
-  const diff = await readFile(join(here, "fixtures", "schema.diff"), "utf8");
+  const diff = await readFile(join(here, "fixtures", "real.diff"), "utf8");
   const browser = await chromium.launch();
   try {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1.5 });
     const page = await ctx.newPage();
 
-    // 1. calm
-    await load(page);
-    await shot(page, "01-calm.png");
+    const only = process.env.ONLY; // e.g. ONLY=stuck retakes one state
+    if (!only || only === "calm") {
+      await load(page);
+      await shot(page, "01-calm.png");
+    }
 
     // 2 and 3. approval, then the diff. The real post has no diff, so it gets the real `git diff` of
-    // the schema change the same demo run made (see fixtures/schema.diff).
-    await clean("approval", page, () => realPost("approval", { file: "db/schema.sql", diff }), async () => {
+    // the schema change the same demo run made (see fixtures/real.diff).
+    if (!only || only === "approval") await clean("approval", page, () => realPost("approval", { file: "scripts/sync-agent.ts", diff }), async () => {
       await shot(page, "02-approval.png");
       await page.getByRole("button", { name: "Show me the change" }).click();
       await page.locator("[data-diff]").waitFor();
@@ -112,7 +114,7 @@ async function main() {
     });
 
     // 4. stuck, on a fresh page load so the card is not queued behind the approval.
-    await clean("stuck", page, () => realPost("stuck"), () => shot(page, "04-stuck.png"));
+    if (!only || only === "stuck") await clean("stuck", page, () => realPost("stuck"), () => shot(page, "04-stuck.png"));
   } finally {
     await browser.close();
     for (const id of [...created]) await remove(id).catch((e) => console.error("COULD NOT DELETE", id, e.message));

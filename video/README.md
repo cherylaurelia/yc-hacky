@@ -1,13 +1,13 @@
 # Terminal 1 videos (Remotion)
 
-The product is now called Terminal 1. The composition id `CoworkerDemo` and the file names `out/coworker-*.mp4` keep the old name so paths do not move. The screenshots in `public/screens/` still show the old wordmark top left. `Screen` in `src/Launch.tsx` covers it with a patch in the page's own background colour. Delete the patch after retaking the screens with the new name.
+The product is called Terminal 1. The screens are real: `cherylaurelia/yc-hacky`, board issue #1.
 
 Two videos, one project. The app does not depend on anything here.
 
 | Composition | What | Length | Output |
 |---|---|---|---|
-| `Launch` | Launch clip for the submission form and YouTube. Four real screens, one caption each, end card. | 22.5 s | `out/coworker-launch.mp4`, `out/poster.png` |
-| `CoworkerDemo` | The narrated demo. Seven scenes, each as long as its ElevenLabs narration. | about 80 s | `out/coworker-demo.mp4` |
+| `Launch` | Launch clip for the submission form and YouTube. Four real screens, one caption each, end card. | 22.5 s | `out/terminal1-launch.mp4`, `out/poster.png` |
+| `Terminal1Demo` | The narrated demo. Seven scenes, each as long as its ElevenLabs narration. | about 80 s | `out/terminal1-demo.mp4` |
 
 Both are 1920x1080 at 30 fps. Edit order, timing and captions in the array at the top of `src/Launch.tsx` (`SHOTS`) and `src/Demo.tsx` (`SCENES`).
 
@@ -16,21 +16,21 @@ Both are 1920x1080 at 30 fps. Edit order, timing and captions in the array at th
 ```
 cd video
 npm install
-npm run studio        # live preview, pick Launch or CoworkerDemo
-npm run render        # out/coworker-launch.mp4
+npm run studio        # live preview, pick Launch or Terminal1Demo
+npm run render        # out/terminal1-launch.mp4
 npm run still         # out/poster.png (frame 300 of Launch)
-npm run render:demo   # out/coworker-demo.mp4
+npm run render:demo   # out/terminal1-demo.mp4
 npm run typecheck
 ```
 
-Each render takes about 10 s (Launch) and 20 s (CoworkerDemo) on an M-series Mac. Fonts (Newsreader, Hanken Grotesk, JetBrains Mono) load from Google Fonts at render time, so you need a network.
+Each render takes about 10 s (Launch) and 20 s (Terminal1Demo) on an M-series Mac. Fonts (Newsreader, Hanken Grotesk, JetBrains Mono) load from Google Fonts at render time, so you need a network.
 
 ## End card
 
-Both videos end on the same card: "Coworker", "Your agents tap you on the shoulder.", a big "Try it" with the live URL and its QR code, and the GitHub link small underneath. `LIVE_URL` and `GITHUB` are the first lines of `src/Launch.tsx`; the QR code is drawn from `LIVE_URL` (npm `qrcode`, video/ only), so changing the URL changes the code. Check that a rendered video still scans:
+Both videos end on the same card: "Terminal 1", "Your agents tap you on the shoulder.", a big "Try it" with the live URL and its QR code, and the GitHub link small underneath. `LIVE_URL` and `GITHUB` are the first lines of `src/Launch.tsx`; the QR code is drawn from `LIVE_URL` (npm `qrcode`, video/ only), so changing the URL changes the code. Check that a rendered video still scans:
 
 ```
-ffmpeg -ss 21.5 -i out/coworker-launch.mp4 -frames:v 1 /tmp/end.png   # demo: -ss 79
+ffmpeg -ss 21.5 -i out/terminal1-launch.mp4 -frames:v 1 /tmp/end.png   # demo: -ss 79
 node scripts/check-qr.mjs /tmp/end.png https://40984690-ad84-41e4-86fe-718bb67011bb.mtm.sh
 ```
 
@@ -48,7 +48,7 @@ node video/scripts/capture.mjs  # terminal 2: writes video/public/screens/01..04
 
 The same thing by hand, per screen. Alerts only show for posts that arrive after the page loads, so load first, then post.
 
-1. `01-calm.png`. Open `http://localhost:3800/?repo=cherylaurelia/yc-hacky&board=4`, wait until "Your agents are working." shows and the first `/api/board/new` call has returned, wait 1 s, screenshot.
+1. `01-calm.png`. Open `http://localhost:3800/?repo=cherylaurelia/yc-hacky&board=1`, wait until "Your agents are working." shows and the first `/api/board/new` call has returned, wait 1 s, screenshot.
 2. `02-approval.png`. With the page still open, post a copy of `scripts/fixtures/approval-post.md` to issue 4 with a new 6-hex request id (replace the old id everywhere, in the text and in the `<!-- coworker:{...} -->` block). That fixture is a real post from today's demo run (`[Eithan's Claude] needs approval`). Its context had no diff, so the script also sets `file` to `db/schema.sql` and `diff` to `scripts/fixtures/schema.diff`, the real `git diff` of the schema change that same run made. The card appears within 15 s (the poll interval). Screenshot.
 3. `03-diff.png`. Click "Show me the change", wait for the diff to unfold, screenshot. Then delete the post you made.
 4. `04-stuck.png`. Reload the page (so the first card is not queued behind it), post a copy of `scripts/fixtures/stuck-post.md` (real `[Aidan's Claude] stuck:` post, new request id), wait for the red card, screenshot, delete the post.

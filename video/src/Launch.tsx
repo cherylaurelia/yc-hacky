@@ -108,9 +108,6 @@ export const Screen = ({ shot, dur, first }: { shot: Pick<ScreenShot, "file" | "
       >
         <div style={{ position: "relative", width: "100%", height: "100%", transform: `scale(${scale}) translate(${50 - x}%, ${50 - y}%)` }}>
           <Img src={staticFile(shot.file)} style={{ display: "block", width: "100%", height: "100%" }} />
-          {/* The screenshots still show the old wordmark top left. This patch is the page's own background colour
-              (rgb 244,239,231 there). Delete it once the screens are retaken with the new name. */}
-          <div style={{ position: "absolute", left: "2%", top: "1.8%", width: "7%", height: "3%", background: "rgb(244,239,231)" }} />
         </div>
       </div>
     </AbsoluteFill>
