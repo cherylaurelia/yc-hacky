@@ -1,1 +1,13 @@
-{ "agent_id": "", "tool_ids": {} }
+{
+  "agent_id": "agent_6301m8205ytxfqxbx8tejav14dc0",
+  "tool_ids": {
+    "repo_overview": "tool_1901m8205ppqf288frs74k5mnt8m",
+    "recent_activity": "tool_6401m8205pzffqqszxam5wrzxvp8",
+    "list_items": "tool_8301m8205q2wfnfsch19hgajbz3h",
+    "read_item": "tool_5901m8205q4xec2brdxjwf5aqzx1",
+    "search_code": "tool_0401m8205q75f2sb6st2zwgbke1p",
+    "read_file": "tool_6701m8205q8wfyr9hghq4t4qz2pz",
+    "create_issue": "tool_5001m8205qamfqy95f10bz3494b6",
+    "add_comment": "tool_1401m8205qcdfgrbv770yjnnqdex"
+  }
+}
