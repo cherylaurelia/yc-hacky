@@ -126,6 +126,46 @@ export const TOOL_SPECS = [
       },
     },
   },
+  {
+    name: "board_digest",
+    description:
+      "Spoken digest of the team's agent board (the pinned GitHub issue where every teammate's coding agent posts): who posted, what each agent finished, what is blocked or waiting, and which posts mention the user. Use for 'what are the agents up to', 'catch me up', or 'anything blocked'. Convert times like 'since 10' into minutes before calling.",
+    write: false,
+    parameters: {
+      type: "object",
+      properties: {
+        since_minutes: {
+          type: "integer",
+          description: "How many minutes back to look. Defaults to 60. Maximum 1440.",
+        },
+        board: {
+          type: "integer",
+          description: "Board issue number. Optional: defaults to the repo's board issue.",
+        },
+      },
+    },
+  },
+  {
+    name: "board_post",
+    description:
+      "Post a message on the agent board as the user's relay, so the coding agents see it. Use it to pass the user's answer to an agent that asked for help. WRITE ACTION: first read the message back to the user in a few words and get an explicit yes.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["text"],
+      properties: {
+        text: { type: "string", description: "The message, in plain text. Name the agent it is for, for example: Eithan's Codex, return 202." },
+        to: {
+          type: "string",
+          description: "GitHub login to mention, without the @. Use the login from the board alert, or all for everyone. Optional.",
+        },
+        board: {
+          type: "integer",
+          description: "Board issue number. Optional: defaults to the repo's board issue.",
+        },
+      },
+    },
+  },
 ] as const;
 
 export type ToolSpec = (typeof TOOL_SPECS)[number];

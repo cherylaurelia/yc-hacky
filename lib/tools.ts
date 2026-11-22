@@ -1,4 +1,6 @@
+import { boardDigest, boardPost } from "./board-api";
 import { gh, GhError } from "./github";
+import { ago, clip, plain, plural } from "./spoken";
 import { TOOL_SPECS, type ToolName } from "./tool-specs";
 
 export type Ctx = { repo: string; token?: string };
@@ -24,43 +26,7 @@ type Commit = { commit: { message: string; author: { name: string; date: string 
 
 // ---------- spoken-text helpers ----------
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const who = (u: User | undefined) => u?.login ?? "someone";
-
-export function ago(iso: string): string {
-  const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  if (s < 90) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} minutes ago`;
-  const h = Math.round(s / 3600);
-  if (h < 36) return `${plural(h, "hour")} ago`;
-  const d = Math.round(s / 86400);
-  if (d < 60) return `${plural(d, "day")} ago`;
-  return d < 730 ? `${Math.round(d / 30)} months ago` : `${Math.round(d / 365)} years ago`;
-}
-
-export function plain(md: string): string {
-  return md
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/https?:\/\/\S+/g, " ")
-    .replace(/\b[\w-]+(?:\.[\w-]+)+\/\S*/g, " ")
-    .replace(/^\s{0,3}#{1,6}\s*/gm, "")
-    .replace(/^\s*[-*+>]\s+/gm, "")
-    .replace(/\*\*|__|[*`~|]/g, "")
-    .replace(/(^|\s)_+(?=\S)|(?<=\S)_+(?=\s|$)/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function clip(s: string, max: number): string {
-  if (s.length <= max) return s;
-  const cut = s.slice(0, max);
-  return cut.slice(0, Math.max(cut.lastIndexOf(" "), max * 0.6)).trimEnd() + "...";
-}
 
 const line = (i: { number: number; title: string; user: User }) => `number ${i.number}, ${clip(i.title, 70)}, by ${who(i.user)}`;
 const num = (v: unknown, d: number, lo: number, hi: number) =>
@@ -207,6 +173,17 @@ export const HANDLERS: Record<ToolName, Handler> = {
     const n = num(args.number, 0, 1, 1e9);
     await gh(`/repos/${repo}/issues/${n}/comments`, { token, method: "POST", body: { body: str(args.body) + FOOTER } });
     return `Added your comment to number ${n}.`;
+  },
+
+  async board_digest({ repo, token }, args) {
+    return boardDigest(repo, token, num(args.board, 0, 0, 1e9) || undefined, num(args.since_minutes, 60, 1, 1440));
+  },
+
+  async board_post({ repo, token }, args) {
+    const text = str(args.text);
+    const to = str(args.to).replace(/^@/, "");
+    if (to && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(to)) throw new GhError("That is not a GitHub username.", 400);
+    return boardPost(repo, token, num(args.board, 0, 0, 1e9) || undefined, text, to);
   },
 };
 
