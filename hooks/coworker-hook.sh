@@ -40,8 +40,14 @@ SF="$TMP/$KEY"
 # SF lines:  F <sig> <epoch> failure   S <sig> <epoch> success   P <sig> stuck posted
 #            R <req> <created_at> <why> req this session posted   A <login> approver   D <comment id> stop used
 
+# "<HEAD> <checksum of the changed files>" of the session's repo; prints nothing outside a git repo
+git_mark() {
+  git -C "$CWD" rev-parse --git-dir >/dev/null 2>&1 || return
+  echo "$(git -C "$CWD" rev-parse --verify -q HEAD 2>/dev/null || echo none) $(git -C "$CWD" status --porcelain 2>/dev/null | cksum | cut -d' ' -f1)"
+}
+
 if [ "$EVENT" = UserPromptSubmit ]; then
-  date +%s > "$STATE/$KEY.start"; rm -f "$STATE/$KEY.done"
+  date +%s > "$STATE/$KEY.start"; rm -f "$STATE/$KEY.done"; git_mark > "$STATE/$KEY.git"
   find "$STATE" -type f ! -name debug.log -mtime +2 -delete; find "$TMP" -type f -mtime +2 -delete
   exit 0
 fi
@@ -310,8 +316,21 @@ case "$EVENT" in
   Stop)
     [ "$(j '.stop_hook_active // false')" = true ] && exit 0
     start="$(cat "$STATE/$KEY.start")" && rm -f "$STATE/$KEY.start" || exit 0
-    [[ "$start" =~ $NUM ]] && [ $(( $(date +%s) - start )) -ge "$DONE_MIN" ] || exit 0
-    post "$TAG done: $(printf '%s' "$IN" | jq -r "$CLEAN"' ((.last_assistant_message // "") | split("\n") | map(select(test("\\S"))) | first // "finished") | sub("[ .]+$"; "") | clean(140)') in $WHERE" "$(ctx 'done')" >/dev/null \
+    [[ "$start" =~ $NUM ]] || exit 0
+    # A turn that made a commit is done however short. One that only changed files is done after DONE_MIN seconds.
+    # A turn that changed nothing is a chat, not work: no post. Outside a git repo only the duration counts.
+    read -r h0 s0 < "$STATE/$KEY.git" 2>/dev/null; rm -f "$STATE/$KEY.git"; read -r h1 s1 <<<"$(git_mark)"
+    long=0; [ $(( $(date +%s) - start )) -ge "$DONE_MIN" ] && long=1
+    pr=""
+    if [ -n "${h0:-}" ] && [ -n "$h1" ]; then
+      if [ "$h0" != "$h1" ]; then   # committed: name its pull request when there is one
+        pr="$(within_1s gh pr list --repo "$REPO" --head "$(git -C "$CWD" branch --show-current)" --state open --json number --jq '.[0].number // empty')"
+        [[ "$pr" =~ $NUM ]] || pr=""
+      elif [ "$s0" = "$s1" ] || [ "$long" = 0 ]; then exit 0; fi
+    else
+      [ "$long" = 1 ] || exit 0
+    fi
+    post "$TAG done: $(printf '%s' "$IN" | jq -r "$CLEAN"' ((.last_assistant_message // "") | split("\n") | map(select(test("\\S"))) | first // "finished") | sub("[ .]+$"; "") | clean(140)')${pr:+, PR #$pr} in $WHERE" "$(ctx 'done')" >/dev/null \
       && touch "$STATE/$KEY.done"
     ;;
   PreToolUse) stop_check ;;

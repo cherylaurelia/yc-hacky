@@ -8,6 +8,7 @@ cat > "$T/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_LOG"
 case "$*" in
+  "pr list"*) echo "${FAKE_PR:-}" ;;
   "api users/"*) [ -n "${FAKE_NAME_FAIL:-}" ] && exit 1; echo "${FAKE_NAME-Cheryl}" ;;
   "api user"*) echo cheryl ;;
   *"issues?labels=board"*) [ -n "${FAKE_BOARD_FAIL:-}" ] && exit 1; echo "${FAKE_BOARD-1}" ;;
@@ -96,12 +97,25 @@ check "@mentions in commands are defused" "$(grep -c $'@\xe2\x80\x8btypes' "$T/l
 reset; ev Notification "$T/repo" '{"notification_type":"permission_prompt","message":"x"}' | "$HOOK"; check "permission_prompt notification skipped" "$(posts)" 0
 reset; ev Notification "$T/repo" '{"notification_type":"idle_prompt","message":"Claude is waiting for your input."}' | "$HOOK"
 grep -q "blocked: Claude is waiting for your input in widgets" "$T/log" && check "idle notification posts blocked" 1 1 || check "idle notification posts blocked" 0 1
-reset; ev UserPromptSubmit | "$HOOK"; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"
+work() { echo x > "$T/repo/turn.$RANDOM"; }   # the turn changes a file
+reset; ev UserPromptSubmit | "$HOOK"; work; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"
 ev Stop "$T/repo" '{"last_assistant_message":"\n\nShipped the login fix.\nMore detail.","stop_hook_active":false}' | "$HOOK"
 grep -q "done: Shipped the login fix in widgets" "$T/log" && check "long turn posts done with first line" 1 1 || check "long turn posts done with first line" 0 1
 ev Notification "$T/repo" '{"notification_type":"idle_prompt","message":"idle"}' | "$HOOK"; check "no idle post right after done" "$(posts)" 1
 ev Stop "$T/repo" '{"last_assistant_message":"again"}' | "$HOOK"; check "second Stop without a prompt posts nothing" "$(posts)" 1
 reset; ev UserPromptSubmit | "$HOOK"; ev Stop "$T/repo" '{"last_assistant_message":"quick"}' | "$HOOK"; check "short turn posts nothing" "$(posts)" 0
+# --- when "done" is worth saying: a commit (short or not), else changed files after COWORKER_DONE_MIN, never a chat
+turn() { # $1 seconds the turn took, $2 what it did: none|edit|commit
+  reset; ev UserPromptSubmit | "$HOOK"; echo $(( $(date +%s) - $1 )) > "$T/state/s1.start"
+  case "$2" in edit) work ;; commit) work; git -C "$T/repo" add -A; git -C "$T/repo" -c user.name=x -c user.email=x@x commit -qm turn ;; esac
+  ev Stop "$T/repo" '{"last_assistant_message":"Shipped it."}' | "$HOOK"
+}
+turn 100 none; check "a long turn that changed nothing is a chat: no post" "$(posts)" 0
+turn 5 edit; check "a short turn with uncommitted changes: no post" "$(posts)" 0
+turn 100 edit; check "a long turn with uncommitted changes: done" "$(posts)" 1
+FAKE_PR=16 turn 5 commit; check "a 5 s turn that committed: done, with its PR number" "$(grep -c 'done: Shipped it, PR #16 in widgets' "$T/log")" 1
+turn 5 commit; check "a commit with no PR: done, no PR number" "$(grep -c 'done: Shipped it in widgets' "$T/log")" 1
+turn 100 none; check "git is back to a clean start for the next turn" "$(posts)" 0
 
 # --- the context comment on every post (contract v1)
 printf 'one\ntwo\nthree\n' > "$T/repo/a.txt"
@@ -123,7 +137,7 @@ check "context stays under 6000 chars, diff under 3000" "$([ "${#c}" -lt 6000 ] 
 check "no @ < > or secret in the comment" "$(grep -c 'hunter2\|@x' "$T/bodies"):$(echo "$c" | grep -c '[@<>]')" "0:0"
 reset; ev Notification "$T/repo" '{"notification_type":"idle_prompt","message":"waiting"}' | "$HOOK"
 check "blocked context" "$(lastctx | jq -c '[.kind, .req, .tool, .command, .agent]')" '["blocked",null,null,"","Sam'"'"'s Claude"]'
-reset; ev UserPromptSubmit | "$HOOK"; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"; ev Stop "$T/repo" '{"last_assistant_message":"Shipped."}' | "$HOOK"
+reset; ev UserPromptSubmit | "$HOOK"; work; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"; ev Stop "$T/repo" '{"last_assistant_message":"Shipped."}' | "$HOOK"
 check "done context" "$(lastctx | jq -c '[.kind, .req, .repo]')" '["done",null,"acme/widgets"]'
 
 # --- stuck loop: the same command failing COWORKER_STUCK_COUNT times
