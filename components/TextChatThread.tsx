@@ -59,7 +59,7 @@ function UserMessage() {
 function AgentMessage() {
   return (
     <MessagePrimitive.Root className="max-w-[90%] self-start whitespace-pre-wrap break-words rounded-2xl rounded-bl-md border border-line bg-card px-3.5 py-2 text-ink">
-      <span className="sr-only">Coworker: </span>
+      <span className="sr-only">Terminal 1: </span>
       <MessagePrimitive.Parts />
     </MessagePrimitive.Root>
   );

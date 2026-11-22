@@ -1,0 +1,81 @@
+/* The extension's own chrome around the Coworker page. Colors are the app's tokens (app/globals.css). */
+:root {
+  color-scheme: light;
+  --paper: #f3eee6;
+  --card: #fbf8f3;
+  --chip: #efe8dd;
+  --ink: #221d17;
+  --soft: #5f564b;
+  --faint: #73695d;
+  --line: #ddd3c5;
+  --stop: #a3382a;
+  --stoptint: #f6e2da;
+  --add: #2e6542;
+  --addtint: #e3ede0;
+  --sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --serif: "Newsreader", ui-serif, Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font: 13px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 8px; }
+[hidden] { display: none !important; }
+
+/* Side panel layout */
+.shell { display: flex; flex-direction: column; height: 100vh; }
+.bar {
+  flex: none; display: flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--line); background: var(--card);
+}
+.state { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; font-weight: 600; }
+.state small { font-weight: 400; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; transition: background-color 150ms; }
+.dot.idle { background: var(--add); }
+.dot.listening { background: var(--add); box-shadow: 0 0 0 3px var(--addtint); animation: pulse 1.2s ease-in-out infinite; }
+.dot.speaking { background: var(--ink); animation: pulse 1.2s ease-in-out infinite; }
+.dot.off { background: var(--stop); }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+.icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--soft); }
+.icon:hover { background: var(--chip); color: var(--ink); }
+.icon[aria-pressed="true"] { background: var(--chip); color: var(--ink); }
+.link { padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 12px; background: var(--ink); color: var(--paper); white-space: nowrap; }
+.link:hover { opacity: 0.88; }
+
+.banner {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; background: var(--stoptint); color: var(--ink); border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.banner p { flex: 1; }
+
+.frame { flex: 1; min-height: 0; position: relative; }
+iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--paper); }
+
+/* Settings drawer */
+.settings { flex: none; padding: 12px; border-bottom: 1px solid var(--line); background: var(--card); display: grid; gap: 10px; }
+.settings label { display: grid; gap: 4px; font-size: 12px; color: var(--soft); font-weight: 600; }
+.settings input[type="text"], .settings input[type="url"], .settings input[type="number"] {
+  height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
+  font: 13px var(--mono); color: var(--ink); font-weight: 400;
+}
+.settings input:focus { outline: none; border-color: var(--ink); }
+.check { display: flex !important; align-items: center; gap: 8px; font-weight: 400 !important; color: var(--ink) !important; }
+.row { display: flex; gap: 8px; align-items: center; }
+.btn { height: 32px; padding: 0 14px; border-radius: 999px; font-weight: 600; background: var(--ink); color: var(--paper); }
+.btn.quiet { background: var(--chip); color: var(--ink); }
+.hint { font-size: 11.5px; color: var(--faint); }
+.err { font-size: 12px; color: var(--stop); }
+
+/* Offline card and welcome page */
+.card { margin: 24px 16px; padding: 22px 20px; background: var(--card); border-radius: 22px; display: grid; gap: 12px; }
+.card h1, .card h2 { font: 420 22px/1.2 var(--serif); letter-spacing: -0.01em; }
+.card p { color: var(--soft); }
+.card code { font: 12px var(--mono); background: var(--chip); padding: 2px 6px; border-radius: 6px; color: var(--ink); }
+.card ol { padding-left: 18px; color: var(--soft); display: grid; gap: 6px; }
+.ok { color: var(--add); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) { .dot { animation: none !important; } }

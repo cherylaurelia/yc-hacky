@@ -22,7 +22,7 @@ const MAX_DIFF = 30_000;
 // "waiting on CI" is not news. "waiting on your answer" is.
 const BLOCKED = /\b(?:blocked|awaiting|stuck|waiting (?:on|for)(?! (?:the )?(?:ci|build|builds|tests?|deploy|deploys|install)\b)|needs? (?:your )?(?:approval|decision|input|answer))\b/i;
 // A reply to a request: "req ab12cd allow", optionally behind a tag and an @mention.
-const ANSWER = /^\s*(?:\[[^\]\n]*\]\s*)?(?:@[\w-]+[\s,:]*)?req\s+([0-9a-f]{4,12})\s+(?:allow|approved?|yes|deny|denied|no|reject(?:ed)?|stop)\b/i;
+const ANSWER = /^\s*(?:\[[^\]\n]*\]\s*)?(?:@[\w-]+[\s,:]*)?req\s+([0-9a-f]{4,12})\s+(?:allow|approved?|yes|deny|denied|no|reject(?:ed)?|stop|closed)\b/i;
 
 const str = (v: unknown, max = 2000) => (typeof v === "string" && v ? v.slice(0, max) : undefined);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -139,13 +139,17 @@ const alertLine = (a: BoardAlert) => {
 // the [BOARD ALERT] prefix as a system notice.
 export const alertMessage = (alerts: BoardAlert[]) => `[BOARD ALERT] ${alerts.map(alertLine).join("\n")}`;
 
+// The repo is fine but nothing there is a board yet.
+export class NoBoardError extends Error {}
+
 // Browser and Node client for GET /api/board/new. First call (no cursor) only
 // returns the baseline cursor; later calls return alerts for newer posts, plus the request
 // ids that got an answer on the board.
 export async function pollBoard(repo: string, cursor?: BoardCursor, base = "", board?: number): Promise<{ cursor: BoardCursor; alerts: BoardAlert[]; answered: string[] }> {
   const q = new URLSearchParams({ repo, ...(board ? { board: String(board) } : {}), ...(cursor ? { since: String(cursor.since), at: cursor.at } : {}) });
   const res = await fetch(`${base}/api/board/new?${q}`, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
-  const j = (await res.json().catch(() => ({}))) as { cursor?: BoardCursor; alerts?: BoardAlert[]; answered?: string[]; error?: string };
+  const j = (await res.json().catch(() => ({}))) as { cursor?: BoardCursor; alerts?: BoardAlert[]; answered?: string[]; error?: string; code?: string };
+  if (j.code === "no_board") throw new NoBoardError(j.error ?? "This repo has no agent board yet.");
   if (!res.ok || !j.cursor || !j.alerts) throw new Error(j.error ?? `Board check failed (HTTP ${res.status}).`);
   return { cursor: j.cursor, alerts: j.alerts, answered: j.answered ?? [] };
 }

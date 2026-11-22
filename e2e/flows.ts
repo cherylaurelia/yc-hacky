@@ -5,12 +5,13 @@
 // Board writes go to issue #4 only, and every post this run creates is deleted before it exits.
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { type Browser, type BrowserContext, type Page, chromium } from "playwright";
+import { type Browser, type BrowserContext, type Page, chromium, webkit } from "playwright";
 import { seal } from "../lib/session.ts";
 
+const WEBKIT = process.env.E2E_BROWSER === "webkit";
 const BASE = process.env.E2E_BASE ?? "http://localhost:3600";
 const REPO = "cherylaurelia/yc-hacky";
-const BOARD = 4;
+const BOARD = Number(process.env.E2E_BOARD ?? 4);
 const PAGE = `${BASE}/?repo=${REPO}&board=${BOARD}`;
 const SECRET = process.env.SESSION_SECRET ?? "";
 
@@ -51,19 +52,19 @@ function teardown() {
 
 const ctxBlock = (o: object) => `<!-- coworker:${JSON.stringify(o).replace(/@/g, "\\u0040").replace(/</g, "\\u003c").replace(/>/g, "\\u003e")} -->`;
 const DIFF = "--- a/app/api/demo.ts\n+++ b/app/api/demo.ts\n@@ -1,3 +1,3 @@\n const a = 1;\n-const b = 2;\n+const b = 3;\n const c = 4;\n";
-const hookApproval = (id: string) =>
-  `[E2E's Claude] needs approval (req ${id}): Edit demo.ts in yc-hacky\n\n${ctxBlock({ v: 1, kind: "approval", req: id, session: "e2e00001", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Edit", command: "", file: "app/api/demo.ts", line: 2, diff: DIFF, stuck: null })}`;
+const hookApproval = (id: string, command = "") =>
+  `[E2E's Claude] needs approval (req ${id}): ${command ? `Bash ${command}` : "Edit demo.ts"} in yc-hacky\n\n${ctxBlock({ v: 1, kind: "approval", req: id, session: "e2e00001", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: command ? "Bash" : "Edit", command, file: command ? null : "app/api/demo.ts", line: command ? null : 2, diff: command ? null : DIFF, stuck: null })}`;
 const hookStuck = (id: string) =>
   `[E2E's Claude] stuck: retried npm test 3 times in 5 min, about $1 (req ${id})\n\n${ctxBlock({ v: 1, kind: "stuck", req: id, session: "e2e00002", agent: "E2E's Claude", repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Bash", command: "npm test", file: null, line: null, diff: null, stuck: { count: 3, minutes: 5, cost_usd: 1.2, signature: "npm test" } })}`;
 
-let browser: Browser;
+// E2E_BROWSER=webkit runs the same flows in the Safari engine (no fake mic there, so the voice flows need chromium).
 const watchErrors = (page: Page) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text()}`));
   return errors;
 };
-const newCtx = (opts: Parameters<Browser["newContext"]>[0] = {}) => browser.newContext({ baseURL: BASE, permissions: ["microphone"], ...opts });
+const newCtx = (opts: Parameters<Browser["newContext"]>[0] = {}) => browser.newContext({ baseURL: BASE, permissions: WEBKIT ? [] : ["microphone"], ...opts });
 
 async function signedInCtx(opts: Parameters<Browser["newContext"]>[0] = {}): Promise<BrowserContext> {
   must(SECRET.length >= 32, "SESSION_SECRET (32+ chars) must be set to build a session cookie.");
@@ -106,6 +107,7 @@ async function layoutProblems(page: Page, sels: string[], pairs: [string, string
 
 const results: { name: string; ok: boolean }[] = [];
 async function flow(name: string, fn: () => Promise<void>) {
+  if (process.env.E2E_ONLY && !new RegExp(process.env.E2E_ONLY, "i").test(name)) return; // E2E_ONLY="board" runs the matching flows
   const t0 = Date.now();
   try {
     await fn();
@@ -443,9 +445,9 @@ async function typeInstead() {
     // Messages carry a screen-reader tag, "You: " or "Coworker: ". A reply is a Coworker message after ours.
     const replied = () =>
       page.evaluate(() => {
-        const tags = [...document.querySelectorAll("span.sr-only")].filter((e) => /^(You|Coworker): $/.test(e.textContent ?? ""));
+        const tags = [...document.querySelectorAll("span.sr-only")].filter((e) => /^(You|Terminal 1): $/.test(e.textContent ?? ""));
         const mine = tags.findIndex((e) => e.textContent === "You: " && /hi$/.test(e.parentElement?.textContent ?? ""));
-        return mine >= 0 && tags.slice(mine + 1).some((e) => e.textContent === "Coworker: ");
+        return mine >= 0 && tags.slice(mine + 1).some((e) => e.textContent === "Terminal 1: ");
       });
     for (let i = 0; i < 30 && !(await replied()); i++) await page.waitForTimeout(500);
     must(await replied(), "no agent reply within 15 s");
@@ -454,11 +456,228 @@ async function typeInstead() {
   }
 }
 
+async function notifications() {
+  const [a, b] = [randomBytes(3).toString("hex"), randomBytes(3).toString("hex")];
+  reqIds.push(a, b);
+  const ctx = await newCtx({ permissions: ["notifications"] });
+  try {
+    // A Notification that records what the page does with it, and a page that reports itself hidden.
+    await ctx.addInitScript(() => {
+      class FakeNotification {
+        static permission = "default";
+        static requestPermission() {
+          w.__asked++;
+          FakeNotification.permission = "granted";
+          return Promise.resolve("granted");
+        }
+        title: string;
+        options: NotificationOptions;
+        closed = false;
+        onclick: (() => void) | null = null;
+        constructor(title: string, options: NotificationOptions = {}) {
+          this.title = title;
+          this.options = options;
+          w.__notes.push(this);
+        }
+        close() {
+          this.closed = true;
+        }
+      }
+      const w = window as unknown as { __asked: number; __notes: FakeNotification[] };
+      w.__asked = 0;
+      w.__notes = [];
+      Object.defineProperty(window, "Notification", { value: FakeNotification, configurable: true, writable: true });
+      Object.defineProperty(document, "hidden", { get: () => true, configurable: true });
+      document.hasFocus = () => false;
+    });
+    const page = await ctx.newPage();
+    const seen = () =>
+      page.evaluate(() => {
+        const w = window as unknown as { __asked: number; __notes: { title: string; options: NotificationOptions; closed: boolean }[] };
+        return { asked: w.__asked, notes: w.__notes.map((n) => ({ title: n.title, body: n.options.body, tag: n.options.tag, requireInteraction: n.options.requireInteraction, closed: n.closed })) };
+      });
+
+    const first = page.waitForResponse((r) => r.url().includes("/api/board/new"));
+    await page.goto(PAGE);
+    await first;
+    postBoard(hookApproval(a));
+    const card = page.locator("article[data-alert]");
+    await card.waitFor({ state: "visible", timeout: 30_000 });
+
+    // Before any click the browser would block audio, so the card says what to do. No permission yet, so no notification.
+    const hint = card.getByText("Click anywhere to hear your agents");
+    await hint.waitFor(VISIBLE);
+    must((await seen()).notes.length === 0, "a notification was shown before the user had interacted");
+
+    // The first click asks for notification permission, once.
+    await page.mouse.click(20, 400);
+    await hint.waitFor({ state: "hidden", timeout: 5_000 });
+    await page.mouse.click(30, 420);
+    must((await seen()).asked === 1, `notification permission was asked ${(await seen()).asked} time(s), not once`);
+
+    // An alert arriving while the tab is hidden gets one notification.
+    postBoard(hookApproval(b, "npm run migrate"));
+    // Other agents post to this board too, so only our two request ids count.
+    const ours = async (id: string) => (await seen()).notes.filter((x) => x.tag === id);
+    let notes = await ours(b);
+    for (let i = 0; i < 70 && notes.length === 0; i++) {
+      await page.waitForTimeout(500);
+      notes = await ours(b);
+    }
+    must(notes.length === 1, `expected 1 notification for the new alert, got ${notes.length}`);
+    must((await ours(a)).length === 0, "the alert that arrived before permission was granted got a notification");
+    const n = notes[0];
+    must(n.title === "E2E's Claude needs you", `notification title is "${n.title}"`);
+    must(n.body === "Wants to run npm run migrate", `notification body is "${n.body}"`);
+    must(n.tag === b && n.requireInteraction === true, `notification tag/requireInteraction are ${n.tag}/${n.requireInteraction}`);
+    await page.waitForResponse((r) => r.url().includes("/api/board/new"), { timeout: 20_000 });
+    must((await ours(b)).length === 1, "the next poll notified again for the same alert");
+
+    // Clicking it opens that alert's card, behind the one already open.
+    await page.evaluate((tag) => {
+      const w = window as unknown as { __notes: { options: NotificationOptions; onclick: (() => void) | null }[] };
+      w.__notes.find((x) => x.options.tag === tag)?.onclick?.();
+    }, b);
+    await card.getByText("npm run migrate").first().waitFor(VISIBLE);
+
+    // Answering closes it.
+    await card.getByRole("button", { name: "Allow", exact: true }).click();
+    for (let i = 0; i < 20 && !(await ours(b))[0].closed; i++) await page.waitForTimeout(250);
+    must((await ours(b))[0].closed, "the notification stayed open after the request was answered");
+  } finally {
+    await ctx.close();
+  }
+}
+
+// A repo with a board and one without, one that does not exist, and creating a board.
+const noRaw = async (page: Page) => {
+  const header = await page.locator("header").innerText();
+  must(!/could not find|has no agent board|failed to fetch|http \d/i.test(header), `an error is shown in the header: ${header.replace(/\s+/g, " ")}`);
+};
+
+async function boardStates() {
+  const ctx = await newCtx({ permissions: WEBKIT ? [] : ["microphone", "clipboard-read", "clipboard-write"] });
+  try {
+    const page = await ctx.newPage();
+    const errors = watchErrors(page);
+    // A repo with a board: the calm line, no error anywhere, a way to connect agents.
+    await page.goto(PAGE);
+    await page.locator("h1").filter({ hasText: "Your agents are working." }).waitFor(VISIBLE);
+    await noRaw(page);
+    must((await page.locator("main").getByRole("alert").count()) === 0, "an error is showing next to the calm headline");
+    must((await page.locator("[data-connect]").count()) === 1, "the calm page has no way to connect agents");
+
+    // A public repo with no board: its own state, not an error and not "working".
+    await page.goto(`${BASE}/?repo=cherylaurelia/sail`);
+    const h1 = page.locator("h1");
+    await h1.filter({ hasText: /No agents connected to sail yet/ }).waitFor(VISIBLE);
+    await noRaw(page);
+    must(!/agents are working/i.test(await page.locator("main").innerText()), 'a repo with no board says "agents are working"');
+    must((await page.locator("main").getByRole("alert").count()) === 0, "no board is shown as an error");
+    must(await page.locator("[data-connect]").evaluate((el) => (el as HTMLDetailsElement).open), "the connect step is closed when there is no board");
+    const command = (await page.locator("[data-connect] code").first().innerText()).trim();
+    must(/^gh api repos\/.+install\.sh .*\| bash$/.test(command), `unexpected install command: ${command}`);
+    await page.locator("[data-connect]").getByRole("button", { name: "Copy" }).first().click();
+    // Playwright's WebKit refuses clipboard writes, so there the button falls back to selecting the text.
+    await page.getByRole("button", { name: WEBKIT ? /Copied|Press Cmd\+C/ : "Copied" }).waitFor(VISIBLE);
+    if (!WEBKIT) must((await page.evaluate(() => navigator.clipboard.readText())) === command, "Copy did not put the command on the clipboard");
+    must((await page.locator("[data-create-board]").innerText()) === "Sign in to create the board", "signed out, the board button should ask to sign in");
+
+    // A repo that does not exist: a plain sentence in the main area.
+    await page.goto(`${BASE}/?repo=nonexistent-zz/nope-zz`);
+    await h1.filter({ hasText: "Can't open nope-zz." }).waitFor(VISIBLE);
+    await noRaw(page);
+    must(/could not find/i.test(await page.locator("main").getByRole("alert").innerText()), "no sentence under the headline");
+    must(!/agents are working/i.test(await page.locator("main").innerText()), 'a missing repo says "agents are working"');
+
+    // The server cannot be reached: still plain words.
+    await page.route("**/api/board/new*", (r) => r.abort());
+    await page.goto(PAGE);
+    await page.locator("main").getByRole("alert").waitFor(VISIBLE);
+    const said = await page.locator("main").getByRole("alert").innerText();
+    must(/can.t reach the server/i.test(said), `unfriendly error: ${said}`);
+    must(errors.filter((e) => !/Failed to load resource|net::ERR/i.test(e)).length === 0, `console errors: ${errors.join(" | ")}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
+async function createBoardFlow() {
+  const scratch = `cherylaurelia/coworker-qa-${randomBytes(3).toString("hex")}`;
+  gh("repo", "create", scratch, "--public", "--add-readme");
+  const ctx = await signedInCtx();
+  try {
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/?repo=${scratch}`);
+    const make = page.locator("[data-create-board]");
+    await make.filter({ hasText: "Create the board" }).waitFor(VISIBLE);
+    await make.click();
+    await page.locator("h1").filter({ hasText: "Your agents are working." }).waitFor({ state: "visible", timeout: 20_000 });
+    must((await page.locator("[data-connect]").count()) === 1, "no connect step after creating the board");
+    // GitHub's issue lists lag a few seconds behind a new issue, so read the labels off the issues and wait for it.
+    const boards = () => (JSON.parse(gh("api", `repos/${scratch}/issues?state=open`)) as { title: string; labels: { name: string }[] }[]).filter((i) => i.labels.some((l) => l.name === "board"));
+    for (let i = 0; i < 20 && !boards().length; i++) await page.waitForTimeout(1000);
+    must(boards().length === 1 && boards()[0].title === "Terminal 1 board", `expected one "Terminal 1 board" issue labeled board, got ${JSON.stringify(boards())}`);
+    // Asking again on a repo that has one creates nothing more.
+    const again = await ctx.request.post("/api/board", { data: { repo: scratch } });
+    must((await again.json()).created === false, "a second create made another board");
+    must(boards().length === 1, "two boards now");
+  } finally {
+    await ctx.close();
+    try {
+      gh("repo", "delete", scratch, "--yes");
+    } catch (e) {
+      console.log(`could not delete ${scratch}: ${(e as Error).message}`);
+    }
+  }
+}
+
+// A long agent name and a long command at the projector, phone and embed sizes: nothing cut off or overlapping.
+async function longTextLayout() {
+  const id = randomBytes(3).toString("hex");
+  reqIds.push(id);
+  const agent = "Alexandrina-Konstantinopoulou's Claude Code";
+  const command = "npm run build && npx playwright test --project=chromium --reporter=html,list,junit --output=/tmp/very/long/path/to/results/that/never/ends/anywhere";
+  const body = `[${agent}] needs approval (req ${id}): Bash\n\n${ctxBlock({ v: 1, kind: "approval", req: id, session: "e2e00003", agent, repo: "yc-hacky", cwd: "/tmp/e2e", tool: "Bash", command, file: null, line: null, diff: null, stuck: null })}`;
+  const sizes = [
+    { w: 1280, h: 720, q: "" },
+    { w: 390, h: 844, q: "" },
+    { w: 360, h: 520, q: "&embed=1" },
+  ];
+  const ctxs = await Promise.all(sizes.map((s) => newCtx({ viewport: { width: s.w, height: s.h } })));
+  try {
+    const pages = await Promise.all(ctxs.map((c) => c.newPage()));
+    const firsts = pages.map((p) => p.waitForResponse((r) => r.url().includes("/api/board/new")));
+    await Promise.all(pages.map((p, i) => p.goto(`${PAGE}${sizes[i].q}`)));
+    await Promise.all(firsts);
+    postBoard(body);
+    for (const [i, page] of pages.entries()) {
+      const label = `${sizes[i].w}x${sizes[i].h}${sizes[i].q}`;
+      await page.locator("article[data-alert]").waitFor({ state: "visible", timeout: 35_000 });
+      await page.waitForTimeout(600);
+      const sels = ["header", "article[data-alert]", "article[data-alert] code", "article[data-alert] h2", "footer", "button[data-phase]"];
+      const pairs: [string, string][] = [["header", "article[data-alert]"], ["article[data-alert]", "footer"]];
+      const problems = await layoutProblems(page, sels, pairs);
+      must(problems.length === 0, `layout at ${label}: ${problems.join("; ")}`);
+      const inside = await page.evaluate(() => {
+        const c = document.querySelector("article[data-alert]")!.getBoundingClientRect();
+        return [...document.querySelectorAll("article[data-alert] *")].filter((e) => e.getBoundingClientRect().right > c.right + 1).map((e) => e.tagName).slice(0, 3);
+      });
+      must(inside.length === 0, `something sticks out of the card at ${label}: ${inside.join(",")}`);
+      const btn = await page.locator("article[data-alert]").getByRole("button", { name: "Allow", exact: true }).boundingBox();
+      const vh = sizes[i].h;
+      must(!!btn && btn.y + btn.height <= vh && btn.y >= 0, `the Allow button is off screen at ${label}`);
+    }
+  } finally {
+    await Promise.all(ctxs.map((c) => c.close()));
+  }
+}
+
 // ---------- run ----------
 
-browser = await chromium.launch({
-  args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
-});
+const browser: Browser = await (WEBKIT
+  ? webkit.launch()
+  : chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"] }));
 try {
   await flow("1 calm page, three viewports", calmPage);
   await flow("2 signed out: sign in", signedOutLogin);
@@ -469,6 +688,10 @@ try {
   await flow("7 standup", standup);
   await flow("8 voice session", voiceSession);
   await flow("9 type instead", typeInstead);
+  await flow("10 desktop notifications", notifications);
+  await flow("11 repo with a board, without one, missing, offline", boardStates);
+  await flow("12 create the board", createBoardFlow);
+  await flow("13 long names and commands fit", longTextLayout);
 } finally {
   await browser.close();
   teardown();

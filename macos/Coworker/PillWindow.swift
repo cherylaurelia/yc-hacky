@@ -21,18 +21,34 @@ private final class MeterView: NSView {
 
 private final class PillView: NSView {
     var onClick: (() -> Void)?
+    var onHover: ((Bool) -> Void)?
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+    override func mouseEntered(with event: NSEvent) { onHover?(true) }
+    override func mouseExited(with event: NSEvent) { onHover?(false) }
     override var mouseDownCanMoveWindow: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) { onClick?() }
 }
 
 /// The Wispr-style pill: a non-activating panel at the bottom-center of the screen, above full-screen apps.
+/// Idle it is a 44x8 capsule; hover, the talk key and alerts grow it upward from the same spot.
 @MainActor
 final class PillWindow {
-    private static let compact = NSSize(width: 180, height: 44)
-    private static let expanded = NSSize(width: 380, height: 60)
+    private static let idle = NSSize(width: 44, height: 8)
+    private static let active = NSSize(width: 180, height: 44)
+    private static let alert = NSSize(width: 380, height: 60)
+    private static let hintHeight: CGFloat = 34
+    private static let bottomGap: CGFloat = 8
+    private static let growDuration: TimeInterval = 0.18
 
     var onClick: (() -> Void)? { get { content.onClick } set { content.onClick = newValue } }
+    var onHover: ((Bool) -> Void)? { get { content.onHover } set { content.onHover = newValue } }
+    private let stack = NSStackView()
+    private var lastState: PillState?
     private let panel: NSPanel
     private let content = PillView()
     private let icon = NSImageView()
@@ -41,7 +57,7 @@ final class PillWindow {
     private lazy var labelMaxWidth = label.widthAnchor.constraint(lessThanOrEqualToConstant: 300)
 
     init() {
-        panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.compact), styleMask: [.borderless, .nonactivatingPanel],
+        panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.idle), styleMask: [.borderless, .nonactivatingPanel],
                         backing: .buffered, defer: false)
         panel.isFloatingPanel = true
         panel.level = .statusBar
@@ -57,6 +73,7 @@ final class PillWindow {
         content.layer?.backgroundColor = NSColor(white: 0.08, alpha: 0.92).cgColor
         content.layer?.borderColor = NSColor(white: 1, alpha: 0.14).cgColor
         content.layer?.borderWidth = 1
+        content.layer?.masksToBounds = true  // the label is clipped while the capsule is still growing
         content.setAccessibilityRole(.button)
 
         label.font = .systemFont(ofSize: 12.5, weight: .medium)
@@ -70,27 +87,27 @@ final class PillWindow {
         icon.widthAnchor.constraint(equalToConstant: 18).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 18).isActive = true
 
-        let stack = NSStackView(views: [icon, meter, label])
+        for v in [icon, meter, label] { stack.addArrangedSubview(v) }
         stack.orientation = .horizontal
         stack.spacing = 10
         stack.alignment = .centerY
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+            stack.centerXAnchor.constraint(equalTo: content.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: content.centerYAnchor),
         ])
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { if let s = self?.lastState { self?.render(s) } }
+        }
     }
 
     var isShown: Bool { panel.isVisible }
 
     func render(_ s: PillState) {
+        lastState = s
         guard s.mode != .hidden else { panel.orderOut(nil); return }
-        let size = s.mode == .alert ? Self.expanded : Self.compact
-        content.layer?.cornerRadius = s.mode == .alert ? 20 : size.height / 2
-        labelMaxWidth.constant = size.width - 32 - 28 - 10
-        label.preferredMaxLayoutWidth = labelMaxWidth.constant
+        let compact = s.mode == .compact
         label.stringValue = s.label
         label.invalidateIntrinsicContentSize()
         meter.isHidden = !s.meterLive
@@ -102,15 +119,66 @@ final class PillWindow {
         case .speaking: .systemGreen
         }
         meter.color = color
-        icon.image = NSImage(systemSymbolName: s.alert == nil ? s.phase.symbol : "bell.fill", accessibilityDescription: nil)
-        icon.contentTintColor = s.alert == nil ? color : .systemYellow
+        icon.image = NSImage(systemSymbolName: s.alert == nil || s.mode != .alert ? s.phase.symbol : "bell.fill", accessibilityDescription: nil)
+        icon.contentTintColor = s.mode == .alert ? .systemYellow : color
         content.setAccessibilityLabel(s.label)
         if !s.meterLive { meter.level = 0 }
 
-        if let screen = NSScreen.main?.visibleFrame {
-            panel.setFrame(NSRect(x: screen.midX - size.width / 2, y: screen.minY + 14, width: size.width, height: size.height), display: true)
+        let size: NSSize
+        switch s.mode {
+        case .alert: size = Self.alert
+        case .active: size = Self.active
+        case .hint:
+            label.preferredMaxLayoutWidth = 0
+            labelMaxWidth.constant = 400
+            size = NSSize(width: ceil(label.intrinsicContentSize.width) + 32 + 28, height: Self.hintHeight)
+        default: size = Self.idle
         }
+        if s.mode == .alert || s.mode == .active {
+            labelMaxWidth.constant = size.width - 32 - 28 - 10
+            label.preferredMaxLayoutWidth = labelMaxWidth.constant
+        }
+        panel.hasShadow = !compact
+        let radius = s.mode == .alert ? 20 : size.height / 2
+        guard let screen = NSScreen.main?.visibleFrame else { return }
+        let frame = NSRect(x: screen.midX - size.width / 2, y: screen.minY + Self.bottomGap, width: size.width, height: size.height)
+        let alpha: CGFloat = compact ? 0.7 : 1
+        let wasShown = panel.isVisible
         panel.orderFrontRegardless()
+        if !wasShown || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || frame == panel.frame {
+            panel.setFrame(frame, display: true)
+            panel.alphaValue = alpha
+            stack.alphaValue = compact ? 0 : 1
+            content.layer?.cornerRadius = radius
+            return
+        }
+        if let layer = content.layer {
+            let grow = CABasicAnimation(keyPath: "cornerRadius")
+            grow.fromValue = layer.presentation()?.cornerRadius ?? layer.cornerRadius
+            grow.duration = Self.growDuration
+            grow.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            layer.add(grow, forKey: "cornerRadius")
+            layer.cornerRadius = radius
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Self.growDuration
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(frame, display: true)
+            panel.animator().alphaValue = alpha
+            stack.animator().alphaValue = compact ? 0 : 1
+        }
+    }
+
+    /// Debug only: writes the pill's own pixels to a PNG (works without Screen Recording access) and logs where the panel sits.
+    func snapshot(to path: String) {
+        let size = content.bounds.size
+        guard let rep = content.bitmapImageRepForCachingDisplay(in: content.bounds), let png: Data = {
+            content.cacheDisplay(in: content.bounds, to: rep)
+            return rep.representation(using: .png, properties: [:])
+        }() else { NSLog("Coworker: snapshot failed for \(path)"); return }
+        do { try png.write(to: URL(fileURLWithPath: path)) } catch { NSLog("Coworker: snapshot write failed: \(error)"); return }
+        let visible = NSScreen.main?.visibleFrame ?? .zero
+        NSLog("Coworker: snapshot \(path) size=\(size) frame=\(panel.frame) gapAboveVisibleBottom=\(panel.frame.minY - visible.minY) alpha=\(panel.alphaValue)")
     }
 
     func setLevel(_ level: Float) { meter.level = CGFloat(level) }

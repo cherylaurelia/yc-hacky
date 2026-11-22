@@ -8,7 +8,10 @@ cat > "$T/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >> "$FAKE_LOG"
 case "$*" in
+  "pr list"*) echo "${FAKE_PR:-}" ;;
+  "api users/"*) [ -n "${FAKE_NAME_FAIL:-}" ] && exit 1; echo "${FAKE_NAME-Cheryl}" ;;
   "api user"*) echo cheryl ;;
+  *"issues?labels=board"*) [ -n "${FAKE_BOARD_FAIL:-}" ] && exit 1; echo "${FAKE_BOARD-1}" ;;
   *" -f body="*)
     for a in "$@"; do case "$a" in body=*) printf '%s\n' "${a#body=}" >> "$FAKE_BODIES" ;; esac; done
     [ -z "${FAKE_POST_FAIL:-}" ] && echo "100 2026-01-01T00:00:00Z" ;;
@@ -22,13 +25,47 @@ fail=0
 ev() { local x="${3:-}"; [ -n "$x" ] || x='{}'; jq -nc --arg e "$1" --arg c "${2:-$T/repo}" --argjson x "$x" '{hook_event_name: $e, cwd: $c, session_id: "s1"} + $x'; }
 posts() { grep -c -- ' -f body=' "$T/log" 2>/dev/null || true; }
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: got [$2] want [$3]"; fail=1; fi; }
-reset() { : > "$T/log"; : > "$T/rows"; : > "$T/bodies"; rm -rf "$T/state" "$T/tmp"; unset FAKE_POST_FAIL FAKE_API_FAIL FAKE_API_SLOW; }
+reset() { : > "$T/log"; : > "$T/rows"; : > "$T/bodies"; rm -rf "$T/state" "$T/tmp"; unset FAKE_POST_FAIL FAKE_API_FAIL FAKE_API_SLOW FAKE_BOARD FAKE_BOARD_FAIL COWORKER_BOARD; }
 reply() { jq -nc --arg u "$1" --arg b "$2" '{id: 101, u: $u, b: $b}' > "$T/rows"; }
 perm() { ev PermissionRequest "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"touch a.txt"}}' | "$HOOK"; }
 
 reset; perm >/dev/null; grep -q "needs approval (req [0-9a-f]\{6\}): Bash touch a.txt in widgets" "$T/log" && check "post text and repo name" 1 1 || check "post text and repo name" 0 1
-grep -q "acme/widgets/issues/1/comments" "$T/log" && check "defaults to repo origin, issue 1" 1 1 || check "defaults to repo origin, issue 1" 0 1
+grep -q "acme/widgets/issues/1/comments" "$T/log" && check "posts to the repo origin's labeled board" 1 1 || check "posts to the repo origin's labeled board" 0 1
 grep -q "body=\[Sam's Claude\]" "$T/log" && check "name from git user.name first word" 1 1 || check "name from git user.name first word" 0 1
+# --- which issue is the board: COWORKER_BOARD, else the open issue labeled "board", else nothing (never #1)
+perm0() { COWORKER_TIMEOUT=0 perm; }
+appr() { grep -c "issues/$1/comments -f body=.*needs approval" "$T/log" 2>/dev/null || true; }
+lookups() { grep -c 'issues?labels=board' "$T/log" 2>/dev/null || true; }
+reset; FAKE_BOARD=7 perm0 >/dev/null
+grep -q "acme/widgets/issues/7/comments" "$T/log" && check "labeled board found: posts to it, not #1" 1 1 || check "labeled board found: posts to it, not #1" 0 1
+grep -q 'issues?labels=board&state=open' "$T/log" && check "lookup asks for the open issue labeled board" 1 1 || check "lookup asks for the open issue labeled board" 0 1
+reset; check "no labeled board: silent, nothing posted" "$(FAKE_BOARD=0 perm0)$(posts)" "0"
+reset; FAKE_BOARD=0 perm0 >/dev/null; FAKE_BOARD=9 perm0 >/dev/null
+check "a repo with no board is remembered: one lookup" "$(lookups)$(posts)" "10"
+reset; FAKE_BOARD=7 perm0 >/dev/null; FAKE_BOARD=9 perm0 >/dev/null
+check "a found board is cached: one lookup, same issue" "$(lookups)$(appr 7)$(appr 9)" "120"
+reset; FAKE_BOARD=7 perm0 >/dev/null; printf '1 7\n' > "$T/state/board.acme_widgets"; FAKE_BOARD=9 perm0 >/dev/null
+check "a cache older than 10 minutes is looked up again" "$(appr 9)" 1
+reset; check "lookup failure: silent, nothing posted" "$(FAKE_BOARD_FAIL=1 perm0)$(posts)" "0"
+reset; FAKE_BOARD_FAIL=1 perm0 >/dev/null; FAKE_BOARD=7 perm0 >/dev/null
+check "a failed lookup is not cached" "$(appr 7)" 1
+reset; COWORKER_BOARD=4 FAKE_BOARD=7 perm0 >/dev/null
+check "COWORKER_BOARD wins and skips the lookup" "$(appr 4)$(lookups)" "10"
+reset; COWORKER_BOARD=4 FAKE_BOARD=0 perm0 >/dev/null
+check "COWORKER_BOARD works in a repo with no board" "$(appr 4)" 1
+# --- an approval nobody answers on the board must not leave its card up: the hook closes the request
+reqid() { grep -o 'req [0-9a-f]\{6\}' "$T/log" | head -1 | cut -d' ' -f2; }
+closed() { grep -c "req $(reqid) closed: $1" "$T/bodies" || true; }
+reset; check "no answer in time: silent output" "$(perm)" ""
+check "no answer in time: the board gets 'req ID closed: no answer'" "$(closed 'no answer in 3s')" 1
+reset; ( perm >/dev/null ) & sleep 1
+ev PostToolUse "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"touch a.txt"},"tool_response":{"stdout":""}}' | "$HOOK"; wait
+check "answered in the terminal: the same call finishing closes it" "$(closed 'answered in the terminal')" 1
+check "answered in the terminal: closed once, not again at the timeout" "$(grep -c " closed: " "$T/bodies")" 1
+reset; ( perm >/dev/null ) & sleep 1
+ev PostToolUse "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"stdout":""}}' | "$HOOK"; wait
+check "a different call finishing does not close it (only the timeout does)" "$(closed 'answered in the terminal')$(closed 'no answer')" 01
+reset; check "COWORKER_BOARD that is not a number: silent" "$(COWORKER_BOARD=abc perm0)$(posts)$(lookups)" "00"
 
 # a reply needs the request id, so read the id our post used, then feed the reply while the hook polls
 run_reply() { # $1 login, $2 body template with ID
@@ -37,10 +74,19 @@ run_reply() { # $1 login, $2 body template with ID
 check "allow reply returns allow" "$(run_reply cheryl "[Cheryl's Coworker] req ID allow go on" | jq -r .hookSpecificOutput.decision.behavior)" allow
 out="$(run_reply Cheryl "req ID DENY wrong folder")"
 check "deny reply returns deny" "$(echo "$out" | jq -r .hookSpecificOutput.decision.behavior)" deny
-check "deny carries the note" "$(echo "$out" | jq -r .hookSpecificOutput.decision.message)" "Denied by voice from the coworker: wrong folder"
+check "deny carries the note" "$(echo "$out" | jq -r .hookSpecificOutput.decision.message)" "Denied by Cheryl via Coworker: wrong folder"
+check "deny names the answerer, not the agent's owner (Sam)" "$(echo "$out" | jq -r .hookSpecificOutput.decision.message | grep -c Sam)" 0
+export FAKE_NAME=
+check "answerer with no profile name: the login" "$(run_reply Cheryl "req ID deny no" | jq -r .hookSpecificOutput.decision.message)" "Denied by Cheryl via Coworker: no"
+unset FAKE_NAME
+export FAKE_NAME_FAIL=1
+check "answerer lookup fails: the login, not an error" "$(run_reply cheryl "req ID deny no" | jq -r .hookSpecificOutput.decision.message)" "Denied by cheryl via Coworker: no"
+unset FAKE_NAME_FAIL
 check "reply from a stranger is ignored (timeout, no output)" "$(run_reply mallory "req ID allow")" ""
 check "reply for another id is ignored" "$(run_reply cheryl "req ffffff allow")" ""
 check "no reply: silent fallback" "$( reset; perm )" ""
+run_reply cheryl "req ID allow" >/dev/null; ev PostToolUse "$T/repo" '{"tool_name":"Bash","tool_input":{"command":"touch a.txt"}}' | "$HOOK"
+check "answered on the board: finishing the call posts no closure" "$(grep -c " closed: " "$T/bodies")" 0
 reset; export FAKE_POST_FAIL=1; s=$(date +%s); out="$(perm)"; check "post failure: silent and fast" "$out/$(( $(date +%s) - s < 3 ))" "/1"; unset FAKE_POST_FAIL
 reset; check "AskUserQuestion is not relayed" "$(ev PermissionRequest "$T/repo" '{"tool_name":"AskUserQuestion","tool_input":{}}' | "$HOOK")$(posts)" "0"
 reset; check "no repo: silent, no gh call" "$(ev PermissionRequest "$T" '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | "$HOOK")$(wc -c < "$T/log" | tr -d ' ')" "0"
@@ -51,12 +97,25 @@ check "@mentions in commands are defused" "$(grep -c $'@\xe2\x80\x8btypes' "$T/l
 reset; ev Notification "$T/repo" '{"notification_type":"permission_prompt","message":"x"}' | "$HOOK"; check "permission_prompt notification skipped" "$(posts)" 0
 reset; ev Notification "$T/repo" '{"notification_type":"idle_prompt","message":"Claude is waiting for your input."}' | "$HOOK"
 grep -q "blocked: Claude is waiting for your input in widgets" "$T/log" && check "idle notification posts blocked" 1 1 || check "idle notification posts blocked" 0 1
-reset; ev UserPromptSubmit | "$HOOK"; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"
+work() { echo x > "$T/repo/turn.$RANDOM"; }   # the turn changes a file
+reset; ev UserPromptSubmit | "$HOOK"; work; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"
 ev Stop "$T/repo" '{"last_assistant_message":"\n\nShipped the login fix.\nMore detail.","stop_hook_active":false}' | "$HOOK"
 grep -q "done: Shipped the login fix in widgets" "$T/log" && check "long turn posts done with first line" 1 1 || check "long turn posts done with first line" 0 1
 ev Notification "$T/repo" '{"notification_type":"idle_prompt","message":"idle"}' | "$HOOK"; check "no idle post right after done" "$(posts)" 1
 ev Stop "$T/repo" '{"last_assistant_message":"again"}' | "$HOOK"; check "second Stop without a prompt posts nothing" "$(posts)" 1
 reset; ev UserPromptSubmit | "$HOOK"; ev Stop "$T/repo" '{"last_assistant_message":"quick"}' | "$HOOK"; check "short turn posts nothing" "$(posts)" 0
+# --- when "done" is worth saying: a commit (short or not), else changed files after COWORKER_DONE_MIN, never a chat
+turn() { # $1 seconds the turn took, $2 what it did: none|edit|commit
+  reset; ev UserPromptSubmit | "$HOOK"; echo $(( $(date +%s) - $1 )) > "$T/state/s1.start"
+  case "$2" in edit) work ;; commit) work; git -C "$T/repo" add -A; git -C "$T/repo" -c user.name=x -c user.email=x@x commit -qm turn ;; esac
+  ev Stop "$T/repo" '{"last_assistant_message":"Shipped it."}' | "$HOOK"
+}
+turn 100 none; check "a long turn that changed nothing is a chat: no post" "$(posts)" 0
+turn 5 edit; check "a short turn with uncommitted changes: no post" "$(posts)" 0
+turn 100 edit; check "a long turn with uncommitted changes: done" "$(posts)" 1
+FAKE_PR=16 turn 5 commit; check "a 5 s turn that committed: done, with its PR number" "$(grep -c 'done: Shipped it, PR #16 in widgets' "$T/log")" 1
+turn 5 commit; check "a commit with no PR: done, no PR number" "$(grep -c 'done: Shipped it in widgets' "$T/log")" 1
+turn 100 none; check "git is back to a clean start for the next turn" "$(posts)" 0
 
 # --- the context comment on every post (contract v1)
 printf 'one\ntwo\nthree\n' > "$T/repo/a.txt"
@@ -78,7 +137,7 @@ check "context stays under 6000 chars, diff under 3000" "$([ "${#c}" -lt 6000 ] 
 check "no @ < > or secret in the comment" "$(grep -c 'hunter2\|@x' "$T/bodies"):$(echo "$c" | grep -c '[@<>]')" "0:0"
 reset; ev Notification "$T/repo" '{"notification_type":"idle_prompt","message":"waiting"}' | "$HOOK"
 check "blocked context" "$(lastctx | jq -c '[.kind, .req, .tool, .command, .agent]')" '["blocked",null,null,"","Sam'"'"'s Claude"]'
-reset; ev UserPromptSubmit | "$HOOK"; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"; ev Stop "$T/repo" '{"last_assistant_message":"Shipped."}' | "$HOOK"
+reset; ev UserPromptSubmit | "$HOOK"; work; echo $(( $(date +%s) - 100 )) > "$T/state/s1.start"; ev Stop "$T/repo" '{"last_assistant_message":"Shipped."}' | "$HOOK"
 check "done context" "$(lastctx | jq -c '[.kind, .req, .repo]')" '["done",null,"acme/widgets"]'
 
 # --- stuck loop: the same command failing COWORKER_STUCK_COUNT times
@@ -114,7 +173,7 @@ pre() { ev "${1:-PreToolUse}" "$T/repo" '{"tool_name":"Bash","tool_input":{"comm
 stuck3() { for _ in 1 2 3; do fail_ev "node --test" | "$HOOK"; done; }
 reset; stuck3; reply cheryl "[Sam's Coworker] req $(reqid) stop"
 out="$(pre | "$HOOK")"
-check "stop reply: continue false with the reason" "$(echo "$out" | jq -c '[.continue, .stopReason]')" '[false,"Stopped by Sam via Coworker: stuck retrying node --test"]'
+check "stop reply: continue false with the reason" "$(echo "$out" | jq -c '[.continue, .stopReason]')" '[false,"Stopped by Cheryl via Coworker: stuck retrying node --test"]'
 check "the stop is delivered once" "$(pre | "$HOOK")" ""
 reset; stuck3; reply cheryl "req $(reqid) stop"; check "PostToolUseFailure never stops (Claude Code ignores it there)" "$(fail_ev "node --test" | "$HOOK")" ""
 check "the stop waits for the next Pre/PostToolUse" "$(pre | "$HOOK" | jq -r .continue)" false
@@ -127,12 +186,12 @@ reset; stuck3; reply cheryl "req $(reqid) stop"; FAKE_API_FAIL=1; export FAKE_AP
 check "board error fails open" "$(pre | "$HOOK")" ""; unset FAKE_API_FAIL
 reset; stuck3; reply cheryl "req $(reqid) stop"; FAKE_API_SLOW=1; export FAKE_API_SLOW; s=$(date +%s); out="$(pre | "$HOOK")"
 check "slow board: no stop, tool call held under 3 s" "$out/$(( $(date +%s) - s < 3 ))" "/1"; unset FAKE_API_SLOW
-reset; stuck3; pre | COWORKER_STOP_EVERY=100 "$HOOK"; n0="$(grep -c per_page "$T/log")"; pre | COWORKER_STOP_EVERY=100 "$HOOK"; pre | COWORKER_STOP_EVERY=100 "$HOOK"
-check "board is checked at most once per interval" "$(( $(grep -c per_page "$T/log") - n0 ))" 0
-pre | "$HOOK"; check "an elapsed interval checks again" "$(( $(grep -c per_page "$T/log") - n0 ))" 1
-reset; fail_ev "x" | "$HOOK"; pre | "$HOOK"; check "no req posted: no board call" "$(grep -c per_page "$T/log")" 0
+reset; stuck3; pre | COWORKER_STOP_EVERY=100 "$HOOK"; n0="$(grep -c "comments?per_page" "$T/log")"; pre | COWORKER_STOP_EVERY=100 "$HOOK"; pre | COWORKER_STOP_EVERY=100 "$HOOK"
+check "board is checked at most once per interval" "$(( $(grep -c "comments?per_page" "$T/log") - n0 ))" 0
+pre | "$HOOK"; check "an elapsed interval checks again" "$(( $(grep -c "comments?per_page" "$T/log") - n0 ))" 1
+reset; fail_ev "x" | "$HOOK"; pre | "$HOOK"; check "no req posted: no board call" "$(grep -c "comments?per_page" "$T/log")" 0
 reset; check "no state: Pre/PostToolUse exit at once" "$(pre | "$HOOK")$(pre PostToolUse | "$HOOK")$(wc -c < "$T/log" | tr -d ' ')" 0
-reset; perm >/dev/null; reply cheryl "req $(reqid) stop"; check "stop works for an approval req too" "$(pre | "$HOOK" | jq -r .stopReason)" "Stopped by Sam via Coworker: waiting on approval"
+reset; perm >/dev/null; reply cheryl "req $(reqid) stop"; check "stop works for an approval req too" "$(pre | "$HOOK" | jq -r .stopReason)" "Stopped by Cheryl via Coworker: waiting on approval"
 
 # --- install.sh: new events, idempotent, uninstall byte for byte
 INST="$(cd "$(dirname "$HOOK")" && pwd)/install.sh"; S="$T/inst/settings.json"; mkdir -p "$T/inst"

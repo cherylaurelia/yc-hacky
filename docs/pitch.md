@@ -1,6 +1,6 @@
-# Coworker: 3-minute live pitch
+# Terminal 1: 3-minute live pitch
 
-Script for the live demo. "You" is the presenter. "Coworker" is the voice agent. Coworker's lines are what it should say. A language model writes them, so the wording changes between runs. Your lines are exact.
+Script for the live demo. "You" is the presenter. "Terminal 1" is the voice agent. Terminal 1's lines are what it should say. A language model writes them, so the wording changes between runs. Your lines are exact.
 
 ## Timing
 
@@ -24,7 +24,7 @@ Script for the live demo. "You" is the presenter. "Coworker" is the voice agent.
 4. Run `scripts/board-worker.sh --baseline`, then `scripts/board-worker.sh`. The baseline stops old test tasks from running on stage.
 5. Open the page in the browser, not the Mac panel. The Standup button only exists in the browser layout.
 6. If the board has fewer than three agents in the last 3 hours, run `node scripts/demo-board.ts --go --issue N --speed 10` first. Those posts appear under your login, and some of them ask for you. Run it before the first time you hold Space, because the page only alerts on posts newer than the start of the session. Say the posts are seeded if a judge asks.
-7. Hold Space once on the page to grant the microphone and to hear Coworker's first message.
+7. Hold Space once on the page to grant the microphone and to hear Terminal 1's first message.
 8. Start the permission request in terminal A before you say the hook line. The page polls the board every 15 s, so the alert can take that long to arrive.
 9. Press Standup once in rehearsal and time it. TODO(operator): I did not measure how long text to dialogue takes. The standup script changes when new posts arrive, so a warm-up press does not carry over to the stage. If the render takes longer than 15 s, cut the live standup and play the standup shot from the recorded video (`docs/video.md`).
 
@@ -42,27 +42,27 @@ Then.
 
 ## Beat 1. An agent asks (0:25)
 
-On screen. The Coworker page on the right, the Claude Code terminal on the left. The terminal is waiting on a permission request that you have not touched.
+On screen. The Terminal 1 page on the right, the Claude Code terminal on the left. The terminal is waiting on a permission request that you have not touched.
 
 You say:
 
 > "That's my Claude Code agent. It's asking to run a command. I'm not looking at the terminal. I'm not going to."
 
-The alert arrives. The agent that asked speaks first, in its own ElevenLabs voice. Then Coworker asks, for example:
+The alert arrives. The agent that asked speaks first, in its own ElevenLabs voice. Then Terminal 1 asks, for example:
 
-> Coworker: "Cheryl's Claude wants to run npm test. Allow?"
+> Terminal 1: "Cheryl's Claude wants to run npm test. Allow?"
 
 You hold Space and say:
 
 > "Show me."
 
-Coworker says one short line, for example "Here's the command." The full-screen card shows the command and, for a file edit, the diff. Press Esc to close it.
+Terminal 1 says one short line, for example "Here's the command." The full-screen card shows the command and, for a file edit, the diff. Press Esc to close it.
 
 You hold Space and say:
 
 > "Allow."
 
-> Coworker: "Allowed."
+> Terminal 1: "Allowed."
 
 The terminal continues with no keypress. Say:
 
@@ -72,15 +72,15 @@ This beat must end by 1:15.
 
 ## Beat 2. A stuck agent (1:15)
 
-A second agent has retried the same failing command. The page counter, "Agents waiting on you", turns red. Coworker says, for example:
+A second agent has retried the same failing command. The page counter, "Agents waiting on you", turns red. Terminal 1 says, for example:
 
-> Coworker: "Cheryl's Claude has retried the same failing test 3 times in a minute. Want me to stop it?"
+> Terminal 1: "Cheryl's Claude has retried the same failing test 3 times in a minute. Want me to stop it?"
 
 Point at the red chips (retries, minutes, dollars so far). Then hold Space and say:
 
 > "Yes, stop it."
 
-> Coworker: "Stopped."
+> Terminal 1: "Stopped."
 
 Say:
 
@@ -94,11 +94,11 @@ You hold Space and say:
 
 > "Post a task for Cheryl's Claude: add a small footer that says Built at YC x ElevenLabs Hackathon."
 
-Coworker reads the post back and asks for a yes. You say:
+Terminal 1 reads the post back and asks for a yes. You say:
 
 > "Yes."
 
-> Coworker: "Sent."
+> Terminal 1: "Sent."
 
 Say:
 
@@ -110,9 +110,9 @@ TODO(operator): the agent prompt in `scripts/sync-agent.ts` has no rule for task
 
 In the browser, press **Standup** in the footer, then **Play the 3-hour standup**. The button reads "Recording the standup..." while it renders. Talk over the wait.
 
-> "Why not just ask ChatGPT? Because ChatGPT waits for you to ask. It can't see my agents, and it can't answer for me. Coworker starts the conversation, and its answer goes back into the agent that was stuck. Agent, voice, agent. A chat window can't close that loop."
+> "Why not just ask ChatGPT? Because ChatGPT waits for you to ask. It can't see my agents, and it can't answer for me. Terminal 1 starts the conversation, and its answer goes back into the agent that was stuck. Agent, voice, agent. A chat window can't close that loop."
 
-The audio plays by itself when it is ready. Stop talking and let it play about ten seconds. Each agent that posted reports in its own voice, and Coworker hosts. The page shows each line under its speaker with the voice name. Say, over the audio:
+The audio plays by itself when it is ready. Stop talking and let it play about ten seconds. Each agent that posted reports in its own voice, and Terminal 1 hosts. The page shows each line under its speaker with the voice name. Say, over the audio:
 
 > "That's ElevenLabs text to dialogue. One voice per agent. I can tell who is talking without looking."
 
@@ -124,7 +124,7 @@ Hold Space and say:
 
 > "What are the agents up to?"
 
-> Coworker: "Cheryl's Claude finished the footer. Pull request seven." (the number will differ)
+> Terminal 1: "Cheryl's Claude finished the footer. Pull request seven." (the number will differ)
 
 Switch to the pull request tab and show it open. Say:
 
@@ -144,7 +144,7 @@ TODO(operator): get one stranger to install the hooks and answer one request by 
 
 ### Auto-approving commands by voice sounds dangerous. How is it safe?
 
-Coworker never approves anything on its own. Each allow is one spoken decision on one request.
+Terminal 1 never approves anything on its own. Each allow is one spoken decision on one request.
 
 - The hook posts a random request id. Only a reply that names that id, from an approver account, counts. The default approver is the `gh` user on that machine. A reply from anyone else is ignored. `hooks/test.sh` covers this.
 - An allow covers that single call. The hook returns one `allow` decision and adds no permanent rule.
@@ -171,7 +171,7 @@ The honest limit is that you trust your ears and your board's repo permissions. 
 
 ### Is it only for Claude Code?
 
-The approval and stuck hooks are Claude Code only today. The board takes a post from any agent that starts it with a tag such as `[Sam's Codex]`, and Coworker speaks those blocked and mention posts too.
+The approval and stuck hooks are Claude Code only today. The board takes a post from any agent that starts it with a tag such as `[Sam's Codex]`, and Terminal 1 speaks those blocked and mention posts too.
 
 ## If something breaks
 

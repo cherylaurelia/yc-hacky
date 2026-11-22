@@ -93,6 +93,7 @@ export const SCENARIOS: Scenario[] = [
         say: ["What are the agents up to?", "Catch me up."],
         expect: (t, ok) => {
           ok(calls(t, "board_digest").length === 1, "calls board_digest once");
+          ok(!calls(t, "recent_activity").length && !calls(t, "list_items").length, "does not use the repo tools for a board question");
           ok(!wrote(t).length, "writes nothing");
           ok(said(t), "says something");
         },
@@ -105,6 +106,23 @@ export const SCENARIOS: Scenario[] = [
           const m = Number(c?.args.since_minutes);
           ok(c, "calls board_digest");
           ok(m >= want - 20 && m <= want + 90, `since_minutes is about ${Math.round(want)} (got ${c?.args.since_minutes})`);
+        },
+      },
+    ],
+  },
+  {
+    id: "since-11-repo",
+    title: "What happened since 11 (repo activity)",
+    steps: [
+      {
+        say: ["What happened in the repo since 11?", "What did we push since 11?"],
+        expect: (t, ok) => {
+          const c = calls(t, "recent_activity")[0];
+          const want = hoursSince11();
+          const h = Number(c?.args.hours);
+          ok(c, "calls recent_activity");
+          ok(h >= Math.floor(want) && h <= Math.ceil(want) + 1, `hours is about ${want.toFixed(1)} (got ${c?.args.hours})`);
+          ok(!wrote(t).length, "writes nothing");
         },
       },
     ],
@@ -404,6 +422,33 @@ export const SCENARIOS: Scenario[] = [
         expect: (t, ok) => {
           ok(!wrote(t).length, "writes nothing");
           ok(/can't|cannot|can not|unable|not able|don't|do not|yet/i.test(said(t)), `declines (said: ${said(t)})`);
+        },
+      },
+    ],
+  },
+  {
+    id: "long-winded",
+    title: "Overview, long file and hash requests stay short and speakable",
+    steps: [
+      {
+        say: "Give me an overview of this repo and who's been working on it.",
+        expect: (t, ok) => {
+          ok(calls(t, "repo_overview").length + calls(t, "recent_activity").length >= 1, "calls repo_overview or recent_activity");
+          ok(sentences(said(t)) <= 3, `three sentences or fewer (got ${sentences(said(t))})`);
+        },
+      },
+      {
+        say: "Read me the AGENTS.md file.",
+        expect: (t, ok) => {
+          ok(calls(t, "read_file").length >= 1, "calls read_file");
+          ok(sentences(said(t)) <= 3, `three sentences or fewer (got ${sentences(said(t))})`);
+        },
+      },
+      {
+        say: "What's the hash of the latest commit? Read it out.",
+        expect: (t, ok) => {
+          ok(!/\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b/i.test(said(t)), "does not read a hash");
+          ok(said(t), "says something");
         },
       },
     ],

@@ -52,6 +52,38 @@ struct PillLogicTest {
         check("release keeps a page state that is not listening",
               pill(.talkDown, page(.speaking), .talkUp(cancelled: false)).phase, .speaking)
 
+        // Idle capsule, hover, and the expanded states.
+        check("idle is the tiny capsule", pill().mode, .compact)
+        check("hover expands to the hint with the key", [pill(.hover(true)).mode == .hint, pill(.hover(true)).label == "Hold Right Option"], [true, true])
+        check("the hint follows the configured key", pill(.hover(true), key: "fn").label, "Hold fn")
+        check("leaving collapses the hint", pill(.hover(true), .hover(false)).mode, .compact)
+        check("holding the key grows to the active pill", pill(.talkDown).mode, .active)
+        check("hover does not shrink a held pill", pill(.talkDown, .hover(true)).mode, .active)
+        check("release with the mouse still over returns to the hint", pill(.hover(true), .talkDown, .talkUp(cancelled: false)).mode, .hint)
+        check("release with the mouse away returns to the capsule", pill(.talkDown, .talkUp(cancelled: false)).mode, .compact)
+        check("thinking is the active pill", pill(page(.thinking)).mode, .active)
+        check("speaking is the active pill", pill(page(.speaking)).mode, .active)
+        check("the page going idle shrinks it back", pill(page(.speaking), page(.idle)).mode, .compact)
+        check("opening the panel clears the hover", pill(.hover(true), .panelOpen(true), .panelOpen(false)).mode, .compact)
+        check("hover is ignored while the panel is open", pill(.panelOpen(true), .hover(true)).mode, .hidden)
+
+        // Alert collapse: the pill shrinks back after a while but the alert stays known, so it is not re-announced.
+        var c = pill(page(.speaking, .set(ci)), page(.idle))
+        c.apply(.alertCollapsed)
+        check("a collapsed alert shrinks the pill", c.mode, .compact)
+        check("a collapsed alert is still pending", c.alert, ci)
+        c.apply(page(nil, .set(ci)))
+        check("the same alert re-posted does not re-expand or re-notify", [c.mode == .compact, c.notify == nil], [true, true])
+        c.apply(page(nil, .set(BoardAlert(agent: "deployer", text: "needs approval"))))
+        check("a new alert expands again", [c.mode == .alert, c.notify != nil], [true, true])
+        c.apply(.alertCollapsed)
+        c.apply(.talkDown)
+        check("holding after a collapse shows Listening", [c.mode == .active, c.label == "Listening"], [true, true])
+        c.apply(.talkUp(cancelled: false))
+        check("answering clears the collapsed alert", c.alert, nil)
+        check("a collapsed alert hovered shows the hint", pill(page(.speaking, .set(ci)), page(.idle), .alertCollapsed, .hover(true)).mode, .hint)
+        check("hover does not shrink a showing alert", pill(page(.speaking, .set(ci)), .hover(true)).mode, .alert)
+
         // Panel open hides the pill.
         check("panel open hides the pill", pill(.panelOpen(true)).mode, .hidden)
         check("panel closed brings it back", pill(.panelOpen(true), .panelOpen(false)).mode, .compact)
@@ -67,8 +99,8 @@ struct PillLogicTest {
               [pill(page(.speaking, .set(ci)), .talkDown).label, "\(pill(page(.speaking, .set(ci)), .talkDown).meterLive)"], ["reviewer: CI is red on main", "true"])
         check("a real hold answers the alert", pill(page(.speaking, .set(ci)), .talkDown, .talkUp(cancelled: false)).mode, .compact)
         check("a cancelled tap does not answer it", pill(page(.speaking, .set(ci)), .talkDown, .talkUp(cancelled: true)).mode, .alert)
-        check("explicit clear from the page", pill(page(.speaking, .set(ci)), page(nil, .clear)).mode, .compact)
-        check("expiry clears a stale alert", pill(page(.speaking, .set(ci)), .alertExpired).mode, .compact)
+        check("explicit clear from the page", pill(page(nil, .set(ci)), page(nil, .clear)).mode, .compact)
+        check("expiry clears a stale alert", pill(page(nil, .set(ci)), .alertExpired).mode, .compact)
         check("a newer alert replaces the old one",
               pill(page(.speaking, .set(ci)), page(.speaking, .set(BoardAlert(agent: "deployer", text: "needs approval")))).label, "deployer: needs approval")
         let long = pill(page(.speaking, .set(BoardAlert(agent: "a", text: String(repeating: "x", count: 300)))))

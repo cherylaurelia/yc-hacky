@@ -156,6 +156,7 @@ scan() { # one pass over the board; non-zero if the fetch failed
     [ -n "$task" ] || continue
     if [ "$BASELINE" = 1 ]; then echo "$id" >> "$HANDLED"; log "baseline: task #$id marked handled"; continue; fi
     handle "$id" "$login" "$task"
+    [ -z "${WORKER_CLEAN_NODE_MODULES:-}" ] || rm -rf "$WORKER_DIR/worktrees/$REPO"/*/node_modules   # keeps a small cloud disk from filling
   done 3< <(printf '%s\n' "$rows" | sort -n)
   return 0   # a blocked task was already reported on the board; only a failed fetch is a scan failure
 }

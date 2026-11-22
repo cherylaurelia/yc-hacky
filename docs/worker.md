@@ -41,7 +41,7 @@ Measured on this Mac, warm npm cache: symlink fails (Turbopack: "Could not find 
 
 ## Env
 
-`WORKER_INTERVAL=10`, `WORKER_TIMEOUT=240`, `WORKER_MODEL=sonnet`, `WORKER_LOOKBACK_HOURS=3`, `WORKER_BUDGET_USD=3`, `WORKER_DIR=~/.board-worker`, `WORKER_PR_PREFIX=''`.
+`WORKER_INTERVAL=10`, `WORKER_TIMEOUT=240`, `WORKER_MODEL=sonnet`, `WORKER_LOOKBACK_HOURS=3`, `WORKER_BUDGET_USD=3`, `WORKER_DIR=~/.board-worker`, `WORKER_PR_PREFIX=''`, `WORKER_CLEAN_NODE_MODULES=''` (set to anything to delete each worktree's `node_modules` after its task, for a small disk). The same worker runs always-on in the cloud: see `docs/maritime.md`, "Worker agent".
 
 Test on a scratch issue, never the real board: `BOARD_ISSUE=4 WORKER_PR_PREFIX='[demo] ' scripts/board-worker.sh --once`.
 

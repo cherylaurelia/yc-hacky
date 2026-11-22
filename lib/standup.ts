@@ -8,7 +8,7 @@ const DONE = /\b(?:done|merged|shipped|landed|finished|fixed|pushed|completed|re
 const MAX_AGENTS = 5; // plus the host = 6 voices
 const MAX_PICKS = 2;
 
-export const HOST = "Coworker";
+export const HOST = "Terminal 1";
 
 // Square brackets are audio tags to eleven_v3 ("[laughs]"), so they never reach the model.
 const speakable = (s: string) => s.replace(/[[\]]/g, "");

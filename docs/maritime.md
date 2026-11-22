@@ -44,14 +44,63 @@ Then `maritime env set coworker GITHUB_CLIENT_ID=<new id> GITHUB_CLIENT_SECRET=<
 
 ## Redeploy
 
-The schema has `DeployCreate.uploadS3Key`, so `maritime agents upload-source <zip>` plus `maritime deployments create --body-json '{"agentId":"<id>","uploadS3Key":"<key>", ...}'` should rebuild in place. This was not tried, and the `source` value is unknown. With the GitHub App installed, `maritime deploy coworker --source github --repo <url> --wait` works. Re-creating the agent changes the URL and breaks the OAuth callback.
+`maritime agents upload-source <zip>` prints an `s3Key`. Then `maritime deployments create --body-json '{"agentId":"<id>","source":"zip","uploadS3Key":"<s3Key>"}'` rebuilds the agent in place with the same id and URL. Measured on `coworker-worker`: 3 min 50 s from the call to `active`, and `/data` survives. `maritime exec` answers 409 while it deploys. This was not tried on `coworker`. With the GitHub App installed, `maritime deploy coworker --source github --repo <url> --wait` works. Re-creating the agent changes the URL and breaks the OAuth callback.
 
-## Board worker: not deployed
+## Worker agent
 
-Skipped, needs `ANTHROPIC_API_KEY` (and a scoped `GITHUB_TOKEN` with push and PR rights on the repo). `~/.yc-hacky.env` has neither. Maritime allows one Dockerfile per repo root and no build targets, so the worker needs a second agent. Steps:
+A second agent, `coworker-worker` (id `297ee269-1b71-4898-8edb-2a14b79c89ae`, private, `tier: always_on`), runs `scripts/board-worker.sh` in loop mode. A board post containing `TASK for Cheryl's Claude:` is handled with the laptop closed: the agent posts `on it`, runs a headless Claude Code in a fresh worktree, opens a PR, and posts `done: <title>, PR #N`. The flow is in `docs/worker.md`.
 
-1. Create a small repo, or a ZIP, with a Dockerfile that installs `claude`, `gh`, `git`, `perl`, `coreutils` and this repo's `scripts/board-worker.sh` and `tools/board`, runs as non-root, and starts a long-lived process. The worker script is a loop, so `CMD ["bash", "scripts/board-worker.sh"]` works, and `/health` and `/chat` are only needed if you want to chat to it.
-2. `maritime agents create --name board-worker --from-dir <zip> --idle-ttl-seconds 0` for always-on.
-3. `maritime env set board-worker ANTHROPIC_API_KEY=... GH_TOKEN=... BOARD_REPO=cherylaurelia/yc-hacky WORKER_DIR=/data/board-worker --reload`.
-4. Add `127.0.0.1 localhost` to `/etc/hosts` at start, since the VM's is empty and `npm run build` fails without it. That needs root, so run the worker as root or skip `npm run build` in the worker.
-5. Run `scripts/board-worker.sh --baseline` once before starting the loop.
+Why a loop and not a webhook-woken one-shot: the agent is always-on, so it never sleeps between tasks. The loop costs one GitHub call every 10 s and needs no webhook on the repo. A webhook (`POST api.maritime.sh/api/webhooks/<agent id>?token=`) only pays off for an agent that sleeps.
+
+Measured on the scratch board (#4, `WORKER_PR_PREFIX='[demo] '`): the `on it` post came 4 s after the task post, and the PR plus the `done` post 72 to 77 s after `on it` (`npm ci` about 15 s, Claude about 60 s, the worker's own `npm run build` about 12 s). 3 of 4 runs opened a PR. See the known issue below.
+
+### What runs
+
+`worker/` holds the source. `worker/pack.sh <zip>` builds the ZIP, because Maritime needs a `Dockerfile` at the ZIP root and the app's own `Dockerfile` cannot be reused.
+
+- `Dockerfile`: `node:24-slim` plus `git`, `gh`, `jq`, `perl`, `coreutils`, and `@anthropic-ai/claude-code@2.1.330`. `CMD ["node", "start.cjs"]`.
+- `start.cjs`: runs as root only to add `127.0.0.1 localhost` to `/etc/hosts` (`npm run build` needs it), to create `/dev/fd`, `/dev/stdin`, `/dev/stdout` and `/dev/stderr` (the VM has none, so bash `<(...)` in the worker fails silently and nothing is ever handled), and to own `/data`. It serves `GET /health` and `POST /chat` (any message returns the worker status and the last 25 log lines), runs `boot.sh` as `node`, and restarts it after 30 s if it exits.
+- `boot.sh`: clones the repo to `/data/repo` on first boot, copies the image's `scripts/board-worker.sh` and `tools/board` over the clone so a deploy pins the worker version, runs `--baseline` once per board issue so old tasks are not replayed, then runs the loop.
+
+On `/data`: `/data/repo/.board/worker-handled` (handled comment ids, so a restart does not redo a task), `/data/repo/.board/baselined-<issue>`, `/data/board-worker` (worktrees and logs), `/data/.claude`, `/data/.npm`. Each task's `node_modules` is deleted after the task (`WORKER_CLEAN_NODE_MODULES=1`), so the 5 GB disk does not fill.
+
+The VM defaults to 2.5 GB RAM and 1 vCPU. `npm run build` passed on that. `memMb` and `vcpus` can only be set at `agents create`.
+
+### Env (names only)
+
+| Name | Secret | Meaning |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | yes | Claude Code |
+| `WORKER_GITHUB_TOKEN` | yes | fine-grained PAT on the repo: Contents, Pull requests, Issues read and write. `boot.sh` exports it as `GH_TOKEN`. Never `gh auth token` |
+| `BOARD_ISSUE` | no | board issue number, default 1 |
+| `BOARD_REPO` | no | `owner/name`, default `cherylaurelia/yc-hacky` |
+| `WORKER_PR_PREFIX` | no | e.g. `[demo] ` in front of every PR title, for tests. Unset on the real board |
+| `WORKER_TIMEOUT`, `WORKER_MODEL`, `WORKER_BUDGET_USD`, `WORKER_INTERVAL` | no | as in `docs/worker.md`. `boot.sh` defaults the timeout to 420 s |
+
+### Deploy (what was run)
+
+```
+worker/pack.sh /tmp/mar-worker/coworker-worker.zip
+maritime agents create --name coworker-worker --from-dir /tmp/mar-worker/coworker-worker.zip --idle-ttl-seconds 0
+maritime env import coworker-worker <file holding only ANTHROPIC_API_KEY and WORKER_GITHUB_TOKEN>
+maritime env set coworker-worker BOARD_REPO=cherylaurelia/yc-hacky BOARD_ISSUE=1 --no-secret
+```
+
+Do not `env import` all of `~/.yc-hacky.env`: it holds the web app's other secrets.
+
+### Logs, status, stop
+
+```
+maritime chat coworker-worker "status"     # running or stopped, restarts, last 25 worker log lines
+maritime exec <id> --body-json '{"command":"tail -n 50 /data/board-worker/logs/*/*/*.claude.log"}'
+maritime logs coworker-worker              # platform events only (Deploying container, Agent deployed and running)
+maritime status coworker-worker --json
+maritime stop coworker-worker              # stops it; maritime start coworker-worker resumes it
+maritime env set coworker-worker BOARD_ISSUE=4 --no-secret && maritime restart coworker-worker
+```
+
+`maritime logs` does not carry the worker's stdout, so use `chat status` or `exec`. `env set --reload` did not restart the process in a test (the worker kept the old `BOARD_ISSUE`), so run `maritime restart` after any env change. A new `BOARD_ISSUE` is baselined on that boot. Only one worker should watch a board: stop any laptop `scripts/board-worker.sh` first, or two loops race on the same post.
+
+### Known issue
+
+Headless Claude Code is denied some commands by the `--allowedTools` rules, and the denial is not deterministic. Over 4 runs, 1 ended `blocked: no PR was opened` (Claude reported its push was denied, and the same push passed when rerun alone), and 1 PR body lost its `##` line breaks because Claude was denied a multi-line `gh pr create`. A blocked task is posted on the board and can be re-posted. A likely fix is to tell Claude in the prompt to keep each command on one line and write the PR body to a file for `--body-file`. This is not done or tested.

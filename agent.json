@@ -1,6 +1,12 @@
 {
   "agent_id": "agent_6301m8205ytxfqxbx8tejav14dc0",
   "tool_ids": {
+    "repo_overview": "tool_0501m82bb0pyf3d8cc8k2a43gg0n",
+    "recent_activity": "tool_9201m82bb0rre7evnv6t6n294p7p",
+    "list_items": "tool_3201m82bb0v3ehk8m0xdbd300z47",
+    "read_item": "tool_9901m82bb0xceh99142mzah300sf",
+    "search_code": "tool_5301m82bb0ztfn28xkdqh3y2j2m2",
+    "read_file": "tool_6801m82bb184ezwa7gdp4ey1tc6d",
     "board_digest": "tool_2301m820zxhxestt4nnnmagwxj7h",
     "board_post": "tool_8101m820zxksfskv1at3b7hmbaw8",
     "answer_request": "tool_7201m822n4gkf69v605c27sh5hhr",
