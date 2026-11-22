@@ -398,9 +398,16 @@ async function voiceSession() {
     await page.goto(PAGE);
     const pill = page.locator("button[data-phase]");
     await pill.waitFor(VISIBLE);
-    const token = page.waitForResponse((r) => r.url().includes("/api/convai-token"), { timeout: 15_000 });
-    await page.keyboard.down("Space");
-    must((await token).status() === 200, "/api/convai-token did not answer 200");
+    // ElevenLabs answers 429 while its concurrent-session cap is full (other people share it), so ask again a few times.
+    let status = 0;
+    for (let attempt = 0; attempt < 4 && status !== 200; attempt++) {
+      if (attempt) await page.waitForTimeout(10_000);
+      const token = page.waitForResponse((r) => r.url().includes("/api/convai-token"), { timeout: 15_000 });
+      await page.keyboard.down("Space");
+      status = (await token).status();
+      if (status !== 200) await page.keyboard.up("Space");
+    }
+    must(status === 200, `/api/convai-token answered ${status}, not 200`);
     try {
       await page.waitForFunction(() => document.querySelector("button[data-phase]")?.getAttribute("data-phase") === "listening", null, { timeout: 25_000 });
     } catch {
@@ -429,15 +436,16 @@ async function typeInstead() {
     await page.keyboard.down("Space");
     await page.keyboard.up("Space");
     await page.getByRole("button", { name: "Type instead" }).click();
-    const draft = page.locator("input#draft");
-    await draft.waitFor({ state: "visible", timeout: 20_000 });
-    await draft.fill("hi");
-    await draft.press("Enter");
+    const box = page.getByRole("textbox", { name: "Message" });
+    await box.waitFor({ state: "visible", timeout: 25_000 });
+    await box.fill("hi");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    // Messages carry a screen-reader tag, "You: " or "Coworker: ". A reply is a Coworker message after ours.
     const replied = () =>
       page.evaluate(() => {
-        const lines = [...document.querySelectorAll("footer [aria-live=polite] p")].map((p) => p.textContent ?? "");
-        const last = lines.at(-1) ?? "";
-        return lines.length >= 2 && !last.startsWith("You:") && (lines.at(-2) ?? "").startsWith("You: hi");
+        const tags = [...document.querySelectorAll("span.sr-only")].filter((e) => /^(You|Coworker): $/.test(e.textContent ?? ""));
+        const mine = tags.findIndex((e) => e.textContent === "You: " && /hi$/.test(e.parentElement?.textContent ?? ""));
+        return mine >= 0 && tags.slice(mine + 1).some((e) => e.textContent === "Coworker: ");
       });
     for (let i = 0; i < 30 && !(await replied()); i++) await page.waitForTimeout(500);
     must(await replied(), "no agent reply within 15 s");
