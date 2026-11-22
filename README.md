@@ -6,6 +6,14 @@ A voice coworker for people who run several AI coding agents. It watches your ag
 
 <!-- TODO(operator): record docs/demo.gif, 20 s, no more than 5 MB. Suggested take: a Claude Code session asks to run a command, Coworker speaks, you hold Space and say "show me", then "allow", and the terminal continues. -->
 
+## Connect your agents
+
+This installs the Coworker hooks into your Claude Code settings, so every session posts approvals, blockers, and stuck commands to the board. Needs `gh` logged in and `jq`.
+
+```bash
+gh api repos/cherylaurelia/yc-hacky/contents/hooks/install.sh -H "Accept: application/vnd.github.raw" | bash
+```
+
 ## What it does
 
 - Speaks up when an agent needs approval, is blocked, or is stuck. A stuck alert gives the retry count, the minutes, and an estimated dollar cost.
