@@ -14,6 +14,7 @@ A voice coworker for people who run several AI coding agents. It watches your ag
 - Say "show me" and the command, file, or diff opens full screen. Coworker never reads a diff aloud.
 - Give it a task by voice. A headless Claude Code agent builds it in its own worktree and opens a pull request. That took 34 s on a small change.
 - Press Standup and each agent reports its latest news in its own voice.
+- Settings sets how often Coworker speaks up on its own: All updates, Blockers only, or Do Not Disturb (for 30 minutes or until you turn it off). Push to talk always works. The same panel picks Coworker's own voice. Agents keep theirs. Both settings are saved in the browser.
 
 A general voice assistant waits for you to ask. Coworker watches your agents and interrupts you.
 
@@ -92,7 +93,7 @@ You need Node 22.18 or newer and a microphone. A browser on `localhost` can use 
 
 4. Open `http://localhost:3000/?repo=owner/name`. Add `&board=N` to use a board issue other than the default. Hold Space and talk.
 
-The page starts its session with the agent id in `agent.json`. To create your own ElevenLabs agent and its 12 client tools, set `agent_id` to `""` in `agent.json`, export `ELEVENLABS_API_KEY`, and run `npm run sync-agent`. The script writes the new ids back to `agent.json`.
+The page starts its session with the agent id in `agent.json`. To create your own ElevenLabs agent and its 12 client tools, set `agent_id` to `""` in `agent.json`, export `ELEVENLABS_API_KEY`, and run `npm run sync-agent`. The script writes the new ids back to `agent.json`. Run it again on an existing agent after pulling a change to the override list, because the Coworker voice picker needs the agent to allow a per-session voice.
 
 <!-- TODO(operator): the own-agent step is read from scripts/sync-agent.ts and was not run, because it writes to your ElevenLabs account. Confirm a stranger can also use the agent in agent.json (public agent, no auth), or keep the step above. -->
 
