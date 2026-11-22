@@ -15,7 +15,8 @@
 # Needs bash, gh (logged in) and jq. On any error it prints nothing and exits 0, so Claude Code
 # falls back to its own terminal prompt. Install with hooks/install.sh.
 # Env: COWORKER_REPO    board repo owner/name   (default: origin of the session's repo)
-#      COWORKER_BOARD   board issue number      (default 1)
+#      COWORKER_BOARD   board issue number      (default: the repo's oldest open issue labeled "board", looked up
+#                       once per 10 min; a repo with none gets no posts, the hook never falls back to #1)
 #      COWORKER_NAME    first name in the tag   (default: git user.name first word, then $USER)
 #      COWORKER_TIMEOUT seconds to wait for an approval reply (default 90)
 #      COWORKER_APPROVERS comma list of GitHub logins whose replies count (default: the gh user)
@@ -48,7 +49,8 @@ fi
 case "$EVENT" in PreToolUse|PostToolUse) [ -s "$SF" ] || exit 0 ;; esac
 
 NUM='^[0-9]+$'
-BOARD="${COWORKER_BOARD:-1}"; [[ "$BOARD" =~ $NUM ]] || exit 0
+BOARD="${COWORKER_BOARD:-}"
+[ -z "$BOARD" ] || [[ "$BOARD" =~ $NUM ]] || exit 0
 TIMEOUT="${COWORKER_TIMEOUT:-90}"; [[ "$TIMEOUT" =~ $NUM ]] || TIMEOUT=90
 DONE_MIN="${COWORKER_DONE_MIN:-60}"; [[ "$DONE_MIN" =~ $NUM ]] || DONE_MIN=60
 STUCK_COUNT="${COWORKER_STUCK_COUNT:-3}"; [[ "$STUCK_COUNT" =~ $NUM ]] && [ "$STUCK_COUNT" -ge 1 ] || STUCK_COUNT=3
@@ -69,6 +71,17 @@ repo_of() {
 SESSION_REPO="$(repo_of "$CWD")"
 REPO="${COWORKER_REPO:-$SESSION_REPO}"
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 0
+# The board is the repo's open issue labeled "board" (the app picks the same one: oldest first, not a PR), cached 10 min
+# per repo, "0" meaning none. A failed lookup is not cached, so the next call asks again.
+board_of() {
+  local f="$STATE/board.${REPO//\//_}" t n now; now="$(date +%s)"
+  read -r t n < "$f" 2>/dev/null
+  if [[ "$t" =~ $NUM ]] && [[ "$n" =~ $NUM ]] && [ $(( now - t )) -lt 600 ]; then printf '%s' "$n"; return; fi
+  n="$(gh api "repos/$REPO/issues?labels=board&state=open&sort=created&direction=asc&per_page=10" --jq '[.[] | select(.pull_request | not)] | (.[0].number // 0)')" \
+    && [[ "$n" =~ $NUM ]] || return 1
+  echo "$now $n" > "$f"; printf '%s' "$n"
+}
+[ -n "$BOARD" ] || { BOARD="$(board_of)" && [ "$BOARD" -ge 1 ] || exit 0; }
 WHERE="${SESSION_REPO#*/}"; [ -n "$WHERE" ] || WHERE="$(basename "$CWD")"
 
 NAME="${COWORKER_NAME:-$(git -C "$CWD" config user.name | awk '{print $1}')}"
