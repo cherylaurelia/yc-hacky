@@ -9,5 +9,5 @@ done
 shot=../../.claude/skills/impeccable/scripts/impeccable
 $shot shot index.html --viewport 1440x900 --out shots/main
 for st in idle listening thinking speaking; do $shot shot "state-$st.html" --viewport 1440x900 --out "shots/$st"; done
-[ -f embed.html ] && $shot shot embed.html --viewport 360x520 --out shots/embed
-[ -f states.html ] && $shot shot states.html --viewport 1440x900 --out shots/states
+if [ -f embed.html ]; then $shot shot embed.html --viewport 360x520 --out shots/embed; fi
+if [ -f states.html ]; then $shot shot states.html --viewport 1440x900 --out shots/states; fi
