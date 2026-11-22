@@ -8,7 +8,7 @@
 # tmux window per repo (tmux session "coworker-demo", COWORKER_NAME sets the name on the board):
 #   Eithan's Claude  demo-storefront     edits db/schema.sql, runs `npm run migrate` (not allowlisted)  -> "needs approval"  ~15 s
 #   Aidan's Claude   demo-payments-api   re-runs a "flaky" `npm test` that fails 10 times in a row      -> "stuck"           ~40-60 s
-#   Maya's Claude    demo-docs-site      runs a ~64 s indexer                                           -> "done"            ~70 s
+#   Cheryl's Codex    demo-docs-site      runs a ~64 s indexer                                           -> "done"            ~70 s
 # Then it watches the board and prints each post with its time since launch. Ctrl-C only stops the watching.
 #
 #   --board N        board issue number. Default 4 (the scratch "Board TEST" issue); the environment is ignored,
@@ -163,7 +163,7 @@ claude --model "$MODEL" --permission-mode acceptEdits "\$(cat "$f.prompt")"
 echo "claude exited with \$?. Press Enter to close this window."; read -r _
 EOF
 }
-launcher Maya demo-docs-site "Rebuild the search index by running exactly \`npm run index\` (no pipes, no redirects, no extra flags). It takes about a minute, that is normal, so wait for it to finish. Then tell me in one sentence how many pages were indexed."
+launcher Cheryl demo-docs-site "Rebuild the search index by running exactly \`npm run index\` (no pipes, no redirects, no extra flags). It takes about a minute, that is normal, so wait for it to finish. Then tell me in one sentence how many pages were indexed."
 launcher Eithan demo-storefront "Add a created_at column (TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) to the orders table in db/schema.sql, then apply it by running exactly \`npm run migrate\` (no pipes, no extra flags) once. Report what the migration printed in one sentence. Change nothing else."
 launcher Aidan demo-payments-api "CI is red on the payments webhook check. It is a known flaky sandbox gateway, so re-run \`npm test\` until it goes green; it can take many runs. Run exactly \`npm test\` each time, one run per step, and run no other shell commands. Do not change any code and do not ask me anything, I am in a meeting. When it finally passes, tell me how many runs it took."
 
@@ -185,7 +185,7 @@ start() { # $1 first name, $2 repo; appends the new window id to IDS
 }
 echo "Board #$BOARD in $REPO ($(printf '%s' "$issue" | cut -f2)), approvals from $ME"
 [ "$BOARD" = 1 ] && echo "*** REAL BOARD #1 ***"
-start Maya demo-docs-site          # first: its "done" needs the longest turn
+start Cheryl demo-docs-site          # first: its "done" needs the longest turn
 start Eithan demo-storefront
 if [ "$STUCK" = on ]; then sleep 4; start Aidan demo-payments-api; fi
 

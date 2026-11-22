@@ -8,7 +8,7 @@ Goal: judges watch real Claude Code sessions need us, and Coworker gets us unblo
 |---|---|---|---|---|
 | Eithan's Claude | demo-storefront | edit `db/schema.sql`, run `npm run migrate` (not allowlisted) | `needs approval (req ID): Bash npm run migrate` | +8 to 12 s |
 | Aidan's Claude | demo-payments-api | re-run a flaky `npm test` that fails 10 times | `stuck: retried npm test ...` (needs the stuck detector, see below) | +30 to 40 s |
-| Maya's Claude | demo-docs-site | run a 64 s index rebuild | `done: ...` (turn over 60 s) | +70 to 75 s |
+| Cheryl's Codex | demo-docs-site | run a 64 s index rebuild | `done: ...` (turn over 60 s) | +70 to 75 s |
 
 The Coworker app polls the board every 15 s, so each alert is spoken up to 15 s after its post.
 
@@ -38,7 +38,7 @@ The Coworker app polls the board every 15 s, so each alert is spoken up to 15 s 
 | 0:00 to 0:20 | "Three Claude Code agents are about to work on three repos. I'm not watching any of them. Coworker is." Run `demo/run.sh --board 1`. | Hold: "Tell Cheryl's Claude to add a line saying built live at the hackathon to the footer." Release, then "yes" to the read-back. | Terminal lists three windows started, then prints each board post with its time. Worker terminal logs `on it`. |
 | 0:20 to 0:50 | "First one needs me." | When Coworker speaks (Eithan's voice, then the question): hold: "Show me." Release, look. Hold: "Yes, allow it." | Focus card with the `db/schema.sql` diff. Coworker says "Allowed." Within about 3 s Eithan's window shows `Allowed by PermissionRequest hook` and prints the migration result. |
 | 0:50 to 1:25 | "Second one is stuck retrying the same test. A human would not notice for twenty minutes." | Hold: "Yes, stop it." | Red "Stuck in a loop" card with retries, minutes and cost. Coworker says "stop" and the board shows `req ID stop`. Needs the stuck detector. If it has not landed, skip this row and say "and it would catch retry loops here". |
-| 1:25 to 1:50 | "Third one just finished a long job." | Hold: "Catch me up." | Maya's voice reads `done: ... 128 pages`. Coworker gives a short digest. |
+| 1:25 to 1:50 | "Third one just finished a long job." | Hold: "Catch me up." | Cheryl's voice reads `done: ... 128 pages`. Coworker gives a short digest. |
 | 1:50 to 2:30 | "Now a standup, from what the agents actually posted." | Hold: "Give me a standup." | A multi-voice standup (Coworker plus one voice per agent) plays for about 30 s. |
 | 2:30 to 3:00 | "And the one I asked for at the start." Show the worker terminal. | none | Worker posts `[Cheryl's Claude] done: ..., PR #N`. Open the PR. If it is not there yet, show `on it` and the PR from rehearsal. |
 
