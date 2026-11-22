@@ -515,30 +515,33 @@ async function notifications() {
 
     // An alert arriving while the tab is hidden gets one notification.
     postBoard(hookApproval(b, "npm run migrate"));
-    let notes = (await seen()).notes;
+    // Other agents post to this board too, so only our two request ids count.
+    const ours = async (id: string) => (await seen()).notes.filter((x) => x.tag === id);
+    let notes = await ours(b);
     for (let i = 0; i < 70 && notes.length === 0; i++) {
       await page.waitForTimeout(500);
-      notes = (await seen()).notes;
+      notes = await ours(b);
     }
-    must(notes.length === 1, `expected 1 notification, got ${notes.length}`);
+    must(notes.length === 1, `expected 1 notification for the new alert, got ${notes.length}`);
+    must((await ours(a)).length === 0, "the alert that arrived before permission was granted got a notification");
     const n = notes[0];
     must(n.title === "E2E's Claude needs you", `notification title is "${n.title}"`);
     must(n.body === "Wants to run npm run migrate", `notification body is "${n.body}"`);
     must(n.tag === b && n.requireInteraction === true, `notification tag/requireInteraction are ${n.tag}/${n.requireInteraction}`);
     await page.waitForResponse((r) => r.url().includes("/api/board/new"), { timeout: 20_000 });
-    must((await seen()).notes.length === 1, "the next poll notified again for the same alert");
+    must((await ours(b)).length === 1, "the next poll notified again for the same alert");
 
     // Clicking it opens that alert's card, behind the one already open.
-    await page.evaluate(() => {
-      const w = window as unknown as { __notes: { onclick: (() => void) | null }[] };
-      w.__notes[0].onclick?.();
-    });
+    await page.evaluate((tag) => {
+      const w = window as unknown as { __notes: { options: NotificationOptions; onclick: (() => void) | null }[] };
+      w.__notes.find((x) => x.options.tag === tag)?.onclick?.();
+    }, b);
     await card.getByText("npm run migrate").first().waitFor(VISIBLE);
 
     // Answering closes it.
     await card.getByRole("button", { name: "Allow", exact: true }).click();
-    for (let i = 0; i < 20 && !(await seen()).notes[0].closed; i++) await page.waitForTimeout(250);
-    must((await seen()).notes[0].closed, "the notification stayed open after the request was answered");
+    for (let i = 0; i < 20 && !(await ours(b))[0].closed; i++) await page.waitForTimeout(250);
+    must((await ours(b))[0].closed, "the notification stayed open after the request was answered");
   } finally {
     await ctx.close();
   }
