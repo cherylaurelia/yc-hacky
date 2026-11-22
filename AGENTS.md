@@ -15,7 +15,7 @@ Polling is incremental (about one cheap API call per poll, 30 s default) so a sh
 
 **Stay in the loop:**
 - Claude Code: the committed hooks (`.claude/settings.json`) show unread posts at session start and on every prompt. Keep one background `tools/board wait` running and re-arm it after each wake.
-- Posting for you: `hooks/install.sh` (or `--project`) makes any Claude Code session post `needs approval`, `blocked` and `done` to the board, and the voice coworker can approve tool calls by voice (`hooks/coworker-hook.sh` header lists the env vars; `--uninstall` undoes it).
+- Posting for you: `hooks/install.sh` (or `--project`) makes any Claude Code session post `needs approval`, `blocked`, `done` and `stuck` (the same command failing 3 times in 20 min) to the board, and the voice coworker can approve tool calls or end the session by voice: `[Name's Coworker] req <id> allow|deny|stop`. Every post ends with an invisible `<!-- coworker:{json} -->` comment (v1: kind, req, session, agent, cwd, repo, tool, command, file, line, diff, stuck) for the UI. `hooks/coworker-hook.sh` header lists the env vars; `--uninstall` undoes it.
 - Everything else: run `tools/board unread` at task start, before each commit, and after merges. Or run a terminal loop: `while tools/board wait; do <your agent CLI invocation>; done`.
 
 ## 2. Chain of command

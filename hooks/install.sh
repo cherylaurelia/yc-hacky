@@ -77,7 +77,10 @@ NEW="$(printf '%s' "$CUR" | jq --arg cmd "$CMD" "$LIB strip
   | add(\"PermissionRequest\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 120}]})
   | add(\"Notification\"; {matcher: \"idle_prompt|elicitation_dialog\", hooks: [{type: \"command\", command: \$cmd, timeout: 20}]})
   | add(\"Stop\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 20}]})
-  | add(\"UserPromptSubmit\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 10}]})")" || die "jq failed"
+  | add(\"UserPromptSubmit\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 10}]})
+  | add(\"PreToolUse\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 5}]})
+  | add(\"PostToolUse\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 10}]})
+  | add(\"PostToolUseFailure\"; {hooks: [{type: \"command\", command: \$cmd, timeout: 10}]})")" || die "jq failed"
 
 if [ -e "$S" ] && [ "$NEW" = "$(cat "$S")" ]; then echo "already installed in $S"; exit 0; fi
 [ -e "$BAK" ] || { if [ -e "$S" ]; then cp -p "$S" "$BAK"; else : > "$BAK"; fi; } || die "could not write the backup $BAK"
