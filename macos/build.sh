@@ -13,7 +13,14 @@ for arch in arm64 x86_64; do
 done
 lipo -create build/obj/Coworker-arm64 build/obj/Coworker-x86_64 -output "$APP/Contents/MacOS/Coworker"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+VERSION="$(tr -d '[:space:]' < VERSION)"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "macos/VERSION must be x.y.z, got '$VERSION'" >&2; exit 1; }
+mkdir -p "$APP/Contents/Resources/bin"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The CLI agents call (coworker ask, hooks); Settings > Agents links it into the user's PATH.
+if [ -f ../bin/coworker ]; then install -m 755 ../bin/coworker "$APP/Contents/Resources/bin/coworker"; fi
+
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -23,8 +30,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDisplayName</key><string>Coworker</string>
   <key>CFBundleExecutable</key><string>Coworker</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1.0</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.3</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
@@ -44,4 +52,13 @@ check="$(mktemp -d)"
 trap 'rm -rf "$check"' EXIT
 ditto -x -k build/Coworker.zip "$check"
 codesign --verify --strict "$check/Coworker.app"
-echo "built $APP and build/Coworker.zip"
+
+# The installer people download: drag Coworker into Applications.
+stage="$(mktemp -d)"
+trap 'rm -rf "$check" "$stage"' EXIT
+ditto "$APP" "$stage/Coworker.app"
+ln -s /Applications "$stage/Applications"
+rm -f build/Coworker.dmg
+hdiutil create -quiet -volname "Coworker $VERSION" -srcfolder "$stage" -fs HFS+ -format UDZO -ov build/Coworker.dmg
+hdiutil verify -quiet build/Coworker.dmg
+echo "built $APP $VERSION, build/Coworker.zip and build/Coworker.dmg"
