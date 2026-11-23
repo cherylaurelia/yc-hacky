@@ -4,7 +4,7 @@ import WebKit
 /// Floating non-activating panel hosting the coworker web page. It starts hidden: the pill is the default face.
 /// "Hidden" is alpha 0 while still ordered in, so the page keeps running and speaking.
 @MainActor
-final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply {
     var onPageMessage: ((PageMessage) -> Void)?
     /// The page answered an agent's request: window.webkit.messageHandlers.coworker.postMessage({answer:{id, text}}).
     var onAnswer: ((String, String) -> Void)?
@@ -29,6 +29,8 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
                         backing: .buffered, defer: false)
         super.init()
         cfg.userContentController.add(self, name: "coworker")
+        // Requests the page awaits (start, list, stop agents): window.webkit.messageHandlers.coworkerAsync.postMessage(...) -> Promise
+        cfg.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "coworkerAsync")
         webView.uiDelegate = self
         webView.navigationDelegate = self
         webView.isInspectable = true
@@ -131,6 +133,27 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     private func isCoworker(_ origin: WKSecurityOrigin) -> Bool {
         isCoworker(scheme: origin.protocol, host: origin.host, port: origin.port)
+    }
+
+    // Page -> app, awaited: {agent: {op: "start", task, agent, repo} | {op: "list"} | {op: "stop", id}}.
+    func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void) {
+        // Starting code-writing agents on this Mac is only for the Coworker page's own top frame.
+        guard message.frameInfo.isMainFrame, isCoworker(message.frameInfo.securityOrigin) else {
+            return replyHandler(nil, "Only the Coworker page can start agents.")
+        }
+        guard let a = (message.body as? [String: Any])?["agent"] as? [String: Any], let op = a["op"] as? String else {
+            return replyHandler(nil, "Unknown request.")
+        }
+        let text = { (k: String) in a[k] as? String ?? "" }
+        Task { @MainActor in
+            switch op {
+            case "start": replyHandler(await AgentRunner.start(task: text("task"), agent: text("agent"), repo: text("repo")), nil)
+            case "list": replyHandler(await AgentRunner.list(), nil)  // the runs, newest first
+            case "stop": replyHandler(await AgentRunner.stop(id: text("id")), nil)
+            default: replyHandler(nil, "Unknown agent request \(op).")
+            }
+        }
     }
 
     // Page -> app: window.webkit.messageHandlers.coworker.postMessage({state:'speaking', alert:{agent, text}})
