@@ -5,6 +5,10 @@ import "./site.css";
 
 const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-archivo" });
 
+// Checkout links, the download URL and company details come from the host's env at request time
+// (lib/site.ts), so they can change without rebuilding the image.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: { default: "Terminal 1: dictate anywhere, answer your coding agents by voice", template: "%s · Terminal 1" },
   description:
