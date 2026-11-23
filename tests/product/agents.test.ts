@@ -161,6 +161,33 @@ test("agents: a Cursor shell command waits for your allow or deny", async () => 
   }
 });
 
+test("agents: an unanswered Cursor command defers to Cursor's own rules (auto-run keeps working)", async () => {
+  const sb = sandbox();
+  const relay = await fakeRelay(sb.env.COWORKER_HOME!);
+  try {
+    relay.answerWith(null);
+    const input = JSON.stringify({ hook_event_name: "beforeShellExecution", command: "ls", cwd: sb.repo });
+    const r = await cli(["hook", "cursor"], { env: { ...sb.env, COWORKER_TIMEOUT: "1" }, input });
+    assert.equal(r.code, 0, r.stderr);
+    assert.ok(!("permission" in JSON.parse(r.stdout.trim() || "{}")), `no verdict should leave the decision to Cursor: ${r.stdout}`);
+  } finally {
+    await relay.close();
+  }
+});
+
+test("agents: installing for Claude Code replaces the old hooks/install.sh entries instead of doubling them", async () => {
+  const sb = sandbox();
+  const dir = join(sb.home, ".claude");
+  mkdirSync(dir);
+  const old = (ev: string) => ({ [ev]: [{ hooks: [{ type: "command", command: "/Users/sam/.claude/coworker/coworker-hook.sh", timeout: 120 }] }] });
+  writeFileSync(join(dir, "settings.json"), JSON.stringify({ hooks: { ...old("PermissionRequest"), ...old("Stop") } }));
+  const r = await cli(["install", "claude"], { env: sb.env });
+  assert.equal(r.code, 0, r.stderr);
+  const s = JSON.stringify(readJson(join(dir, "settings.json")));
+  assert.doesNotMatch(s, /coworker-hook\.sh/, "the old hook entries are gone");
+  assert.match(s, /coworker[^"]*hook claude/);
+});
+
 test("agents: Claude Code install then uninstall leaves settings exactly as they were", async () => {
   const sb = sandbox();
   const dir = join(sb.home, ".claude");

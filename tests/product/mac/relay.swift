@@ -60,6 +60,11 @@ import Foundation
         let a = call("GET", "/v1/events/\(id)/answer?wait=5")
         check(a.0 == 200 && a.1["answer"] as? String == "allow", "the long poll gets the answer")
         check(Date().timeIntervalSince(t0) < 1.0, "within a second of answering")
+        // The page normalizes request ids to lowercase; the agent polls the id it was given. Both must meet.
+        let idA = call("POST", "/v1/events", body: ["agent": "Sam's Claude", "kind": "approval", "text": "x"]).1["id"] as? String ?? ""
+        server.answer(id: idA.lowercased(), text: "deny")
+        let viaUpper = call("GET", "/v1/events/\(idA.uppercased())/answer?wait=0")
+        check(viaUpper.0 == 200 && viaUpper.1["answer"] as? String == "deny", "request ids match regardless of case")
 
         let id2 = call("POST", "/v1/events", body: ["agent": "Sam's Codex", "kind": "question", "text": "202 or 200?"]).1["id"] as? String ?? ""
         check(call("POST", "/v1/events/\(id2)/answer", body: ["answer": "202"]).0 == 200, "another client can answer")

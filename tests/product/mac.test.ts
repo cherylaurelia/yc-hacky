@@ -111,4 +111,11 @@ test("mac build: the bundle includes the coworker CLI for agents", () => {
   assert.ok(existsSync(cli), "Coworker.app/Contents/Resources/bin/coworker is missing");
   assert.ok(statSync(cli).mode & 0o111, "not executable");
   assert.ok(readdirSync(join(APP, "Contents/Resources/bin")).includes("coworker"));
+  const hook = join(APP, "Contents/Resources/hooks/coworker-hook.sh");
+  assert.ok(existsSync(hook) && statSync(hook).mode & 0o111, "the board fallback hook ships next to the CLI (Resources/hooks/coworker-hook.sh)");
+});
+
+test("mac: only the configured Coworker page can answer agents", () => {
+  const s = swiftSources().get("CoworkerPanel.swift") ?? "";
+  assert.match(s, /frameInfo\.(isMainFrame|securityOrigin)/, "the answer handler checks which frame and origin sent the message");
 });

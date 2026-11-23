@@ -56,7 +56,19 @@ test("web: the page takes relay events from the Mac app and sends answers back",
   assert.match(a.text, /npm run migrate/);
   assert.notEqual(alertFromRelay({ id: "e8", agent: "x", kind: "done", text: "built" }).why, "blocked", "done needs no answer");
   assert.deepEqual(answerMessage("e7", "allow"), { answer: { id: "e7", text: "allow" } });
+  const withCtx = alertFromRelay({ id: "e9", agent: "Sam's Claude", kind: "approval", text: "Bash npm run migrate", command: "npm run migrate", file: "db/schema.sql", diff: "+x" });
+  assert.equal(withCtx.ctx?.command, "npm run migrate", "'show me' gets the command from the relay event");
+  assert.equal(withCtx.ctx?.diff, "+x");
   assert.match(readFileSync(join(ROOT, "components/useCoworker.ts"), "utf8"), /coworker-relay/, "useCoworker listens for coworker-relay events");
+});
+
+test("web: a spoken verdict is never replaced by its note, except for questions", async () => {
+  const { relayAnswerText } = await mod("lib/relay-bridge.ts");
+  assert.equal(relayAnswerText("approval", "deny", "only approve after tests pass"), "deny");
+  assert.equal(relayAnswerText("stuck", "stop", "it keeps looping"), "stop");
+  assert.equal(relayAnswerText("blocked", "allow", "use 202"), "use 202", "a question's answer is the note");
+  assert.equal(relayAnswerText("blocked", "allow", ""), "allow");
+  assert.match(readFileSync(join(ROOT, "components/useCoworker.ts"), "utf8"), /relayAnswerText\(/, "useCoworker uses it");
 });
 
 test("web: lint has no errors", async () => {
