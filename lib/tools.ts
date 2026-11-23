@@ -32,6 +32,8 @@ const line = (i: { number: number; title: string; user: User }) => `number ${i.n
 const num = (v: unknown, d: number, lo: number, hi: number) =>
   typeof v === "number" ? Math.min(hi, Math.max(lo, Math.trunc(v))) : d;
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+// "bug, ui" -> ["bug", "ui"]; logins lose a spoken "@".
+const list = (v: unknown) => str(v).split(",").map((s) => s.trim().replace(/^@/, "")).filter(Boolean).slice(0, 20);
 
 // ---------- handlers (one per spec name; the type enforces it) ----------
 
@@ -186,6 +188,71 @@ export const HANDLERS: Record<ServerToolName, Handler> = {
     const note = str(args.note).replace(/\s+/g, " ").slice(0, 300);
     await boardPost(repo, token, num(args.board, 0, 0, 1e9) || undefined, `req ${id} ${decision}${note ? ` ${note}` : ""}`, "");
     return `Sent ${decision} for request ${id}.`;
+  },
+
+  async create_issue({ repo, token }, args) {
+    const labels = list(args.labels), assignees = list(args.assignees);
+    const body = { title: str(args.title).slice(0, 256), ...(str(args.body) ? { body: str(args.body) } : {}), ...(labels.length ? { labels } : {}), ...(assignees.length ? { assignees } : {}) };
+    const i = await gh<{ number: number }>(`/repos/${repo}/issues`, { token, method: "POST", body });
+    return `Opened issue number ${i.number}.`;
+  },
+
+  async comment({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    await gh(`/repos/${repo}/issues/${n}/comments`, { token, method: "POST", body: { body: str(args.text) } });
+    return `Commented on number ${n}.`;
+  },
+
+  async set_state({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const closing = args.state === "closed";
+    await gh(`/repos/${repo}/issues/${n}`, { token, method: "PATCH", body: { state: closing ? "closed" : "open", ...(closing ? { state_reason: args.reason === "not_planned" ? "not_planned" : "completed" } : {}) } });
+    return `${closing ? "Closed" : "Reopened"} number ${n}.`;
+  },
+
+  async create_pr({ repo, token }, args) {
+    const base = str(args.base) || (await gh<{ default_branch: string }>(`/repos/${repo}`, { token })).default_branch;
+    const pr = await gh<{ number: number }>(`/repos/${repo}/pulls`, {
+      token,
+      method: "POST",
+      body: { head: str(args.head), base, title: str(args.title).slice(0, 256), ...(str(args.body) ? { body: str(args.body) } : {}), draft: args.draft === "yes" },
+    });
+    return `Opened pull request number ${pr.number} from ${str(args.head)} into ${base}.`;
+  },
+
+  async merge_pr({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const method = args.method === "merge" || args.method === "rebase" ? args.method : "squash";
+    try {
+      await gh(`/repos/${repo}/pulls/${n}/merge`, { token, method: "PUT", body: { merge_method: method } });
+    } catch (e) {
+      // 405: GitHub's "not mergeable" (conflicts, failing required checks, missing reviews); 409: the head moved.
+      if (e instanceof GhError && (e.status === 405 || e.status === 409)) {
+        throw new GhError(`Number ${n} can't be merged yet: it has conflicts, failing required checks, or needs a review.`, 409);
+      }
+      throw e;
+    }
+    return `Merged number ${n}${method === "squash" ? ", squashed" : ""}.`;
+  },
+
+  async review_pr({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const event = args.verdict === "approve" ? "APPROVE" : args.verdict === "request_changes" ? "REQUEST_CHANGES" : "COMMENT";
+    const text = str(args.text);
+    if (event !== "APPROVE" && !text) throw new GhError("I need the review text for that.", 400);
+    await gh(`/repos/${repo}/pulls/${n}/reviews`, { token, method: "POST", body: { event, ...(text ? { body: text } : {}) } });
+    return event === "APPROVE" ? `Approved number ${n}.` : event === "REQUEST_CHANGES" ? `Requested changes on number ${n}.` : `Reviewed number ${n}.`;
+  },
+
+  async update_item({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const add = list(args.add_labels), remove = list(args.remove_labels), assignees = list(args.assignees);
+    if (!add.length && !remove.length && !assignees.length) throw new GhError("Tell me which labels or people to change.", 400);
+    if (add.length) await gh(`/repos/${repo}/issues/${n}/labels`, { token, method: "POST", body: { labels: add } });
+    for (const l of remove) await gh(`/repos/${repo}/issues/${n}/labels/${encodeURIComponent(l)}`, { token, method: "DELETE" });
+    if (assignees.length) await gh(`/repos/${repo}/issues/${n}/assignees`, { token, method: "POST", body: { assignees } });
+    const done = [add.length && `added ${add.join(", ")}`, remove.length && `removed ${remove.join(", ")}`, assignees.length && `assigned ${assignees.join(", ")}`].filter(Boolean);
+    return `On number ${n}: ${done.join("; ")}.`;
   },
 };
 
