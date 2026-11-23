@@ -358,14 +358,32 @@ cmd_doctor() {
 HEX='^[0-9a-f]{6}$'
 RUN_TIMEOUT="${COWORKER_RUN_TIMEOUT:-1800}"; RUN_BUDGET="${COWORKER_RUN_BUDGET_USD:-5}"
 
-# Rewrites status.json through jq, tmp + mv so a reader never sees half a file: status_set JQ_ARGS... FILTER
-status_set() { jq -c "$@" "$STATUS" >"$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"; }
+# Rewrites status.json through jq, a unique tmp + mv so a reader never sees half a file and writers never share a tmp:
+# status_set JQ_ARGS... FILTER
+status_set() {
+  local t; t="$(mktemp "${STATUS%/*}/status.XXXXXX")" || return 1
+  if jq -c "$@" "$STATUS" >"$t" && mv "$t" "$STATUS"; then return 0; fi
+  rm -f "$t"; return 1
+}
 
 # Ends the run in status.json unless it already ended (a stop wins): settle STATE NOTE [PR]
 settle() {
   status_set --arg s "$1" --arg n "$2" --arg pr "${3:-}" 'if .state == "running"
     then .state = $s | .note = $n | .finished = now | del(.pid) | if $pr != "" then .pr = $pr else . end else . end'
 }
+
+# One at a time per repo (clone, fetch and worktree add collide otherwise): a mkdir lock, retried; one over 10 minutes old is stale.
+lock() { # NAME
+  local d="$RELAY_DIR/locks/$1" n=0
+  mkdir -p "$RELAY_DIR/locks" || return 1
+  until mkdir "$d" 2>/dev/null; do
+    [ -z "$(find "$d" -maxdepth 0 -mmin +10 2>/dev/null)" ] || rmdir "$d" 2>/dev/null
+    n=$((n + 1)); [ "$n" -lt 3000 ] || return 1
+    sleep 0.2
+  done
+  LOCK="$d"
+}
+unlock() { [ -z "${LOCK:-}" ] || rmdir "$LOCK" 2>/dev/null; LOCK=""; }
 
 say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >>"$LOG"; }
 
@@ -388,6 +406,7 @@ cmd_run() { # TASK [--agent claude|codex] [--repo owner/name] [--dir CHECKOUT] [
       --agent|--repo|--dir)
         [ $# -ge 2 ] || die "$1 needs a value"
         case "$1" in --agent) agent="$2" ;; --repo) repo="$2" ;; *) dir="$2" ;; esac; shift 2 ;;
+      -*[[:space:]]*) task="${task:+$task }$1"; shift ;;   # a dash word with spaces is a sentence, not a flag
       -*) die "unknown option $1" ;;
       *) task="${task:+$task }$1"; shift ;;
     esac
@@ -404,14 +423,17 @@ cmd_run() { # TASK [--agent claude|codex] [--repo owner/name] [--dir CHECKOUT] [
   [ -n "$repo" ] || repo="$(repo_of "${dir:-$PWD}")"
   [[ "$repo" =~ $REPO_RE ]] || die "which repo? pass --repo owner/name"
   case "/$repo/" in */./*|*/../*) die "bad repo $repo" ;; esac
+  # the agent runs with your credentials: never on a repo you cannot push to
+  [ "$(gh api "repos/$repo" --jq .permissions.push 2>/dev/null)" = true ] \
+    || die "no push access to $repo (gh api repos/$repo must say permissions.push is true; is gh logged in?)"
 
   new_run
   STATUS="$RELAY_DIR/runs/$ID/status.json"; LOG="$RELAY_DIR/runs/$ID/run.log"
   slug="$(printf '%s' "$task" | head -n 1 | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr -cs 'a-z0-9' '-' | cut -c1-30 | sed 's/^-*//; s/-*$//')"
-  jq -nc --arg id "$ID" --arg task "$task" --arg agent "$agent" --arg repo "$repo" --arg branch "coworker/$ID-${slug:-task}" --arg log "$LOG" \
-    '{id: $id, task: $task, agent: $agent, repo: $repo, branch: $branch, state: "running", log: $log, started: now}' >"$STATUS.tmp" \
-    || die "cannot write $STATUS"
-  mv "$STATUS.tmp" "$STATUS" || die "cannot write $STATUS"
+  t="$(mktemp "$RELAY_DIR/runs/$ID/status.XXXXXX")" || die "cannot write $STATUS"
+  if ! { jq -nc --arg id "$ID" --arg task "$task" --arg agent "$agent" --arg repo "$repo" --arg branch "coworker/$ID-${slug:-task}" --arg log "$LOG" \
+    '{id: $id, task: $task, agent: $agent, repo: $repo, branch: $branch, state: "running", log: $log, started: now}' >"$t" && mv "$t" "$STATUS"; }
+  then rm -f "$t"; die "cannot write $STATUS"; fi
 
   set -m   # the job leads a process group of its own: its pid is the group id
   "$ME" _run "$ID" "${dir:-$RELAY_DIR/repos/$repo}" </dev/null >>"$LOG" 2>&1 &
@@ -444,19 +466,24 @@ cmd_job() { # ID CHECKOUT
   case "$agent" in claude) LABEL=Claude ;; *) LABEL=Codex ;; esac
   LABEL="$(name_of "$CHECKOUT")'s $LABEL"
 
+  lock "${repo//\//-}" || job_fail "could not lock $repo (is another run stuck on it?)"
   if [ ! -e "$CHECKOUT/.git" ]; then   # `run` checked --dir; with none, the repo is cloned once
     { mkdir -p "$(dirname "$CHECKOUT")" && gh repo clone "$repo" "$CHECKOUT" >>"$LOG" 2>&1; } || job_fail "could not clone $repo"
   fi
   git -C "$CHECKOUT" fetch -q origin >>"$LOG" 2>&1 || job_fail "could not fetch origin"
   base="$(git -C "$CHECKOUT" symbolic-ref -q --short refs/remotes/origin/HEAD)"; base="${base#origin/}"; base="${base:-main}"
   git -C "$CHECKOUT" worktree add -q --no-track -b "$BRANCH" "$WT" "origin/$base" >>"$LOG" 2>&1 || job_fail "could not create a worktree from origin/$base"
+  unlock
 
   # The task is one argv element, never a shell string. perl's alarm is the timeout: macOS has no `timeout`.
-  tool="${COWORKER_RUN_TOOLS:-Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(npm run build:*),Bash(npm run lint:*),Bash(npm test:*)}"
+  # The repo's own .claude settings (hooks, allows) never load, and nothing that runs repo scripts is allowed unprompted.
+  # `--` ends the options, so a task that starts with "-" is not a flag; the task is the last argument.
+  tool="${COWORKER_RUN_TOOLS:-Bash(git status:*),Bash(git diff:*),Bash(git log:*)}"
   case "$agent" in
-    claude) argv=(claude -p "$task" --permission-mode acceptEdits --max-budget-usd "$RUN_BUDGET" --no-session-persistence --allowedTools "$tool"
-              --append-system-prompt "You run unattended in a throwaway git worktree. Make the change and leave it uncommitted: Coworker commits, pushes and opens the PR.") ;;
-    *) argv=(codex exec --full-auto "$task") ;;
+    claude) argv=(claude -p --permission-mode acceptEdits --max-budget-usd "$RUN_BUDGET" --no-session-persistence --setting-sources user --allowedTools "$tool"
+              --append-system-prompt "You run unattended in a throwaway git worktree. Make the change and leave it uncommitted: Coworker commits, pushes and opens the PR."
+              -- "$task") ;;
+    *) argv=(codex exec --full-auto -- "$task") ;;
   esac
   say "$agent starts in $WT (at most ${RUN_TIMEOUT}s)"
   set -m   # a group of its own, so a timeout or a stop reaches everything the agent started
@@ -495,14 +522,37 @@ job_finish() {
   IN='{}'; CWD="$CHECKOUT"; AGENT="$LABEL"
   { connect && send "$kind" "$2"; } || say "could not tell anyone: no relay and no board"
 }
-job_fail() { job_finish failed "Run $ID failed ($1): $TITLE"; exit 1; }
+# A failed run keeps what the agent changed: committed to the run's local branch (not pushed) before the worktree goes.
+job_fail() {
+  local kept=""
+  if [ -d "$WT" ] && [ -n "$(git -C "$WT" status --porcelain 2>/dev/null)" ]; then
+    if git -C "$WT" add -A && git -C "$WT" commit -q -m "$TITLE (unfinished)" -m "Coworker run $ID failed: $1" >>"$LOG" 2>&1
+    then kept=" Its partial work is committed on the local branch $BRANCH (not pushed)."
+    else KEEP=1; kept=" Its partial work could not be committed and stays in $WT."; fi
+  fi
+  job_finish failed "Run $ID failed ($1): $TITLE.$kept"; exit 1
+}
 # the worktree registration goes; the branch and the log stay
 job_cleanup() {
-  [ -d "$WT" ] || return 0
+  unlock
+  [ -d "$WT" ] && [ -z "${KEEP:-}" ] || return 0
   git -C "$CHECKOUT" worktree remove --force "$WT" >>"$LOG" 2>&1 || { rm -rf "$WT"; git -C "$CHECKOUT" worktree prune >>"$LOG" 2>&1; }
 }
 
-cmd_runs() { cat "$RELAY_DIR"/runs/*/status.json 2>/dev/null | jq -s 'sort_by(.started) | reverse'; }
+# Is PID really the job of run ID? A dead or reused pid is not: never trust or signal it. job_alive ID PID
+job_alive() { case "$(ps -o command= -p "$2" 2>/dev/null)" in *"_run $1"*) ;; *) return 1 ;; esac; }
+
+cmd_runs() {
+  local f id pid started
+  for f in "$RELAY_DIR"/runs/*/status.json; do   # a "running" run whose job is gone is failed, not running
+    [ -f "$f" ] || continue
+    read -r id pid started <<<"$(jq -r 'select(.state == "running") | "\(.id) \(.pid // 0) \(.started // 0 | floor)"' "$f" 2>/dev/null)"
+    [ -n "${id:-}" ] || continue
+    [ "$pid" != 0 ] || [ $(( $(date +%s) - started )) -gt 60 ] || continue   # a job still starting has no pid yet
+    job_alive "$id" "$pid" || { STATUS="$f"; settle failed "lost (job no longer running)"; }
+  done
+  cat "$RELAY_DIR"/runs/*/status.json 2>/dev/null | jq -s 'sort_by(.started) | reverse'
+}
 
 cmd_stop() { # ID
   local id="${1:-}" pid
@@ -513,6 +563,7 @@ cmd_stop() { # ID
     pid="$(jq -r '.pid // empty' "$STATUS")"; [ -z "$pid" ] || break; sleep 0.1
   done
   [ -n "$pid" ] || die "run $id has no process yet; try again"
+  job_alive "$id" "$pid" || { settle failed "lost (job no longer running)"; echo "run $id is not running: lost (job no longer running)"; return 0; }
   settle stopped "stopped"   # before the kill, so the job's own ending cannot overwrite it
   kill -TERM -- "-$pid" 2>/dev/null
   for _ in $(seq 50); do kill -0 -- "-$pid" 2>/dev/null || break; sleep 0.1; done
