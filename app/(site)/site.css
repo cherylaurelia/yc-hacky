@@ -1,0 +1,118 @@
+/* The Calling Desk (DESIGN.md), scoped to the marketing routes. The app at /app keeps its own styles. */
+.site {
+  --wings: oklch(0.205 0.045 264);
+  --wings-raise: oklch(0.24 0.05 264);
+  --wings-hi: oklch(0.285 0.058 264);
+  --rule: oklch(0.335 0.05 264);
+  --text: oklch(0.97 0.008 264);
+  --dim: oklch(0.8 0.03 264);
+  --faint: oklch(0.7 0.035 264);
+  --page: oklch(0.985 0.004 264);
+  --page-ink: oklch(0.21 0.035 264);
+  --page-dim: oklch(0.46 0.03 264);
+  --page-rule: oklch(0.905 0.01 264);
+  --page-well: oklch(0.955 0.008 264);
+  --page-edge: oklch(0.82 0.015 264);
+  --standby: oklch(0.84 0.155 80);
+  --standby-ink: oklch(0.52 0.13 70);
+  --stuck: oklch(0.68 0.2 27);
+  --stuck-text: oklch(0.76 0.16 27);
+  --done: oklch(0.8 0.15 155);
+  --tape-roger: oklch(0.83 0.12 192);
+  --tape-sarah: oklch(0.76 0.17 356);
+  --tape-charlie: oklch(0.89 0.17 125);
+  --tape-alice: oklch(0.8 0.11 238);
+  --tape-jessica: oklch(0.76 0.14 296);
+  --add-bg: oklch(0.95 0.05 152);
+  --add-ink: oklch(0.42 0.12 152);
+  --del-bg: oklch(0.955 0.035 27);
+  --del-ink: oklch(0.48 0.16 27);
+  --pill: oklch(0.13 0.025 264);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  background: var(--wings);
+  color: var(--text);
+  font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "tnum";
+  min-height: 100vh;
+}
+html:has(.site),
+body:has(.site) {
+  background: oklch(0.205 0.045 264);
+  color-scheme: dark;
+}
+
+.site h1,
+.site h2,
+.site h3 {
+  font-stretch: 87.5%;
+  font-weight: 650;
+  text-wrap: balance;
+}
+.site h1 { letter-spacing: -0.03em; line-height: 1.02; }
+.site h2 { letter-spacing: -0.025em; line-height: 1.06; }
+.site h3 { letter-spacing: -0.015em; line-height: 1.2; }
+.site p { text-wrap: pretty; }
+.site code,
+.site .cmd { font-family: var(--font-jetbrains), ui-monospace, monospace; font-feature-settings: normal; }
+
+.site ::selection { background: oklch(0.8 0.11 238 / 0.35); color: var(--text); }
+.site .lit ::selection { background: oklch(0.8 0.11 238 / 0.3); color: var(--page-ink); }
+.site :focus-visible { outline: 2px solid var(--tape-alice); outline-offset: 3px; border-radius: 5px; }
+.site .lit :focus-visible { outline-color: var(--page-ink); }
+.site a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.site * { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; caret-color: var(--tape-alice); }
+
+/* The lit page: the one light-lifted surface per screen. */
+.site .lit {
+  background: var(--page);
+  color: var(--page-ink);
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.6) inset,
+    0 18px 40px -12px oklch(0.08 0.04 264 / 0.7),
+    0 2px 6px oklch(0.08 0.04 264 / 0.35);
+}
+.site .pill {
+  background: var(--pill);
+  box-shadow: 0 14px 34px -10px oklch(0.05 0.03 264 / 0.8), 0 2px 6px oklch(0.05 0.03 264 / 0.5);
+}
+.site .keycap {
+  background: oklch(1 0 0 / 0.08);
+  box-shadow: inset 0 -1px 0 oklch(1 0 0 / 0.08), 0 0 0 1px oklch(1 0 0 / 0.14);
+  border-radius: 5px;
+}
+.site .keycap.down { background: oklch(1 0 0 / 0.2); transform: translateY(1px); }
+
+/* Lamps: hollow ring while working, filled when waiting / done / stuck. */
+.site .lamp { width: 10px; height: 10px; border-radius: 999px; flex: none; transition: background 300ms var(--ease-out), box-shadow 300ms var(--ease-out); }
+.site .lamp.working { box-shadow: inset 0 0 0 2px var(--faint); }
+.site .lamp.standby { background: var(--standby); }
+.site .lamp.done { background: var(--done); }
+.site .lamp.stuck { background: var(--stuck); }
+
+.site .btn-go {
+  display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; border-radius: 10px;
+  background: var(--page); color: var(--page-ink); font-weight: 600; text-decoration: none;
+  transition: background 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+.site .btn-go:hover { background: oklch(0.94 0.012 264); }
+.site .btn-go:active { transform: translateY(1px); }
+.site .btn-quiet {
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px;
+  color: var(--text); font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1px var(--rule);
+  transition: background 200ms var(--ease-out);
+}
+.site .btn-quiet:hover { background: var(--wings-raise); }
+.site .btn-quiet[aria-disabled="true"] { color: var(--faint); pointer-events: none; }
+
+/* The stage's typing caret and waveform. */
+.site .caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 1px; vertical-align: -0.15em; background: var(--page-ink); animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+.site .wave i { display: block; width: 3px; border-radius: 2px; background: var(--text); height: 4px; transition: height 120ms var(--ease-out); }
+
+.site details > summary { cursor: pointer; list-style: none; }
+.site details > summary::-webkit-details-marker { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .site *, .site *::before, .site *::after { animation: none !important; transition: none !important; }
+}
