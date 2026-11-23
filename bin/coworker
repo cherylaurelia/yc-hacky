@@ -7,6 +7,10 @@
 #   coworker hook claude|codex|cursor                         what each agent runs on its hook events (JSON on stdin)
 #   coworker install|uninstall claude|codex|cursor            wires those hooks into the agent's config, or removes them
 #   coworker doctor                                           what works and what is missing; exit 1 if nothing can reach you
+#   coworker run "<task>" [--agent claude|codex] [--repo owner/name] [--dir <checkout>] [--detach]
+#                                                             an agent does the task in a new worktree, pushes a branch, opens a PR
+#   coworker runs                                             JSON array of those runs, newest first
+#   coworker stop <id>                                        stops a running run, its agent included
 #
 # Transport: the local relay (<COWORKER_HOME>/relay.json, default ~/.coworker) when its /v1/health answers, else the
 # team board on GitHub through gh. The board side of hooks (approvals, stuck detection, stop by reply) is
@@ -14,6 +18,8 @@
 # A hook never fails the agent: with no answer it prints nothing (Cursor: "ask") and the agent asks in its terminal.
 # Env: COWORKER_HOME, COWORKER_NAME (first name in the label; default git user.name), COWORKER_TIMEOUT (seconds to
 #      wait for a reply, default 90), COWORKER_BOARD, COWORKER_REPO, COWORKER_APPROVERS (as in hooks/coworker-hook.sh)
+#      run: COWORKER_RUN_TIMEOUT (seconds the agent may take, default 1800), COWORKER_RUN_BUDGET_USD (claude, default 5),
+#      COWORKER_RUN_TOOLS (tools claude may use unprompted). A run lives in <COWORKER_HOME>/runs/<id>/ (status.json, run.log).
 
 # shellcheck disable=SC2016  # the jq programs sit in single quotes on purpose
 set -u
@@ -345,6 +351,175 @@ cmd_doctor() {
   [ $((up + gh)) -gt 0 ]
 }
 
+# ---------- runs ----------
+
+# A run is a coding agent doing a task in a worktree of its own: <COWORKER_HOME>/runs/<id>/{status.json,run.log,worktree}.
+# `run` writes the status and starts the job (`_run`) in a process group of its own, so `stop` ends the agent with it.
+HEX='^[0-9a-f]{6}$'
+RUN_TIMEOUT="${COWORKER_RUN_TIMEOUT:-1800}"; RUN_BUDGET="${COWORKER_RUN_BUDGET_USD:-5}"
+
+# Rewrites status.json through jq, tmp + mv so a reader never sees half a file: status_set JQ_ARGS... FILTER
+status_set() { jq -c "$@" "$STATUS" >"$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"; }
+
+# Ends the run in status.json unless it already ended (a stop wins): settle STATE NOTE [PR]
+settle() {
+  status_set --arg s "$1" --arg n "$2" --arg pr "${3:-}" 'if .state == "running"
+    then .state = $s | .note = $n | .finished = now | del(.pid) | if $pr != "" then .pr = $pr else . end else . end'
+}
+
+say() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >>"$LOG"; }
+
+# Sets ID and creates its directory: 6 hex characters, retried on a clash.
+new_run() {
+  mkdir -p "$RELAY_DIR/runs" || die "cannot create $RELAY_DIR/runs"
+  for _ in 1 2 3 4 5; do
+    ID="$(head -c3 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    mkdir "$RELAY_DIR/runs/$ID" 2>/dev/null && return 0
+  done
+  die "cannot create a run directory in $RELAY_DIR/runs"
+}
+
+cmd_run() { # TASK [--agent claude|codex] [--repo owner/name] [--dir CHECKOUT] [--detach]
+  local task="" agent=claude repo="" dir="" detach=0 top t slug pid
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --detach) detach=1; shift ;;
+      --) shift; task="${task:+$task }$*"; break ;;   # the rest is the task, even if it starts with "-" (the Mac app passes it this way)
+      --agent|--repo|--dir)
+        [ $# -ge 2 ] || die "$1 needs a value"
+        case "$1" in --agent) agent="$2" ;; --repo) repo="$2" ;; *) dir="$2" ;; esac; shift 2 ;;
+      -*) die "unknown option $1" ;;
+      *) task="${task:+$task }$1"; shift ;;
+    esac
+  done
+  [[ "$task" =~ [^[:space:]] ]] || die 'usage: coworker run "<task>" [--agent claude|codex] [--repo owner/name] [--dir <checkout>] [--detach]'
+  case "$agent" in claude|codex) ;; *) die "--agent is claude or codex" ;; esac
+  for t in git gh perl "$agent"; do command -v "$t" >/dev/null || die "needs $t"; done
+  [[ "$RUN_TIMEOUT" =~ $NUM ]] || die "COWORKER_RUN_TIMEOUT takes seconds"
+  [[ "$RUN_BUDGET" =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "COWORKER_RUN_BUDGET_USD takes a number"
+  if [ -n "$dir" ]; then
+    top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || die "$dir is not a git checkout"
+    dir="$top"
+  fi
+  [ -n "$repo" ] || repo="$(repo_of "${dir:-$PWD}")"
+  [[ "$repo" =~ $REPO_RE ]] || die "which repo? pass --repo owner/name"
+  case "/$repo/" in */./*|*/../*) die "bad repo $repo" ;; esac
+
+  new_run
+  STATUS="$RELAY_DIR/runs/$ID/status.json"; LOG="$RELAY_DIR/runs/$ID/run.log"
+  slug="$(printf '%s' "$task" | head -n 1 | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C tr -cs 'a-z0-9' '-' | cut -c1-30 | sed 's/^-*//; s/-*$//')"
+  jq -nc --arg id "$ID" --arg task "$task" --arg agent "$agent" --arg repo "$repo" --arg branch "coworker/$ID-${slug:-task}" --arg log "$LOG" \
+    '{id: $id, task: $task, agent: $agent, repo: $repo, branch: $branch, state: "running", log: $log, started: now}' >"$STATUS.tmp" \
+    || die "cannot write $STATUS"
+  mv "$STATUS.tmp" "$STATUS" || die "cannot write $STATUS"
+
+  set -m   # the job leads a process group of its own: its pid is the group id
+  "$ME" _run "$ID" "${dir:-$RELAY_DIR/repos/$repo}" </dev/null >>"$LOG" 2>&1 &
+  pid=$!
+  set +m
+  echo "$ID"
+  [ "$detach" = 0 ] || return 0
+  trap 'cmd_stop "$ID" >/dev/null; exit 130' INT TERM
+  wait "$pid"
+  settle failed "the run ended without a result; see $LOG"
+  jq -r '.note // .state' "$STATUS"
+  [ "$(jq -r .state "$STATUS")" = "done" ]
+}
+
+# The run itself: check out, run the agent, turn what it did into a PR, say so.
+cmd_job() { # ID CHECKOUT
+  local task agent repo base tool st n pr rc why
+  local -a argv
+  ID="${1:-}"; CHECKOUT="${2:-}"
+  [[ "$ID" =~ $HEX ]] && [ -f "$RELAY_DIR/runs/$ID/status.json" ] || die "no run ${ID:-}"
+  STATUS="$RELAY_DIR/runs/$ID/status.json"; LOG="$RELAY_DIR/runs/$ID/run.log"; WT="$RELAY_DIR/runs/$ID/worktree"
+  trap '' HUP
+  APID=""   # the agent's process group; a stop ends it with the job
+  trap '[ -z "$APID" ] || kill -TERM -- "-$APID" 2>/dev/null; exit 143' TERM INT
+  trap job_cleanup EXIT
+  status_set --argjson pid "$$" '.pid = $pid'
+  task="$(jq -r .task "$STATUS")"
+  read -r agent repo BRANCH <<<"$(jq -r '"\(.agent) \(.repo) \(.branch)"' "$STATUS")"
+  TITLE="$(printf '%s' "$task" | tr '\n' ' ' | cut -c1-72)"
+  case "$agent" in claude) LABEL=Claude ;; *) LABEL=Codex ;; esac
+  LABEL="$(name_of "$CHECKOUT")'s $LABEL"
+
+  if [ ! -e "$CHECKOUT/.git" ]; then   # `run` checked --dir; with none, the repo is cloned once
+    { mkdir -p "$(dirname "$CHECKOUT")" && gh repo clone "$repo" "$CHECKOUT" >>"$LOG" 2>&1; } || job_fail "could not clone $repo"
+  fi
+  git -C "$CHECKOUT" fetch -q origin >>"$LOG" 2>&1 || job_fail "could not fetch origin"
+  base="$(git -C "$CHECKOUT" symbolic-ref -q --short refs/remotes/origin/HEAD)"; base="${base#origin/}"; base="${base:-main}"
+  git -C "$CHECKOUT" worktree add -q --no-track -b "$BRANCH" "$WT" "origin/$base" >>"$LOG" 2>&1 || job_fail "could not create a worktree from origin/$base"
+
+  # The task is one argv element, never a shell string. perl's alarm is the timeout: macOS has no `timeout`.
+  tool="${COWORKER_RUN_TOOLS:-Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(npm run build:*),Bash(npm run lint:*),Bash(npm test:*)}"
+  case "$agent" in
+    claude) argv=(claude -p "$task" --permission-mode acceptEdits --max-budget-usd "$RUN_BUDGET" --no-session-persistence --allowedTools "$tool"
+              --append-system-prompt "You run unattended in a throwaway git worktree. Make the change and leave it uncommitted: Coworker commits, pushes and opens the PR.") ;;
+    *) argv=(codex exec --full-auto "$task") ;;
+  esac
+  say "$agent starts in $WT (at most ${RUN_TIMEOUT}s)"
+  set -m   # a group of its own, so a timeout or a stop reaches everything the agent started
+  (cd "$WT" && exec perl -e 'alarm shift; exec @ARGV' "$RUN_TIMEOUT" "${argv[@]}") </dev/null >>"$LOG" 2>&1 &
+  APID=$!
+  set +m
+  wait "$APID"
+  rc=$?
+  kill -TERM -- "-$APID" 2>/dev/null   # whatever it left running
+  say "$agent exited $rc"
+  if [ "$rc" -ne 0 ]; then
+    case "$rc" in 142) why="timed out after ${RUN_TIMEOUT}s" ;; *) why="$agent exited $rc" ;; esac
+    job_fail "$why"
+  fi
+
+  st="$(git -C "$WT" status --porcelain)" || job_fail "git could not read the worktree"
+  n="$(git -C "$WT" rev-list --count "origin/$base..HEAD")" || job_fail "git could not read the worktree"
+  if [ -z "$st" ] && [ "$n" = 0 ]; then job_finish "done" "Run $ID finished with no changes: $TITLE"; exit 0; fi
+  if [ -n "$st" ]; then
+    { git -C "$WT" add -A && git -C "$WT" commit -q -m "$TITLE" -m "Coworker run $ID" >>"$LOG" 2>&1; } || job_fail "could not commit the changes"
+  fi
+  git -C "$WT" push -q origin "$BRANCH" >>"$LOG" 2>&1 || job_fail "could not push $BRANCH"
+  pr="$(gh pr create --repo "$repo" --head "$BRANCH" --base "$base" --title "$TITLE" --body "$task"$'\n\n'"Made by Coworker run $ID." 2>>"$LOG")" \
+    || job_fail "pushed $BRANCH but gh pr create failed"
+  pr="${pr##*$'\n'}"
+  [[ "$pr" == https://* ]] || job_fail "pushed $BRANCH but gh pr create printed no URL"
+  job_finish "done" "PR ready for \"$TITLE\": $pr (run $ID)" "$pr"
+  exit 0
+}
+
+# job_finish STATE TEXT [PR]: record the end, then tell the user over the relay or the board (a failure is "blocked").
+# Nobody to tell is not an error.
+job_finish() {
+  local kind="done"; [ "$1" != failed ] || kind=blocked
+  settle "$1" "$2" "${3:-}"; say "$1: $2"
+  IN='{}'; CWD="$CHECKOUT"; AGENT="$LABEL"
+  { connect && send "$kind" "$2"; } || say "could not tell anyone: no relay and no board"
+}
+job_fail() { job_finish failed "Run $ID failed ($1): $TITLE"; exit 1; }
+# the worktree registration goes; the branch and the log stay
+job_cleanup() {
+  [ -d "$WT" ] || return 0
+  git -C "$CHECKOUT" worktree remove --force "$WT" >>"$LOG" 2>&1 || { rm -rf "$WT"; git -C "$CHECKOUT" worktree prune >>"$LOG" 2>&1; }
+}
+
+cmd_runs() { cat "$RELAY_DIR"/runs/*/status.json 2>/dev/null | jq -s 'sort_by(.started) | reverse'; }
+
+cmd_stop() { # ID
+  local id="${1:-}" pid
+  [[ "$id" =~ $HEX ]] && [ -f "$RELAY_DIR/runs/$id/status.json" ] || die "no run \"$id\" (usage: coworker stop <id>; ids are in: coworker runs)"
+  STATUS="$RELAY_DIR/runs/$id/status.json"
+  [ "$(jq -r .state "$STATUS")" = running ] || { echo "run $id is not running"; return 0; }
+  for _ in $(seq 50); do   # the job records its pid as it starts
+    pid="$(jq -r '.pid // empty' "$STATUS")"; [ -z "$pid" ] || break; sleep 0.1
+  done
+  [ -n "$pid" ] || die "run $id has no process yet; try again"
+  settle stopped "stopped"   # before the kill, so the job's own ending cannot overwrite it
+  kill -TERM -- "-$pid" 2>/dev/null
+  for _ in $(seq 50); do kill -0 -- "-$pid" 2>/dev/null || break; sleep 0.1; done
+  kill -KILL -- "-$pid" 2>/dev/null
+  echo "stopped run $id"
+}
+
 # ---------- main ----------
 
 cmd="${1:-help}"; [ $# -eq 0 ] || shift
@@ -358,6 +533,10 @@ case "$cmd" in
   hook) cmd_hook "$@"; exit 0 ;;
   install|uninstall) cmd_install "$cmd" "$@" ;;
   doctor) cmd_doctor ;;
+  run) cmd_run "$@" ;;
+  _run) cmd_job "$@" ;;
+  runs) cmd_runs ;;
+  stop) cmd_stop "$@" ;;
   help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown command $cmd (try: coworker help)" ;;
 esac
