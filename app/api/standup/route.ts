@@ -2,6 +2,7 @@ import { resolveToken } from "@/lib/auth";
 import { GhError } from "@/lib/github";
 import { boardPosts } from "@/lib/board-read";
 import { ElevenError, TTS_MODEL, elevenAudio } from "@/lib/eleven";
+import { licenseGate } from "@/lib/license";
 import { rateLimit } from "@/lib/ratelimit";
 import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
@@ -20,6 +21,8 @@ const fail = (status: number, error: string) => Response.json({ error }, { statu
 export async function GET(req: Request) {
   const limited = rateLimit(req, "standup");
   if (limited) return limited;
+  const unlicensed = await licenseGate(req);
+  if (unlicensed) return unlicensed;
   const q = new URL(req.url).searchParams;
   const parsed = parseRepo(q.get("repo"));
   if (!parsed.ok) return fail(400, parsed.error);

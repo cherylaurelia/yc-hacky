@@ -1,4 +1,5 @@
 import agent from "@/agent.json";
+import { licenseGate } from "@/lib/license";
 import { rateLimit } from "@/lib/ratelimit";
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
@@ -11,6 +12,8 @@ const BASE = process.env.ELEVENLABS_API_BASE || "https://api.elevenlabs.io";
 export async function GET(req: Request) {
   const limited = rateLimit(req, "convai");
   if (limited) return limited;
+  const unlicensed = await licenseGate(req);
+  if (unlicensed) return unlicensed;
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key || !agent.agent_id) return fail(503, "The voice agent is not set up on the server.");
 

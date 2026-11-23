@@ -3,6 +3,7 @@
 import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
 import AgentLog from "@/components/AgentLog";
+import LicensePrompt from "@/components/LicensePrompt";
 import AccountControl, { type Account, useAccount } from "@/components/AccountControl";
 import RepoPicker, { RepoChip } from "@/components/RepoPicker";
 import TextChat from "@/components/TextChat";
@@ -42,7 +43,7 @@ export default function Coworker({ initialRepo, board, embed }: { initialRepo: s
 // Presentation only: every piece of state and every action comes from useCoworker().
 function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: number; embed: boolean }) {
   const {
-    status: { phase, sub, hint, mic, live, textOnly, canType, error, board: boardState, madeBoard, gesture },
+    status: { phase, sub, hint, mic, live, textOnly, canType, error, licenseError, board: boardState, madeBoard, gesture },
     transcript: msgs,
     agents,
     open,
@@ -52,7 +53,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
     settings: { interruptions, voiceId, voices, queued, offered },
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setRepo, setFocus, answer, dismiss, createBoard, setInterruptions, setVoice, readQueued, holdQueued },
+    actions: { start, press, send, setRepo, setFocus, answer, dismiss, licensed, createBoard, setInterruptions, setVoice, readQueued, holdQueued },
   } = useCoworker({ initialRepo, board, embed });
 
   const account = useAccount();
@@ -204,6 +205,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
             </div>
           )}
 
+          {licenseError && <LicensePrompt message={licenseError} onActivated={licensed} />}
           {error && (
             <p role="alert" className="max-w-md text-balance text-center text-[13px] text-stop">
               {error}

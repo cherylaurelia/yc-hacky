@@ -1,4 +1,5 @@
 import { sameOrigin, sessionFrom } from "@/lib/auth";
+import { licenseGate } from "@/lib/license";
 import { rateLimit } from "@/lib/ratelimit";
 import { scribeTokenRequest } from "@/lib/scribe-token";
 
@@ -11,6 +12,8 @@ export async function POST(req: Request) {
   if (!session) return fail(401, "Sign in with GitHub to dictate.");
   const limited = rateLimit(req, "scribe", session.login);  // per user, so one account can't spend everyone's credits from many IPs
   if (limited) return limited;
+  const unlicensed = await licenseGate(req);
+  if (unlicensed) return unlicensed;
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) return fail(503, "Dictation is not set up on the server.");
 

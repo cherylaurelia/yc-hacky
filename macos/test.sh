@@ -8,3 +8,5 @@ swiftc -parse-as-library -swift-version 5 Coworker/Ptt.swift test/ptt-logic-test
 "$out/ptt-logic-test"
 swiftc -parse-as-library -swift-version 5 Coworker/Pill.swift test/pill-logic-test.swift -o "$out/pill-logic-test"
 "$out/pill-logic-test"
+swiftc -parse-as-library -swift-version 5 Coworker/License.swift test/license-logic-test.swift -o "$out/license-logic-test"
+"$out/license-logic-test"

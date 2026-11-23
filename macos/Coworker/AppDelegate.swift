@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let inserter = TextInserter()
     private let settingsWindow = SettingsWindow()
     private let onboardingWindow = OnboardingWindow()
+    private let license = LicenseManager()
     private let relayToken = RelayServer.makeToken()
     private lazy var relay = RelayServer(token: relayToken)
     private var scribe: ScribeClient?
@@ -67,7 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // A hidden panel must keep speaking: no App Nap.
         activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Voice coworker session")
 
-        panel = CoworkerPanel(url: configuredURL)
+        panel = CoworkerPanel(url: configuredURL, license: license.key)
+        license.onKeyChange = { [weak self] in self?.panel.setLicense($0) }
+        settingsWindow.license = license
+        Task { await license.validateOnLaunch() }
         panel.onPageMessage = { [weak self] in self?.apply(.page($0)) }
         panel.onVisibilityChange = { [weak self] in self?.apply(.panelOpen($0)) }
         pillWindow.onClick = { [weak self] in self?.panel.setVisible(true) }
