@@ -9,7 +9,7 @@ import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswe
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
-import { type Run, agentMessage, askApp, boardTask, hasApp, spokenRuns } from "@/lib/agents-bridge";
+import { boardTask } from "@/lib/agents-bridge";
 import { type Said, confirmed } from "@/lib/confirm";
 import { alertFromRelay, isRelayEvent, relayAnswerText, sendToApp } from "@/lib/relay-bridge";
 import { parseRepo, rememberRecent } from "@/lib/repo";
@@ -188,16 +188,11 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const clientTools = useMemo(() => {
     const strArg = (v: unknown) => (typeof v === "string" ? v : undefined);
     const local: Record<LocalToolName, (a: Record<string, unknown>) => string | Promise<string>> = {
-      // Agents run on this Mac through the app (`coworker run`); without the app, the task goes to the board.
+      // The task goes to the team board as a TASK post; a board worker turns it into a pull request.
       async start_agent(a) {
         const task = strArg(a.task)?.trim();
         if (!task) throw new Error("I need the task.");
         const agent = strArg(a.agent) === "codex" ? "codex" : "claude";
-        if (hasApp()) {
-          const r = await askApp<{ id?: string; error?: string }>(agentMessage("start", { task, agent, repo: repoRef.current }));
-          if (!r?.id) throw new Error(r?.error ?? "The app could not start the agent.");
-          return `Started ${agent === "codex" ? "Codex" : "Claude Code"} on it. It opens a pull request when it's done.`;
-        }
         const me = (await fetch("/api/me").then((r) => r.json()).catch(() => ({}))) as { user?: { login: string; name?: string | null } | null };
         const owner = me.user?.name?.split(" ")[0] || me.user?.login;
         if (!owner) throw new Error("Sign in with GitHub to hand tasks to the board.");
@@ -208,17 +203,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
         });
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) throw new Error(j.error ?? `Could not post the task (HTTP ${res.status}).`);
-        return "The Mac app isn't connected, so I put the task on the board for a board worker.";
-      },
-      async list_agents() {
-        const runs = await askApp<Run[] | { error?: string }>(agentMessage("list"));
-        if (!Array.isArray(runs)) throw new Error(runs?.error ?? "I couldn't read the agent list.");
-        return spokenRuns(runs);
-      },
-      async stop_agent(a) {
-        const r = await askApp<{ ok?: boolean; error?: string }>(agentMessage("stop", { id: strArg(a.id) }));
-        if (!r?.ok) throw new Error(r?.error ?? "I could not stop that agent.");
-        return "Stopped it.";
+        return "Put it on the board; a board worker will pick it up and open a pull request.";
       },
       show_me(a) {
         const r = findAlert(alertsRef.current, strArg(a.agent), strArg(a.req));

@@ -256,7 +256,7 @@ export const TOOL_SPECS = [
   {
     name: "start_agent",
     description:
-      "Start a coding agent (Claude Code or Codex) on a task. It works in its own worktree on this Mac, can ask the user questions while it runs, and opens a pull request when done. Without the Mac app the task goes to the team board for a board worker. First say the task back in a few words and get an explicit yes. Afterwards say it started; never read the run id aloud.",
+      "Hand a coding task to an agent: it is posted on the team board, where a board worker runs Claude Code on it and opens a pull request. First say the task back in a few words and get an explicit yes. Afterwards say it is on the board; progress shows up on the board (board_digest).",
     write: false,
     local: true,
     parameters: {
@@ -266,24 +266,6 @@ export const TOOL_SPECS = [
         task: { type: "string", description: "What to build or fix, in the user's words, specific enough to act on." },
         agent: { type: "string", enum: ["claude", "codex"], description: "Which agent. Optional, defaults to claude." },
       },
-    },
-  },
-  {
-    name: "list_agents",
-    description: "List the coding agents started from here: what each is doing, running, done (with its pull request number) or failed. Use for 'how are my agents doing' or 'is it done'.",
-    write: false,
-    local: true,
-    parameters: { type: "object", properties: {} },
-  },
-  {
-    name: "stop_agent",
-    description: "Stop a running coding agent started from here. Call list_agents first to get its id. First ask 'Stop the agent working on <task>?' and wait for a yes.",
-    write: false,
-    local: true,
-    parameters: {
-      type: "object",
-      required: ["id"],
-      properties: { id: { type: "string", description: "The run id from list_agents." } },
     },
   },
   {
