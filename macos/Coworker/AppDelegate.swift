@@ -37,6 +37,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var accessItem = item("Grant keyboard access...", #selector(grantAccess))
     private lazy var simulateItem = item("Simulate talk key hold (1s)", #selector(simulate))
     private lazy var simulateAlertItem = item("Simulate alert", #selector(simulateAlert))
+    private lazy var updateItem: NSMenuItem = {
+        let i = item("", #selector(openDownload))
+        i.isHidden = true  // shown once the site publishes a newer version
+        return i
+    }()
+    private let updates = UpdateChecker()
     private lazy var versionItem: NSMenuItem = {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let i = NSMenuItem(title: "Version \(version)", action: nil, keyEquivalent: "")
@@ -66,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         // A hidden panel must keep speaking: no App Nap.
-        activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Voice coworker session")
+        activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Terminal 1 voice session")
 
         panel = CoworkerPanel(url: configuredURL, license: license.key)
         license.onKeyChange = { [weak self] in self?.panel.setLicense($0) }
@@ -134,6 +140,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if after > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.simulate() } }
         let alertAfter = UserDefaults.standard.double(forKey: "simulateAlertAfter")  // -simulateAlertAfter 5
         if alertAfter > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + alertAfter) { [weak self] in self?.simulateAlert() } }
+
+        menu.insertItem(updateItem, at: menu.index(of: versionItem) + 1)
+        updates.onUpdate = { [weak self] version in
+            self?.updateItem.title = "Update available: \(version)\u{2026}"
+            self?.updateItem.isHidden = false
+            NSLog("Coworker: update available: \(version)")
+        }
+        updates.start { [weak self] in self?.configuredURL ?? AppConfig.defaultPage }
     }
 
     func applicationWillTerminate(_ note: Notification) {
@@ -255,6 +269,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openSettings() { settingsWindow.show() }
     @objc private func togglePanel() { panel.setVisible(!panel.isVisible) }
     @objc private func reload() { panel.load() }
+    @objc private func openDownload() {
+        guard let url = UpdateCheck.endpoint("/download", page: configuredURL), NSWorkspace.shared.open(url) else {
+            NSLog("Coworker: could not open the download page for \(configuredURL)")
+            return
+        }
+    }
     @objc private func simulate() {
         let seconds = UserDefaults.standard.double(forKey: "simulateSeconds")
         ptt.simulateHold(seconds: seconds > 0 ? seconds : 1)

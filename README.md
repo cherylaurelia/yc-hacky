@@ -103,7 +103,7 @@ You need Node 22.18 or newer and a microphone. A browser on `localhost` can use 
    npm run dev
    ```
 
-4. Open `http://localhost:3000/?repo=owner/name`. Add `&board=N` to use a board issue other than the default. Hold Space and talk.
+4. Open `http://localhost:3000/app?repo=owner/name`. Add `&board=N` to use a board issue other than the default. Hold Space and talk.
 
 The page starts its session with the agent id in `agent.json`. To create your own ElevenLabs agent and its 12 client tools, set `agent_id` to `""` in `agent.json`, export `ELEVENLABS_API_KEY`, and run `npm run sync-agent`. The script writes the new ids back to `agent.json`. Run it again on an existing agent after pulling a change to the override list, because the Coworker voice picker needs the agent to allow a per-session voice.
 
@@ -124,12 +124,14 @@ The agent runs with `acceptEdits`, a short list of allowed commands, a $3 budget
 
 The menu-bar app puts Terminal 1 in a floating panel and lets you hold a key from any app.
 
+To install, open `Terminal-1.dmg` from the latest GitHub release and drag Terminal 1 to Applications. A build that is not notarized opens through right-click, Open, Open. To build and run it yourself:
+
 ```
 macos/build.sh
-open macos/build/Coworker.app
+open "macos/build/Terminal 1.app"
 ```
 
-The build uses `swiftc` from the Command Line Tools and needs macOS 13.3 or newer. The panel loads the hosted page; use **Set URL...** in the menu to point it at another deployment, for example `http://localhost:3000/?repo=owner/name&embed=1` from `npm run dev`.
+The build uses `swiftc` from the Command Line Tools and needs macOS 13.3 or newer. It writes `Terminal 1.app`, `Terminal-1.zip` and `Terminal-1.dmg` in `macos/build/`. The panel loads the hosted page at `/app`; use **Set URL...** in the menu to point it at another deployment, for example `http://localhost:3000/app?repo=owner/name&embed=1` from `npm run dev`. The menu shows "Update available" when a newer release is published. [macos/README.md](macos/README.md) covers signing, notarizing and `scripts/release.sh`.
 
 - The talk key is fn, or Right Option when Wispr Flow is installed. Change it in the **Talk key** menu. Right Command and Right Control are also available.
 - A tap shorter than 150 ms, or a key combination, cancels the turn.

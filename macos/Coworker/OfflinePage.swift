@@ -7,7 +7,7 @@ enum OfflinePage {
         """
         <!doctype html><meta name="color-scheme" content="light dark">
         <body style="font:14px -apple-system;padding:24px;line-height:1.5">
-        <b>Can't reach the coworker</b>
+        <b>Can't reach Terminal 1</b>
         <p style="color:gray">\(escape(reason))</p>
         <p><a href="\(escape(url.absoluteString))" style="display:inline-block;padding:6px 14px;border-radius:6px;background:#0a84ff;color:white;text-decoration:none">Retry</a></p>
         <p style="color:gray;font-size:12px">\(escape(url.absoluteString))<br>Retrying every few seconds. To use another address, pick Set URL... in the menu bar.</p>

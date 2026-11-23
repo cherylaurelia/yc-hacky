@@ -18,7 +18,7 @@ Script for the live demo. "You" is the presenter. "Terminal 1" is the voice agen
 
 ## Before you go on
 
-1. Pick one board issue, here called N. Open the page at `http://localhost:3000/?repo=cherylaurelia/yc-hacky&board=N`. Start the Claude Code terminals with `COWORKER_BOARD=N`. Start the worker with `BOARD_ISSUE=N`.
+1. Pick one board issue, here called N. Open the page at `http://localhost:3000/app?repo=cherylaurelia/yc-hacky&board=N`. Start the Claude Code terminals with `COWORKER_BOARD=N`. Start the worker with `BOARD_ISSUE=N`.
 2. `GITHUB_TOKEN` must belong to the same GitHub account as the `gh` login on the machine that runs the hooks. If it does not, set `COWORKER_APPROVERS` to the token's account. Otherwise the hook ignores your spoken answer.
 3. `WRITE_REPOS` must include `cherylaurelia/yc-hacky`. Without it, "allow" fails with a 403.
 4. Run `scripts/board-worker.sh --baseline`, then `scripts/board-worker.sh`. The baseline stops old test tasks from running on stage.

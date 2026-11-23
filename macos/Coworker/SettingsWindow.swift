@@ -13,7 +13,7 @@ final class SettingsWindow: NSObject {
     private let language = NSPopUpButton()
     private let alerts = NSButton(checkboxWithTitle: "Notify me when an agent needs me", target: nil, action: nil)
     private let sound = NSButton(checkboxWithTitle: "Play a sound with agent alerts", target: nil, action: nil)
-    private let login = NSButton(checkboxWithTitle: "Open Coworker at login", target: nil, action: nil)
+    private let login = NSButton(checkboxWithTitle: "Open Terminal 1 at login", target: nil, action: nil)
     private let licenseKey = NSTextField()
     private let activateButton = NSButton(title: "Activate", target: nil, action: nil)
     private let deactivateButton = NSButton(title: "Deactivate", target: nil, action: nil)
@@ -116,7 +116,7 @@ final class SettingsWindow: NSObject {
             grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 24), grid.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -24),
         ])
         let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "Coworker Settings"
+        w.title = "Terminal 1 Settings"
         w.isReleasedWhenClosed = false
         w.contentView = content
         w.setContentSize(content.fittingSize)

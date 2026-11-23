@@ -20,7 +20,7 @@ The Coworker app polls the board every 15 s, so each alert is spoken up to 15 s 
    demo/run.sh --auto-approve        # board 4, answers the approval itself, prints every post with its time
    demo/reset.sh                     # kills tmux, deletes the scratch repos and the demo's comments, lists them
    ```
-3. Start the app: `npm run dev`, open `http://localhost:3000/?repo=cherylaurelia/yc-hacky&board=1`. Click start, check the mic meter moves. Mac app: hold Right Option (or the key you configured) instead of Space.
+3. Start the app: `npm run dev`, open `http://localhost:3000/app?repo=cherylaurelia/yc-hacky&board=1`. Click start, check the mic meter moves. Mac app: hold Right Option (or the key you configured) instead of Space.
 4. Voice to PR: `scripts/board-worker.sh --baseline`, then in its own terminal `BOARD_ISSUE=1 scripts/board-worker.sh`. (Rehearse with `BOARD_ISSUE=4 WORKER_PR_PREFIX='[demo] '`.)
 5. Standup fallback, recorded while the dev server is up and the board has posts (after a rehearsal run, before reset):
    ```

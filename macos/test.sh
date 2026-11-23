@@ -10,3 +10,5 @@ swiftc -parse-as-library -swift-version 5 Coworker/Pill.swift test/pill-logic-te
 "$out/pill-logic-test"
 swiftc -parse-as-library -swift-version 5 Coworker/License.swift test/license-logic-test.swift -o "$out/license-logic-test"
 "$out/license-logic-test"
+swiftc -parse-as-library -swift-version 5 Coworker/Update.swift test/update-logic-test.swift -o "$out/update-logic-test"
+"$out/update-logic-test"

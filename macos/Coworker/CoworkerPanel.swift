@@ -33,7 +33,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         webView.uiDelegate = self
         webView.navigationDelegate = self
         webView.isInspectable = true
-        panel.title = "Coworker"
+        panel.title = "Terminal 1"
         panel.contentView = webView
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false

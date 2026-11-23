@@ -12,6 +12,13 @@ export function DownloadIcon() {
 
 export function DownloadButton({ label = "Download for Mac" }: { label?: string }) {
   const r = latestRelease();
+  if (!r.url) {
+    return (
+      <span className="btn-quiet" aria-disabled="true">
+        Mac download coming soon
+      </span>
+    );
+  }
   return (
     <a href={r.url} className="btn-go" download>
       <DownloadIcon />

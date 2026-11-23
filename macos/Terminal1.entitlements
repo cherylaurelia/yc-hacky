@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Hardened runtime blocks the microphone unless this is set: hold-to-talk, dictation and the level meter. -->
+  <key>com.apple.security.device.audio-input</key><true/>
+  <!-- The app is not sandboxed (it needs the global talk key, paste into other apps and ~/.coworker), so these two do not
+       restrict anything today. They state what it does: the page and Scribe go out, the agent relay listens on 127.0.0.1.
+       WKWebView runs in Apple's own WebContent process, so the app needs no JIT or unsigned-memory entitlement. -->
+  <key>com.apple.security.network.client</key><true/>
+  <key>com.apple.security.network.server</key><true/>
+</dict>
+</plist>

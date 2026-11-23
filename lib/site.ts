@@ -5,16 +5,17 @@ import { join } from "node:path";
 type Release = { latest?: string | null; url?: string; sha256?: string; minimumSystemVersion?: string };
 
 // scripts/release.sh writes public/releases.json; NEXT_PUBLIC_DOWNLOAD_URL overrides it (e.g. a CDN).
+// url is "" until a release exists, so buttons can say so instead of linking to a missing file.
 export function latestRelease(): { version: string | null; url: string; minimumSystemVersion: string } {
   let r: Release = {};
   try {
     r = JSON.parse(readFileSync(join(process.cwd(), "public/releases.json"), "utf8")) as Release;
   } catch {
-    // No release published yet: the GitHub "latest release" link still works once one is.
+    // No releases.json: nothing published yet.
   }
   return {
     version: r.latest ?? null,
-    url: process.env.NEXT_PUBLIC_DOWNLOAD_URL || r.url || "https://github.com/cherylaurelia/yc-hacky/releases/latest/download/Terminal-1.dmg",
+    url: process.env.NEXT_PUBLIC_DOWNLOAD_URL || (r.latest ? r.url ?? "" : ""),
     minimumSystemVersion: r.minimumSystemVersion ?? "13.3",
   };
 }
