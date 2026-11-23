@@ -22,15 +22,37 @@ enum AgentRunner {
         return ["id": String(id)]
     }
 
-    /// The `runs` list, newest first: [{id, task, agent, state, pr?}].
+    /// The `runs` list, newest first: [{id, task, agent, state, pr?}], or {error} so the page never says "none" by mistake.
     static func list() async -> Any {
         let r = await run(shell("runs"))
         guard r.status == 0, let runs = try? JSONSerialization.jsonObject(with: Data(r.out.utf8)) as? [Any] else {
-            NSLog("Coworker: coworker runs failed: \(failure(r, "coworker runs"))")
-            return [Any]()
+            return ["error": failure(r, "coworker runs")]
         }
         return runs
     }
+
+    /// The interactive shell's PATH, printed between markers because rc files may print around it.
+    static func parsePath(_ output: String) -> String? {
+        let parts = output.components(separatedBy: "__CW_PATH__")
+        guard parts.count >= 3, !parts[1].isEmpty else { return nil }
+        return parts[1]
+    }
+
+    /// Read once: `zsh -l` skips ~/.zshrc, where tools like claude are often put on PATH, so ask an interactive shell.
+    private static let userPath: String? = {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.arguments = ["-ilc", "printf '__CW_PATH__%s__CW_PATH__' \"$PATH\""]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        p.standardInput = FileHandle.nullDevice
+        do { try p.run() } catch { return nil }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { if p.isRunning { p.terminate() } }  // an rc file that waits must not stall every run
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return parsePath(String(decoding: data, as: UTF8.self))
+    }()
 
     static func stop(id: String) async -> [String: Any] {
         guard id.range(of: "^[A-Za-z0-9_-]{1,64}$", options: .regularExpression) != nil else { return ["error": "That is not a run id."] }
@@ -49,6 +71,7 @@ enum AgentRunner {
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: args[0])
                 p.arguments = Array(args.dropFirst())
+                if let path = userPath { p.environment = ProcessInfo.processInfo.environment.merging(["PATH": path]) { $1 } }
                 let out = Pipe(), err = Pipe()
                 p.standardOutput = out
                 p.standardError = err

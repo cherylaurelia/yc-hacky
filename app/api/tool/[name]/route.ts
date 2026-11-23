@@ -5,7 +5,7 @@ import { rateLimit } from "@/lib/ratelimit";
 import { assertReadable } from "@/lib/repo-access";
 import { parseRepo } from "@/lib/repo";
 import { type Audit, audited, clipValues } from "@/lib/trace";
-import { HANDLERS, isToolName, isWriteTool, validateArgs } from "@/lib/tools";
+import { HANDLERS, isToolName, isWriteTool, needsSignIn, validateArgs } from "@/lib/tools";
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
 
@@ -31,6 +31,7 @@ async function handle(req: Request, name: string, audit: Audit) {
   const { token, session } = await resolveToken(req);
   const { decision, request_id: reqId } = checked.args;
   audit.set({ input: clipValues(checked.args), attrs: { repo: parsed.repo, user: session?.login, write: isWriteTool(name), decision: typeof decision === "string" ? decision : undefined, request_id: typeof reqId === "string" ? reqId : undefined } });
+  if (!session && needsSignIn(name)) return fail(401, "Sign in with GitHub first, so this happens as you.");
   if (session && isWriteTool(name) && !sameOrigin(req)) return fail(403, "Writes as you have to come from the Terminal 1 page.");
   if (isWriteTool(name)) {
     const slowDown = rateLimit(req, "write");

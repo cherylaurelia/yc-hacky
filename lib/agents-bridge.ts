@@ -22,7 +22,8 @@ export async function askApp<T>(msg: unknown): Promise<T> {
 }
 
 const agentName = (agent: string) => (agent === "codex" ? "Codex" : "Claude");
-export const boardTask = (owner: string, task: string, agent: string) => `TASK for ${owner}'s ${agentName(agent)}: ${task}`;
+// Board workers (scripts/board-worker.sh) run Claude Code, so a board task always goes to Claude.
+export const boardTask = (owner: string, task: string, agent: string) => `TASK for ${owner}'s Claude: ${task}${agent === "codex" ? " (asked for Codex)" : ""}`;
 
 const prNumber = (url?: string) => url?.match(/\/pull\/(\d+)/)?.[1];
 

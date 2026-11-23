@@ -10,6 +10,7 @@ import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoar
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
 import { type Run, agentMessage, askApp, boardTask, hasApp, spokenRuns } from "@/lib/agents-bridge";
+import { type Said, confirmed } from "@/lib/confirm";
 import { alertFromRelay, isRelayEvent, relayAnswerText, sendToApp } from "@/lib/relay-bridge";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost, unlockAudio } from "@/lib/speak-client";
@@ -25,6 +26,8 @@ export type BoardState = { kind: "checking" | "ok" | "none" } | { kind: "error";
 type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m: unknown): void } } } };
 
 const POLL_MS = 6_000;
+// Tools that can't be taken back from here, or that start work on this machine: only on the user's own yes.
+const NEEDS_YES = new Set<string>(["merge_pr", "set_state", "start_agent"]);
 const REPO_KEY = "coworker.repo";
 const INTERRUPTIONS_KEY = "coworker.interruptions";
 const VOICE_KEY = "coworker.voice";
@@ -98,6 +101,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const alertsRef = useRef<Alert[]>([]);
   const answeredReqs = useRef(new Set<string>());
   const relayReqs = useRef(new Set<string>()); // requests that came from the Mac app's relay, answered back through it
+  const lastSaid = useRef<Said | undefined>(undefined); // the user's own last words, for the yes check on risky tools
   const lastActive = useRef(0);
   const repoRef = useRef("");
   const sources = useRef(new Set<string>());
@@ -207,7 +211,9 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
         return "The Mac app isn't connected, so I put the task on the board for a board worker.";
       },
       async list_agents() {
-        return spokenRuns(await askApp<Run[]>(agentMessage("list")));
+        const runs = await askApp<Run[] | { error?: string }>(agentMessage("list"));
+        if (!Array.isArray(runs)) throw new Error(runs?.error ?? "I couldn't read the agent list.");
+        return spokenRuns(runs);
       },
       async stop_agent(a) {
         const r = await askApp<{ ok?: boolean; error?: string }>(agentMessage("stop", { id: strArg(a.id) }));
@@ -249,6 +255,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
             const finish = (state: Call["state"], text: string) =>
               setCalls((c) => c.map((x) => (x.id === id ? { ...x, state, text, ms: Math.round(performance.now() - t0) } : x)));
             try {
+              // The model may only take these on the user's own recent yes, never on text it read.
+              if (NEEDS_YES.has(s.name) && !confirmed(lastSaid.current)) throw new Error("Ask the user to confirm first, and wait for a clear yes.");
               if ("local" in s) {
                 const text = await local[s.name](sent);
                 finish("ok", text);
@@ -294,6 +302,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     clientTools,
     onMessage: ({ role, message }) => {
       setMsgs((m) => [...m, { id: ++seq.current, role, text: message }]);
+      if (role === "user") lastSaid.current = { text: message, at: Date.now() };
       lastActive.current = Date.now();
       if (role === "agent") setAwaiting(false);
     },
@@ -559,6 +568,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     const t = text.trim();
     if (!t || !live) return;
     setMsgs((m) => [...m, { id: ++seq.current, role: "user", text: t }]);
+    lastSaid.current = { text: t, at: Date.now() };
     convo.sendUserMessage(t);
   }
 
