@@ -12,10 +12,14 @@ export function DownloadIcon() {
 
 export function DownloadButton({ label = "Download for Mac" }: { label?: string }) {
   const r = latestRelease();
+  // Before the first release the web app is the one thing a visitor can use, so offer that, not a dead button.
   if (!r.url) {
     return (
-      <span className="btn-quiet" aria-disabled="true">
-        Mac download coming soon
+      <span className="flex flex-wrap items-center gap-3">
+        <Link href="/app" className="btn-go">
+          Try the web app
+        </Link>
+        <span className="text-[14px] text-[var(--faint)]">Mac app coming soon</span>
       </span>
     );
   }
@@ -29,6 +33,7 @@ export function DownloadButton({ label = "Download for Mac" }: { label?: string 
 
 export function DownloadNote() {
   const r = latestRelease();
+  if (!r.url) return null; // before a release the button already says "Mac app coming soon"
   return (
     <span className="text-[14px] text-[var(--faint)]">
       Free{r.version ? ` · version ${r.version}` : ""} · macOS {r.minimumSystemVersion} or later · Apple silicon and Intel
@@ -47,4 +52,10 @@ export function TextLink({ href, children }: { href: string; children: React.Rea
       {children}
     </Link>
   );
+}
+
+// Install steps describe the Mac app; before its first release, say they apply once it ships.
+export function PreReleaseNote() {
+  if (latestRelease().url) return null;
+  return <p className="mt-4 max-w-[62ch] text-[15.5px] text-[var(--faint)]">The Mac app isn&apos;t released yet. These are the steps for when it ships; the web app works today.</p>;
 }

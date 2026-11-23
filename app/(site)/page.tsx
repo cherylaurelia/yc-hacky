@@ -1,4 +1,4 @@
-import { DownloadButton, DownloadNote, TextLink } from "@/components/site/bits";
+import { DownloadButton, DownloadNote, PreReleaseNote, TextLink } from "@/components/site/bits";
 import Stage from "@/components/site/Stage";
 
 const WRAP = "mx-auto max-w-[1180px] px-5 sm:px-8";
@@ -239,6 +239,7 @@ export default function Home() {
 
       <section className={`${WRAP} mt-32`} id="install">
         <h2 className="text-[34px] sm:text-[44px]">Install in two minutes.</h2>
+        <PreReleaseNote />
         <ol className="mt-10 grid gap-10 md:grid-cols-3">
           {[
             [

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cmd, DownloadButton, DownloadNote, TextLink } from "@/components/site/bits";
+import { Cmd, DownloadButton, DownloadNote, PreReleaseNote, TextLink } from "@/components/site/bits";
 import { latestRelease } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Download", description: "Download Terminal 1 for Mac and connect Claude Code, Codex or Cursor in a few minutes." };
@@ -30,6 +30,7 @@ export default function Download() {
         <DownloadButton label={r.version ? `Download Terminal 1 ${r.version}` : "Download Terminal 1"} />
         <DownloadNote />
       </div>
+      <PreReleaseNote />
 
       <section className="mt-20">
         <h2 className="text-[30px] sm:text-[38px]">1. Install</h2>
