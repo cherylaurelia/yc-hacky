@@ -18,6 +18,10 @@ import Foundation
         check(a.contains("run") && a.contains("--detach"), "coworker run --detach")
         if let i = a.firstIndex(of: "--agent") { check(a[i + 1] == "codex", "agent passed") } else { check(false, "--agent") }
         if let i = a.firstIndex(of: "--repo") { check(a[i + 1] == "acme/widgets", "repo passed") } else { check(false, "--repo") }
+        // GUI apps get a bare PATH and `zsh -l` skips ~/.zshrc, where tools like claude are often added. The app reads
+        // the interactive shell's PATH once, between markers, because rc files may print things around it.
+        check(AgentRunner.parsePath("Welcome!\n__CW_PATH__/Users/s/.local/bin:/opt/homebrew/bin:/usr/bin__CW_PATH__\nbye") == "/Users/s/.local/bin:/opt/homebrew/bin:/usr/bin", "PATH parsed between markers")
+        check(AgentRunner.parsePath("no markers here") == nil, "no PATH without markers")
         exit(fails == 0 ? 0 : 1)
     }
 }

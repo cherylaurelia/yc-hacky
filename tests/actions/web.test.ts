@@ -127,6 +127,43 @@ test("actions: update_item labels and assigns", async () => {
   assert.deepEqual(gh.find("POST", "/repos/acme/widgets/issues/7/assignees")?.body?.assignees, ["sam"]);
 });
 
+test("actions: the new write tools need a signed-in user (never the server's own token)", async () => {
+  const { needsSignIn } = await load("lib/tools.ts");
+  for (const n of WRITES) assert.equal(needsSignIn(n), true, `${n} must refuse signed-out callers`);
+  assert.equal(needsSignIn("list_items"), false);
+  const route = readFileSync(join(ROOT, "app/api/tool/[name]/route.ts"), "utf8");
+  assert.match(route, /needsSignIn\(name\)/, "the tool route enforces it");
+});
+
+test("actions: a refused merge keeps GitHub's reason", async () => {
+  await assert.rejects(
+    call("merge_pr", { number: 9 }, { "PUT /repos/acme/widgets/pulls/9/merge": [405, { message: "Squash merges are not allowed on this repository." }] }),
+    (e: Error) => /squash merges are not allowed/i.test(e.message),
+  );
+});
+
+test("actions: removing a label the item doesn't have still applies the rest", async () => {
+  const { gh } = await call("update_item", { number: 7, remove_labels: "triage", assignees: "sam" }, {
+    "DELETE /repos/acme/widgets/issues/7/labels/triage": [404, { message: "Label does not exist" }],
+    "POST /repos/acme/widgets/issues/7/assignees": [201, {}],
+  });
+  assert.ok(gh.find("POST", "/repos/acme/widgets/issues/7/assignees"), "assignees applied after a missing label");
+});
+
+test("actions: merging, closing and starting agents need a spoken yes, checked in code", async () => {
+  const { confirmed } = await load("lib/confirm.ts");
+  const now = 1_000_000;
+  assert.equal(confirmed({ text: "yes, merge it", at: now - 5_000 }, now), true);
+  assert.equal(confirmed({ text: "go ahead", at: now - 5_000 }, now), true);
+  assert.equal(confirmed({ text: "no, don't", at: now - 5_000 }, now), false);
+  assert.equal(confirmed({ text: "what's in number 7?", at: now - 5_000 }, now), false);
+  assert.equal(confirmed({ text: "yes", at: now - 120_000 }, now), false, "a yes from two minutes ago is stale");
+  assert.equal(confirmed(undefined, now), false);
+  const page = readFileSync(join(ROOT, "components/useCoworker.ts"), "utf8");
+  assert.match(page, /confirmed\(/, "useCoworker gates risky tools on the user's last words");
+  for (const n of ["merge_pr", "set_state", "start_agent"]) assert.match(page, new RegExp(`["']${n}["']`), `${n} is gated`);
+});
+
 test("actions: write tools validate their arguments", async () => {
   const { validateArgs } = await load("lib/tools.ts");
   assert.equal(validateArgs("create_issue", {}).ok, false, "title is required");
