@@ -9,6 +9,7 @@ import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswe
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
+import { alertFromRelay, isRelayEvent, relayAnswerText, sendToApp } from "@/lib/relay-bridge";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost, unlockAudio } from "@/lib/speak-client";
 import { headline } from "@/lib/spoken";
@@ -95,6 +96,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const notices = useRef(new Map<number, Notification>());
   const alertsRef = useRef<Alert[]>([]);
   const answeredReqs = useRef(new Set<string>());
+  const relayReqs = useRef(new Set<string>()); // requests that came from the Mac app's relay, answered back through it
   const lastActive = useRef(0);
   const repoRef = useRef("");
   const sources = useRef(new Set<string>());
@@ -224,6 +226,17 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
               if (s.name === "answer_request") {
                 const wrong = checkAnswer(alertsRef.current, normReq(sent.request_id));
                 if (wrong) throw new Error(wrong);
+                const req = normReq(sent.request_id);
+                // A relay request goes back to the Mac app; a question's answer is the note, a verdict otherwise.
+                if (relayReqs.current.has(req)) {
+                  const decision = strArg(sent.decision) ?? "allow";
+                  const kind = alertsRef.current.find((x) => x.req === req)?.kind ?? null;
+                  if (!sendToApp(req, relayAnswerText(kind, decision, strArg(sent.note)))) throw new Error("The Coworker app is not connected.");
+                  settle(s.name, sent);
+                  const text = `Sent ${decision} for request ${req}.`;
+                  finish("ok", text);
+                  return text;
+                }
               }
               const res = await fetch(`/api/tool/${s.name}`, {
                 method: "POST",
@@ -599,6 +612,19 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     }
   }, [alerts, hidden]);
 
+  // Agent events from the Mac app's local relay arrive here and join the same queue as board posts.
+  useEffect(() => {
+    const onRelay = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!isRelayEvent(detail)) return;
+      const alert = alertFromRelay(detail);
+      if (alert.req) relayReqs.current.add(alert.req);
+      setAlerts((all) => (all.some((x) => x.req && x.req === alert.req) ? all : [...all, { ...alert, seq: ++seq.current, state: "waiting" }]));
+    };
+    window.addEventListener("coworker-relay", onRelay);
+    return () => window.removeEventListener("coworker-relay", onRelay);
+  }, []);
+
   const speaker = phase === "speaking" ? (playing?.from ?? "coworker") : phase === "listening" ? "you" : null;
 
   // A click on Allow, Deny or Stop: the user named the alert by looking at it, so it is posted for
@@ -607,13 +633,17 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     if (!a.req) return;
     setError(null);
     try {
-      const res = await fetch("/api/tool/answer_request", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ repo: repoRef.current, args: { request_id: a.req, decision, ...(board ? { board } : {}) } }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { result?: string; error?: string };
-      if (!res.ok || typeof j.result !== "string") throw new Error(j.error ?? `Could not post the answer (HTTP ${res.status}).`);
+      if (relayReqs.current.has(a.req)) {
+        if (!sendToApp(a.req, decision)) throw new Error("The Coworker app is not connected.");
+      } else {
+        const res = await fetch("/api/tool/answer_request", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ repo: repoRef.current, args: { request_id: a.req, decision, ...(board ? { board } : {}) } }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { result?: string; error?: string };
+        if (!res.ok || typeof j.result !== "string") throw new Error(j.error ?? `Could not post the answer (HTTP ${res.status}).`);
+      }
       answeredReqs.current.add(a.req);
       setAlerts((all) => markAnswered(all, answeredReqs.current));
       if (focus === a.seq) setFocus(null);

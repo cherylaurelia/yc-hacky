@@ -6,6 +6,8 @@ import WebKit
 @MainActor
 final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
     var onPageMessage: ((PageMessage) -> Void)?
+    /// The page answered an agent's request: window.webkit.messageHandlers.coworker.postMessage({answer:{id, text}}).
+    var onAnswer: ((String, String) -> Void)?
     var onVisibilityChange: ((Bool) -> Void)?
     private let panel: NSPanel
     private let webView: WKWebView
@@ -56,6 +58,20 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     func setURL(_ new: URL) { url = new; load() }
 
+    /// A single-use dictation token, fetched by the page itself so the request carries its sign-in cookie and Origin.
+    func scribeToken() async throws -> String {
+        let js = """
+        const r = await fetch("/api/scribe-token", { method: "POST", credentials: "same-origin" });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.token) throw new Error(j.error || `HTTP ${r.status}`);
+        return j.token;
+        """
+        guard let token = try await webView.callAsyncJavaScript(js, contentWorld: .page) as? String, !token.isEmpty else {
+            throw NSError(domain: "Scribe", code: 0, userInfo: [NSLocalizedDescriptionKey: "the page gave no dictation token"])
+        }
+        return token
+    }
+
     func load() {
         retry?.cancel()
         webView.load(URLRequest(url: url))
@@ -74,6 +90,15 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         pageReady = false
         sendTalkKey()
+    }
+
+    /// Hands an agent's event (kind, text, id, ...) to the page as window event `coworker-relay`; the page answers with `{answer:{id,text}}`.
+    func deliverRelay(_ json: String) {
+        // Agent commands and diffs only go to the Coworker page, never a site a link navigated to.
+        guard let current = webView.url, isCoworker(scheme: current.scheme, host: current.host, port: current.port) else { return }
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent(\"coworker-relay\",{detail:\(json)}))") { _, error in
+            if let error { NSLog("Coworker: could not deliver relay event: \(error.localizedDescription)") }
+        }
     }
 
     func deliver(_ event: PttEvent) {
@@ -95,11 +120,30 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
                  initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
                  decisionHandler: @escaping @MainActor @Sendable (WKPermissionDecision) -> Void) {
-        decisionHandler(.grant)
+        decisionHandler(isCoworker(origin) ? .grant : .prompt)
+    }
+
+    /// True for the configured Coworker page's origin. Default ports are 0 in WKSecurityOrigin and nil in URL.
+    private func isCoworker(scheme: String?, host: String?, port: Int?) -> Bool {
+        let norm = { (p: Int?) -> Int? in p == nil || p == 0 || p == 443 || p == 80 ? nil : p }
+        return scheme == url.scheme && host?.lowercased() == url.host?.lowercased() && norm(port) == norm(url.port)
+    }
+
+    private func isCoworker(_ origin: WKSecurityOrigin) -> Bool {
+        isCoworker(scheme: origin.protocol, host: origin.host, port: origin.port)
     }
 
     // Page -> app: window.webkit.messageHandlers.coworker.postMessage({state:'speaking', alert:{agent, text}})
     func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+        if let a = (message.body as? [String: Any])?["answer"] as? [String: Any], let id = a["id"] as? String, let text = a["text"] as? String, !text.isEmpty {
+            // Approving an agent's command is only for the Coworker page's own top frame.
+            guard message.frameInfo.isMainFrame, isCoworker(message.frameInfo.securityOrigin) else {
+                NSLog("Coworker: ignored an answer from \(message.frameInfo.securityOrigin.host)")
+                return
+            }
+            onAnswer?(id, text)
+            return
+        }
         guard let msg = PageMessage.parse(message.body) else {
             NSLog("Coworker: ignored page message \(message.body)")
             return
@@ -114,12 +158,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         if (error as NSError).code == NSURLErrorCancelled { return }
-        let msg = error.localizedDescription.replacingOccurrences(of: "<", with: "&lt;")
-        webView.loadHTMLString("""
-            <body style="font:14px -apple-system;padding:24px;color:#888">
-            <b>Can't reach the coworker</b><p>\(url.absoluteString)</p><p>\(msg)</p>
-            <p>Start it with <code>npm run dev</code> or pick another address from the menu bar (Set URL...). Retrying every 3s.</p>
-            """, baseURL: nil)
+        webView.loadHTMLString(OfflinePage.html(url: url, reason: error.localizedDescription), baseURL: nil)
         let work = DispatchWorkItem { [weak self] in self?.load() }
         retry = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)

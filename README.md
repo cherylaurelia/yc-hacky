@@ -127,7 +127,7 @@ macos/build.sh
 open macos/build/Coworker.app
 ```
 
-The build uses `swiftc` from the Command Line Tools and needs macOS 13.3 or newer. The panel loads `http://localhost:3000/?repo=cherylaurelia/yc-hacky&embed=1`, so start `npm run dev` first and use **Set URL...** in the menu to point it at your repo.
+The build uses `swiftc` from the Command Line Tools and needs macOS 13.3 or newer. The panel loads the hosted page; use **Set URL...** in the menu to point it at another deployment, for example `http://localhost:3000/?repo=owner/name&embed=1` from `npm run dev`.
 
 - The talk key is fn, or Right Option when Wispr Flow is installed. Change it in the **Talk key** menu. Right Command and Right Control are also available.
 - A tap shorter than 150 ms, or a key combination, cancels the turn.

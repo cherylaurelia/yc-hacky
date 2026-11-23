@@ -99,7 +99,7 @@ enum KeyboardAccess {
         open("Privacy_Accessibility")
     }
 
-    private static func open(_ pane: String) {
+    static func open(_ pane: String) {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
         if !NSWorkspace.shared.open(url) { NSLog("Coworker: could not open System Settings pane \(pane)") }
     }
