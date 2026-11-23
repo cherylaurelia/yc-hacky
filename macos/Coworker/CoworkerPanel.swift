@@ -6,6 +6,8 @@ import WebKit
 @MainActor
 final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
     var onPageMessage: ((PageMessage) -> Void)?
+    /// The page answered an agent's request: window.webkit.messageHandlers.coworker.postMessage({answer:{id, text}}).
+    var onAnswer: ((String, String) -> Void)?
     var onVisibilityChange: ((Bool) -> Void)?
     private let panel: NSPanel
     private let webView: WKWebView
@@ -56,6 +58,20 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     func setURL(_ new: URL) { url = new; load() }
 
+    /// A single-use dictation token, fetched by the page itself so the request carries its sign-in cookie and Origin.
+    func scribeToken() async throws -> String {
+        let js = """
+        const r = await fetch("/api/scribe-token", { method: "POST", credentials: "same-origin" });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.token) throw new Error(j.error || `HTTP ${r.status}`);
+        return j.token;
+        """
+        guard let token = try await webView.callAsyncJavaScript(js, contentWorld: .page) as? String, !token.isEmpty else {
+            throw NSError(domain: "Scribe", code: 0, userInfo: [NSLocalizedDescriptionKey: "the page gave no dictation token"])
+        }
+        return token
+    }
+
     func load() {
         retry?.cancel()
         webView.load(URLRequest(url: url))
@@ -74,6 +90,13 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         pageReady = false
         sendTalkKey()
+    }
+
+    /// Hands an agent's event (kind, text, id, ...) to the page as window event `coworker-relay`; the page answers with `{answer:{id,text}}`.
+    func deliverRelay(_ json: String) {
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent(\"coworker-relay\",{detail:\(json)}))") { _, error in
+            if let error { NSLog("Coworker: could not deliver relay event: \(error.localizedDescription)") }
+        }
     }
 
     func deliver(_ event: PttEvent) {
@@ -100,6 +123,10 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     // Page -> app: window.webkit.messageHandlers.coworker.postMessage({state:'speaking', alert:{agent, text}})
     func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+        if let a = (message.body as? [String: Any])?["answer"] as? [String: Any], let id = a["id"] as? String, let text = a["text"] as? String, !text.isEmpty {
+            onAnswer?(id, text)
+            return
+        }
         guard let msg = PageMessage.parse(message.body) else {
             NSLog("Coworker: ignored page message \(message.body)")
             return
@@ -114,12 +141,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         if (error as NSError).code == NSURLErrorCancelled { return }
-        let msg = error.localizedDescription.replacingOccurrences(of: "<", with: "&lt;")
-        webView.loadHTMLString("""
-            <body style="font:14px -apple-system;padding:24px;color:#888">
-            <b>Can't reach the coworker</b><p>\(url.absoluteString)</p><p>\(msg)</p>
-            <p>Start it with <code>npm run dev</code> or pick another address from the menu bar (Set URL...). Retrying every 3s.</p>
-            """, baseURL: nil)
+        webView.loadHTMLString(OfflinePage.html(url: url, reason: error.localizedDescription), baseURL: nil)
         let work = DispatchWorkItem { [weak self] in self?.load() }
         retry = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)

@@ -3,7 +3,6 @@ import AVFoundation
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    static let defaultURL = "http://localhost:3000/?repo=cherylaurelia/yc-hacky&embed=1"
     private static let urlKey = "coworkerURL"  // also settable at launch: -coworkerURL <url>
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -11,6 +10,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let pillWindow = PillWindow()
     private let mic = MicLevel()
     private let notifier = Notifier()
+    private let inserter = TextInserter()
+    private let settingsWindow = SettingsWindow()
+    private let onboardingWindow = OnboardingWindow()
+    private let relayToken = RelayServer.makeToken()
+    private lazy var relay = RelayServer(token: relayToken)
+    private var scribe: ScribeClient?
+    private var holdMode = TalkMode.agent  // decided when the key goes down, because the hold itself clears the alert
     private var simulatedAlerts = 0
     private var panel: CoworkerPanel!
     private var activity: NSObjectProtocol?
@@ -28,6 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var accessItem = item("Grant keyboard access...", #selector(grantAccess))
     private lazy var simulateItem = item("Simulate talk key hold (1s)", #selector(simulate))
     private lazy var simulateAlertItem = item("Simulate alert", #selector(simulateAlert))
+    private lazy var versionItem: NSMenuItem = {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let i = NSMenuItem(title: "Version \(version)", action: nil, keyEquivalent: "")
+        i.isEnabled = false
+        return i
+    }()
     private lazy var noteItem: NSMenuItem = {
         let i = NSMenuItem(title: TalkKeySetting.note, action: nil, keyEquivalent: "")
         i.isEnabled = false
@@ -45,8 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }()
 
     private var configuredURL: URL {
-        UserDefaults.standard.string(forKey: Self.urlKey).flatMap(URL.init(string:)) ?? URL(string: Self.defaultURL)!
+        UserDefaults.standard.string(forKey: Self.urlKey).flatMap(URL.init(string:)) ?? AppConfig.defaultPage
     }
+    private var settings: AppSettings { .load() }
 
     func applicationDidFinishLaunching(_ note: Notification) {
         // A hidden panel must keep speaking: no App Nap.
@@ -57,7 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.onVisibilityChange = { [weak self] in self?.apply(.panelOpen($0)) }
         pillWindow.onClick = { [weak self] in self?.panel.setVisible(true) }
         pillWindow.onHover = { [weak self] in self?.hover($0) }
+        panel.onAnswer = { [weak self] in self?.answered($0, $1) }
         notifier.onOpen = { [weak self] in self?.panel.setVisible(true) }
+        notifier.onAnswer = { [weak self] in self?.answered($0, $1) }
+        settingsWindow.onChange = { [weak self] in
+            guard let self, $0.talkKey != ptt.key else { return }
+            setTalkKey($0.talkKey)
+        }
         notifier.requestAuthorization()
         mic.onLevel = { [weak self] in self?.pillWindow.setLevel($0) }
         pill.panelOpen = panel.isVisible
@@ -65,8 +84,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        menu.items = [noteItem, toggleItem, accessItem, talkKeyItem, item("Reload", #selector(reload), "r"), item("Set URL...", #selector(setURL)),
-                      simulateItem, simulateAlertItem, .separator(), NSMenuItem(title: "Quit Terminal 1", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
+        menu.items = [noteItem, toggleItem, accessItem, talkKeyItem, item("Settings...", #selector(openSettings), ","), item("Reload", #selector(reload), "r"),
+                      item("Set URL...", #selector(setURL)), simulateItem, simulateAlertItem, .separator(), versionItem,
+                      NSMenuItem(title: "Quit Terminal 1", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")]
         statusItem.menu = menu
         render()
         renderTalkKey()
@@ -75,19 +95,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             switch event {
             case .down:
+                holdMode = TalkRouter.mode(alertPending: pill.alert != nil, agentModifier: false)
                 apply(.talkDown)
                 mic.start()
+                if holdMode == .dictate { startDictation() }
             case .up(let cancelled):
                 mic.stop()
                 apply(.talkUp(cancelled: cancelled))
+                if holdMode == .dictate {
+                    if cancelled { scribe?.cancel() } else { scribe?.finish() }
+                }
             }
-            panel.deliver(event)
+            if holdMode == .agent { panel.deliver(event) }
         }
         ptt.start()
+        startRelay()
         NSLog("Coworker: keyboard access granted=\(KeyboardAccess.granted)")
-        KeyboardAccess.promptOnce()
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            if !granted { NSLog("Coworker: microphone access denied; enable it in System Settings > Privacy & Security > Microphone") }
+        if Onboarding.needed(completed: UserDefaults.standard.bool(forKey: OnboardingWindow.completedKey)) {
+            onboardingWindow.show()  // asks for the same permissions, one at a time
+        } else {
+            KeyboardAccess.promptOnce()
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                if !granted { NSLog("Coworker: microphone access denied; enable it in System Settings > Privacy & Security > Microphone") }
+            }
         }
 
         if let dir = UserDefaults.standard.string(forKey: "pillSnapshots") { snapshotRun(dir) }  // -pillSnapshots /tmp/dir
@@ -96,6 +126,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if after > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + after) { [weak self] in self?.simulate() } }
         let alertAfter = UserDefaults.standard.double(forKey: "simulateAlertAfter")  // -simulateAlertAfter 5
         if alertAfter > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + alertAfter) { [weak self] in self?.simulateAlert() } }
+    }
+
+    func applicationWillTerminate(_ note: Notification) {
+        relay.stop()
+        do { try FileManager.default.removeItem(at: RelayServer.discoveryFile) }  // a stale port could be reused by another process
+        catch { NSLog("Coworker: could not remove the relay discovery file: \(error.localizedDescription)") }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -120,15 +156,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func pickTalkKey(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String, let key = TalkKey(rawValue: raw) else { return }
+        setTalkKey(key)
+    }
+
+    private func setTalkKey(_ key: TalkKey) {
         TalkKeySetting.set(key)
         ptt.setKey(key)
         renderTalkKey()
     }
 
-    private func apply(_ input: PillState.Input) {
+    private func startDictation() {
+        let client = ScribeClient(language: settings.dictationLanguage) { [panel] in try await panel!.scribeToken() }
+        client.onCommitted = { [weak self] in self?.inserter.insert($0) }
+        client.onFailure = { [weak self] in self?.dictationFailed($0) }
+        scribe = client
+        client.start()
+    }
+
+    private func dictationFailed(_ why: String) {
+        NSLog("Coworker: dictation failed: \(why)")
+        notifier.notice("Dictation failed", why)
+    }
+
+    private func startRelay() {
+        relay.onEvent = { [weak self] event in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.relayEvent(event) } }
+        }
+        do {
+            let port = try relay.start(port: 0)
+            try RelayServer.writeDiscovery(port: port, token: relayToken, to: RelayServer.discoveryFile)
+            NSLog("Coworker: relay listening on 127.0.0.1:\(port)")
+        } catch {
+            NSLog("Coworker: the relay did not start, so agents fall back to the board: \(error.localizedDescription)")
+        }
+    }
+
+    /// An agent's event: the pill and a notification (with answer buttons) for you, and the page, which can speak it.
+    private func relayEvent(_ event: RelayEvent) {
+        panel.deliverRelay(event.json)
+        apply(.page(PageMessage(phase: nil, alert: .set(event.alert))), kind: AlertKind(rawValue: event.kind))
+    }
+
+    /// From a notification button or the page: the agent's long-poll gets it, and the pill stops asking.
+    private func answered(_ id: String, _ text: String) {
+        relay.answer(id: id, text: text)
+        if pill.alert?.id == id { apply(.page(PageMessage(phase: nil, alert: .clear))) }
+    }
+
+    private func apply(_ input: PillState.Input, kind: AlertKind? = nil) {
         let hadAlert = pill.alert
         pill.apply(input)
-        if let alert = pill.notify { notifier.post(alert) }
+        if let alert = pill.notify, settings.agentAlerts { notifier.post(alert, kind: kind, sound: settings.alertSound) }
         guard pill.alert != hadAlert else { return }
         alertExpiry?.cancel()
         alertCollapse?.cancel()
@@ -159,6 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Probe.log("icon=\(pill.phase.symbol) pill=\(pill.mode) \"\(pill.label)\" meter=\(pill.meterLive)")
     }
 
+    @objc private func openSettings() { settingsWindow.show() }
     @objc private func togglePanel() { panel.setVisible(!panel.isVisible) }
     @objc private func reload() { panel.load() }
     @objc private func simulate() {
