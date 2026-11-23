@@ -37,11 +37,12 @@ The app runs a local relay on 127.0.0.1 (a random port and token, written to `~/
 
 `macos/build.sh` needs only the Xcode Command Line Tools. It writes `macos/build/Terminal 1.app` (arm64 and x86_64), `macos/build/Terminal-1.zip` and `macos/build/Terminal-1.dmg`, then unzips the zip into a temp folder and verifies the signature. The bundle id is `com.terminal1.app` and the executable is `Terminal1`. It prints which signing path ran.
 
+- `LEMONSQUEEZY_STORE_ID`, `LEMONSQUEEZY_PRODUCT_IDS` and `LEMONSQUEEZY_TEAM_PRODUCT_IDS` (numbers, comma-separated) are written to `Info.plist` as `T1StoreID` and `T1ProductIDs`. The app refuses a license key from another store or product before it activates it. Unset (a dev build), it accepts any key Lemon Squeezy says is valid and the server does the filtering.
 - Default: ad-hoc signed, not notarized.
 - `DEVELOPER_ID="Developer ID Application: Name (TEAMID)" macos/build.sh` signs with that identity, the hardened runtime and `macos/Terminal1.entitlements` (microphone, network), and signs the DMG too.
 - Add `NOTARY_PROFILE=<profile>` (made once with `xcrun notarytool store-credentials`) and it also runs `xcrun notarytool submit --wait` on the DMG, then `xcrun stapler staple`. A rejected submission fails the build.
 
-`scripts/release.sh` publishes `Terminal-1.dmg` as a GitHub release and writes `public/releases.json`. Run it without arguments first: it builds and prints what `--publish` would do. It refuses a dirty git tree or an existing `v<version>` tag. The version comes from `macos/VERSION`.
+`scripts/release.sh` publishes `Terminal-1.dmg` as a GitHub release and writes `public/releases.json`. Run it without arguments first: it builds and prints what `--publish` would do. It refuses a dirty git tree or an existing `v<version>` tag. The version comes from `macos/VERSION`. `--publish` also refuses unless `DEVELOPER_ID` and `NOTARY_PROFILE` are set (pass `--allow-unsigned` for a beta, and the notes say so), unless `LEMONSQUEEZY_STORE_ID` and `LEMONSQUEEZY_PRODUCT_IDS` are set, and when the release repo is private (set `RELEASE_REPO=owner/name` to a public repo).
 
 `macos/test.sh` checks the talk-key and pill state machines and the update check's version logic. It needs no keyboard or microphone.
 

@@ -6,10 +6,20 @@
 #                       signed with that identity, hardened runtime and Terminal1.entitlements (what notarization needs).
 #   NOTARY_PROFILE=name also submits the DMG with `xcrun notarytool` (a keychain profile from `notarytool store-credentials`)
 #                       and staples the ticket to it. Needs DEVELOPER_ID.
+#   LEMONSQUEEZY_STORE_ID, LEMONSQUEEZY_PRODUCT_IDS, LEMONSQUEEZY_TEAM_PRODUCT_IDS
+#                       baked into Info.plist (T1StoreID, T1ProductIDs), so the app refuses another store's or product's license key
+#                       before it activates it. Unset (a dev build): the app accepts any key LS says is valid.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 [[ -z "${NOTARY_PROFILE:-}" || -n "${DEVELOPER_ID:-}" ]] || { echo "NOTARY_PROFILE needs DEVELOPER_ID: only a Developer ID build can be notarized" >&2; exit 1; }
+
+# Numbers only, so nothing from the environment can break the plist or loosen the check.
+STORE_ID="$(tr -d '[:space:]' <<<"${LEMONSQUEEZY_STORE_ID:-}")"
+PRODUCT_IDS="$(tr -d '[:space:]' <<<"${LEMONSQUEEZY_PRODUCT_IDS:-},${LEMONSQUEEZY_TEAM_PRODUCT_IDS:-}" | sed -E 's/^,+//; s/,+$//; s/,,+/,/g')"
+[[ -z "$STORE_ID" || "$STORE_ID" =~ ^[0-9]+$ ]] || { echo "LEMONSQUEEZY_STORE_ID must be a number, got '$STORE_ID'" >&2; exit 1; }
+[[ -z "$PRODUCT_IDS" || "$PRODUCT_IDS" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo "LEMONSQUEEZY_PRODUCT_IDS and LEMONSQUEEZY_TEAM_PRODUCT_IDS must be comma-separated numbers, got '$PRODUCT_IDS'" >&2; exit 1; }
+if [[ -n "$STORE_ID" ]]; then echo "license check: store $STORE_ID, products ${PRODUCT_IDS:-any}"; else echo "license check: off (set LEMONSQUEEZY_STORE_ID to refuse other stores' keys)"; fi
 
 APP="build/Terminal 1.app"
 rm -rf "$APP"
@@ -45,6 +55,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Terminal 1 listens while you hold the talk key so you can talk to your agents and dictate.</string>
+  <key>T1StoreID</key><string>$STORE_ID</string>
+  <key>T1ProductIDs</key><string>$PRODUCT_IDS</string>
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
 </plist>

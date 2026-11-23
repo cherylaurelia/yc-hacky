@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { appLicense, saveLicenseKey } from "@/lib/license-client";
+import { appLicense, licenseInstance, saveLicense } from "@/lib/license-client";
 
 // Shown when a route answers 402: what the server said, then a way to enter a license key or buy one.
 export default function LicensePrompt({ message, onActivated }: { message: string; onActivated: () => void }) {
@@ -15,10 +15,11 @@ export default function LicensePrompt({ message, onActivated }: { message: strin
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/license", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) });
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      const res = await fetch("/api/license", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, instanceId: licenseInstance() || undefined }) });
+      const j = (await res.json().catch(() => ({}))) as { error?: string; instanceId?: string };
       if (!res.ok) throw new Error(j.error ?? `Could not check that key (HTTP ${res.status}).`);
-      saveLicenseKey(key.trim());
+      if (!j.instanceId) throw new Error("The license server did not return an activation. Try again.");
+      saveLicense(key.trim(), j.instanceId);
       onActivated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not check that key.");

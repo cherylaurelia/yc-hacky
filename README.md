@@ -94,8 +94,9 @@ You need Node 22.18 or newer and a microphone. A browser on `localhost` can use 
    - `WRITE_REPOS` is a comma-separated list of `owner/name` repos the voice may write to. Without it, answers, relays, issues, and comments return 403.
    - `BOARD_ISSUE` is optional. It picks the board issue. The default is the open issue labeled `board`, else issue 1.
    - `OWNER_NAME` is optional. It sets the first name in your relay tag. The default is the first name on your GitHub profile.
-   - `LICENSE_REQUIRED=1` is optional. It makes everything that spends ElevenLabs credits (`/api/convai-token`, `/api/scribe-token`, `/api/speak`, `/api/standup`) need a Lemon Squeezy license key in the `x-terminal1-license` header. Leave it unset for local dev and self-hosting.
-   - `LEMONSQUEEZY_STORE_ID` and `LEMONSQUEEZY_PRODUCT_IDS` (comma-separated, every paid product) are required with `LICENSE_REQUIRED`. A key from another store or product is refused. `LEMONSQUEEZY_TEAM_PRODUCT_IDS` lists the Team products, which are also accepted. No Lemon Squeezy API key is needed.
+   - `LEMONSQUEEZY_STORE_ID` and `LEMONSQUEEZY_PRODUCT_IDS` (comma-separated, every paid product) set up licensing. A key from another store or product is refused. `LEMONSQUEEZY_TEAM_PRODUCT_IDS` lists the Team products, which are also accepted. No Lemon Squeezy API key is needed.
+   - Licensing turns on when `LEMONSQUEEZY_STORE_ID` is set, or when `LICENSE_REQUIRED=1`. `LICENSE_REQUIRED=0` turns it off even with a store id. With neither set (local dev, self-hosting) nothing is checked. When it is on, everything that spends ElevenLabs credits (`/api/convai-token`, `/api/scribe-token`, `/api/speak`, `/api/standup`) needs a Lemon Squeezy license key in the `x-terminal1-license` header and the activation (instance) id that `/api/license` returned for this device in the `x-terminal1-instance` header. A key alone is refused, so a leaked key cannot be shared past its activation limit. Keys and instance ids must look like UUIDs, and the server makes at most 50 calls a minute to Lemon Squeezy.
+   - Set `LEMONSQUEEZY_STORE_ID` and `LEMONSQUEEZY_PRODUCT_IDS` when you build the Mac app too (`macos/build.sh` bakes them into `Info.plist`), so the app refuses another store's key before it activates it.
 
 3. Start the app.
 

@@ -12,16 +12,16 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     private let panel: NSPanel
     private let webView: WKWebView
     private var url: URL
-    private var licenseKey: String?
+    private var license: LicenseGrant?
     private var retry: DispatchWorkItem?
     private var talkKey = ""
     private var pageReady = false
 
     var isVisible: Bool { panel.alphaValue > 0 }
 
-    init(url: URL, license: String? = nil) {
+    init(url: URL, license: LicenseGrant? = nil) {
         self.url = url
-        licenseKey = license
+        self.license = license
         let cfg = WKWebViewConfiguration()
         cfg.mediaTypesRequiringUserActionForPlayback = []  // the agent speaks without a click
         webView = WKWebView(frame: .zero, configuration: cfg)
@@ -60,16 +60,16 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
 
     func setURL(_ new: URL) { url = new; installScripts(); load() }
 
-    /// A new key (or none) reaches the page on its next load, so this reloads. Only Activate and Deactivate in Settings call it.
-    func setLicense(_ key: String?) { licenseKey = key; installScripts(); load() }
+    /// A new key and activation (or none) reach the page on its next load, so this reloads. Only Activate and Deactivate in Settings call it.
+    func setLicense(_ grant: LicenseGrant?) { license = grant; installScripts(); load() }
 
     /// WKUserContentController can only drop every script at once, so each change rebuilds them all.
     private func installScripts() {
         let scripts = webView.configuration.userContentController
         scripts.removeAllUserScripts()
         if Probe.enabled { scripts.addUserScript(Probe.script) }
-        if let key = licenseKey, let origin = LicenseScript.origin(of: url) {
-            scripts.addUserScript(WKUserScript(source: LicenseScript.source(key: key, origin: origin), injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        if let license, let origin = LicenseScript.origin(of: url) {
+            scripts.addUserScript(WKUserScript(source: LicenseScript.source(license, origin: origin), injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
     }
 
@@ -77,7 +77,11 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     func scribeToken() async throws -> String {
         let js = """
         const key = window.__T1_LICENSE__ || localStorage.getItem("terminal1.license") || "";
-        const r = await fetch("/api/scribe-token", { method: "POST", credentials: "same-origin", headers: key ? { "x-terminal1-license": key } : {} });
+        const instance = window.__T1_LICENSE__ ? window.__T1_INSTANCE__ || "" : localStorage.getItem("terminal1.instance") || "";
+        const headers = {};
+        if (key) headers["x-terminal1-license"] = key;
+        if (key && instance) headers["x-terminal1-instance"] = instance;
+        const r = await fetch("/api/scribe-token", { method: "POST", credentials: "same-origin", headers });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.token) throw new Error(j.error || `HTTP ${r.status}`);
         return j.token;

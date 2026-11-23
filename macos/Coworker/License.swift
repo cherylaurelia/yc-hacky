@@ -9,10 +9,26 @@ enum LicensePlan: String, Codable, Equatable {
     var title: String { self == .pro ? "Pro" : "Team" }
 }
 
-/// Fill these in once the LS store exists. While they are nil/empty the app trusts whatever LS says is valid and the server does the filtering.
+/// Which LS store and products this build sells, from Info.plist (macos/build.sh writes T1StoreID and T1ProductIDs from
+/// LEMONSQUEEZY_STORE_ID, LEMONSQUEEZY_PRODUCT_IDS and LEMONSQUEEZY_TEAM_PRODUCT_IDS). Empty (a dev build) trusts whatever LS says is valid
+/// and the server does the filtering. Something that is set but is not a number matches nothing, so a typo never loosens the check.
 enum LicenseConfig {
-    static let storeID: Int? = nil
-    static let productIDs: Set<Int> = []
+    static func parse(storeID: String?, productIDs: String?) -> (storeID: Int?, productIDs: Set<Int>) {
+        let store = storeID?.trimmingCharacters(in: .whitespaces) ?? ""
+        let products = (productIDs ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return (store.isEmpty ? nil : Int(store) ?? -1, Set(products.map { Int($0) ?? -1 }))
+    }
+
+    private static let bundled = parse(storeID: Bundle.main.object(forInfoDictionaryKey: "T1StoreID") as? String,
+                                       productIDs: Bundle.main.object(forInfoDictionaryKey: "T1ProductIDs") as? String)
+    static let storeID: Int? = bundled.storeID
+    static let productIDs: Set<Int> = bundled.productIDs
+}
+
+/// What the page needs to prove this Mac holds a seat on the key: the key and the activation (instance) id LS gave it.
+struct LicenseGrant: Equatable {
+    var key: String
+    var instanceID: String
 }
 
 enum LicenseState: Equatable {
@@ -60,11 +76,11 @@ enum LicenseState: Equatable {
     }
 }
 
-/// The page reads `window.__T1_LICENSE__`; the app puts it there before the page's own scripts run.
+/// The page reads `window.__T1_LICENSE__` and `window.__T1_INSTANCE__`; the app puts them there before the page's own scripts run.
 enum LicenseScript {
     /// The check keeps the key away from any other site the panel might navigate to.
-    static func source(key: String, origin: String) -> String {
-        "if (location.origin === \(json(origin))) window.__T1_LICENSE__ = \(json(key));"
+    static func source(_ grant: LicenseGrant, origin: String) -> String {
+        "if (location.origin === \(json(origin))) { window.__T1_LICENSE__ = \(json(grant.key)); window.__T1_INSTANCE__ = \(json(grant.instanceID)); }"
     }
 
     /// scheme://host[:port], as `location.origin` writes it.
@@ -221,9 +237,10 @@ struct LSClient {
 @MainActor
 final class LicenseManager {
     private(set) var state: LicenseState = .unlicensed
-    /// Called with the new key (nil when removed) after Activate or Deactivate, so the page can pick it up.
-    var onKeyChange: ((String?) -> Void)?
+    /// Called with the new key and activation (nil when removed) after Activate or Deactivate, so the page can pick them up.
+    var onKeyChange: ((LicenseGrant?) -> Void)?
     var key: String? { stored?.key }
+    var grant: LicenseGrant? { stored.map { LicenseGrant(key: $0.key, instanceID: $0.instanceID) } }
 
     private let store: LicenseStore
     private let ls: LSClient
@@ -265,7 +282,7 @@ final class LicenseManager {
         stored = new
         state = .active(plan: plan, validatedAt: new.validatedAt!)
         if let old, !(await ls.deactivate(key: old.key, instanceID: old.instanceID)) { NSLog("Terminal 1: the previous activation could not be released") }
-        onKeyChange?(key)
+        onKeyChange?(LicenseGrant(key: key, instanceID: id))
         return nil
     }
 

@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // A hidden panel must keep speaking: no App Nap.
         activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Terminal 1 voice session")
 
-        panel = CoworkerPanel(url: configuredURL, license: license.key)
+        panel = CoworkerPanel(url: configuredURL, license: license.grant)
         license.onKeyChange = { [weak self] in self?.panel.setLicense($0) }
         settingsWindow.license = license
         Task { await license.validateOnLaunch() }

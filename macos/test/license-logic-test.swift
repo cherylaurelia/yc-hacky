@@ -1,8 +1,8 @@
 import Foundation
 import JavaScriptCore
 
-// Logic for the license: the offline grace rule, reading Lemon Squeezy's answers, the activate/deactivate calls and the script
-// that hands the key to the page. No network and no Keychain. Build and run with macos/test.sh
+// Logic for the license: the offline grace rule, reading Lemon Squeezy's answers, the store and products a build accepts, the
+// activate/deactivate calls and the script that hands the key and its activation to the page. No network and no Keychain. Build and run with macos/test.sh
 @main
 struct LicenseLogicTest {
     static var failed = 0
@@ -74,6 +74,25 @@ struct LicenseLogicTest {
         check("a body that is not JSON is could-not-ask", judge(Data("oops".utf8)), .unreachable)
         check("no store configured trusts LS", LSClient.judge(answer(store: 5), status: 200, storeID: nil, productIDs: []), .valid(.pro))
 
+        // Which store and products the build accepts: Info.plist's T1StoreID and T1ProductIDs, parsed.
+        let cfg = LicenseConfig.parse(storeID: "111", productIDs: "10, 20,,30 ")
+        check("the store and every product (Pro and Team) are read", [cfg.storeID.map { [$0] } ?? [], cfg.productIDs.sorted()], [[111], [10, 20, 30]])
+        check("a configured build rejects another store's key", LSClient.judge(answer(store: 5), status: 200, storeID: cfg.storeID, productIDs: cfg.productIDs), .rejected("That license key is not for Terminal 1."))
+        check("and another product's key", LSClient.judge(answer(product: 99), status: 200, storeID: cfg.storeID, productIDs: cfg.productIDs), .rejected("That license key is not for Terminal 1."))
+        check("and accepts a team product's key", LSClient.judge(answer(product: 30), status: 200, storeID: cfg.storeID, productIDs: cfg.productIDs), .valid(.pro))
+        let dev = LicenseConfig.parse(storeID: "", productIDs: nil)
+        check("an empty config (a dev build) checks nothing", [dev.storeID == nil, dev.productIDs.isEmpty], [true, true])
+        check("a dev build trusts LS's answer, as before", LSClient.judge(answer(store: 5, product: 99), status: 200, storeID: dev.storeID, productIDs: dev.productIDs), .valid(.pro))
+        let typo = LicenseConfig.parse(storeID: "11l", productIDs: "10,x")
+        check("a store id that is not a number matches nothing, it does not turn the check off", LSClient.judge(answer(), status: 200, storeID: typo.storeID, productIDs: typo.productIDs), .rejected("That license key is not for Terminal 1."))
+        check("a product id that is not a number matches nothing", LSClient.judge(answer(product: 20), status: 200, storeID: 111, productIDs: typo.productIDs), .rejected("That license key is not for Terminal 1."))
+        check("this test binary has no Info.plist keys, so it is a dev build", [LicenseConfig.storeID == nil, LicenseConfig.productIDs.isEmpty], [true, true])
+        let strict = Fake(["validate": [(answer(store: 999), 200)]])
+        var configured = strict.client
+        (configured.storeID, configured.productIDs) = (cfg.storeID, cfg.productIDs)
+        check("activate refuses another store's key before it calls activate", await configured.activate(key: "KEY").check, .rejected("That license key is not for Terminal 1."))
+        check("  so no seat is used", strict.sent.map(\.path), ["validate"])
+
         // The requests.
         let req = LSClient.request("activate", [("license_key", "a b&c=d+e"), ("instance_name", "Terminal 1 Mac")])
         check("form-encoded POST", [req.httpMethod ?? "", req.value(forHTTPHeaderField: "Content-Type") ?? "", req.value(forHTTPHeaderField: "Accept") ?? ""],
@@ -103,18 +122,20 @@ struct LicenseLogicTest {
         check("deactivate answers true when LS answered", await live.client.deactivate(key: "KEY", instanceID: "inst-1"), true)
         check("  and sends both ids", live.sent.last.map { [$0.path, $0.body] }, ["deactivate", "license_key=KEY&instance_id=inst-1"])
 
-        // The script that hands the key to the page, run in a real JS engine.
-        func run(_ key: String, pageOrigin: String) -> String? {
+        // The script that hands the key and its activation to the page, run in a real JS engine.
+        func run(_ grant: LicenseGrant, pageOrigin: String) -> [String?] {
             let js = JSContext()!
             js.evaluateScript("var window = {}; var location = { origin: \(pageOrigin.debugDescription) };")
-            js.evaluateScript(LicenseScript.source(key: key, origin: "https://t1.example.com"))
-            let v = js.evaluateScript("window.__T1_LICENSE__")
-            return v?.isString == true ? v?.toString() : nil
+            js.evaluateScript(LicenseScript.source(grant, origin: "https://t1.example.com"))
+            return ["__T1_LICENSE__", "__T1_INSTANCE__"].map { name in
+                let v = js.evaluateScript("window.\(name)")
+                return v?.isString == true ? v?.toString() : nil
+            }
         }
         let nasty = "ab\"c\\d</script>\n\u{2028}'é"
-        check("the page gets the key exactly, quotes and all", run(nasty, pageOrigin: "https://t1.example.com"), nasty)
-        check("another origin gets nothing", run("KEY", pageOrigin: "https://evil.example"), nil)
-        check("a different port is another origin", run("KEY", pageOrigin: "https://t1.example.com:8443"), nil)
+        check("the page gets the key and the instance id exactly, quotes and all", run(LicenseGrant(key: nasty, instanceID: "inst-\(nasty)"), pageOrigin: "https://t1.example.com"), [nasty, "inst-\(nasty)"])
+        check("another origin gets neither", run(LicenseGrant(key: "KEY", instanceID: "INST"), pageOrigin: "https://evil.example"), [nil, nil])
+        check("a different port is another origin", run(LicenseGrant(key: "KEY", instanceID: "INST"), pageOrigin: "https://t1.example.com:8443"), [nil, nil])
         check("origin of a url", LicenseScript.origin(of: URL(string: "https://t1.example.com/app?embed=1")!), "https://t1.example.com")
         check("origin drops a default port, as location.origin does", LicenseScript.origin(of: URL(string: "https://t1.example.com:443/app")!), "https://t1.example.com")
         check("origin keeps a port", LicenseScript.origin(of: URL(string: "http://127.0.0.1:3000/app")!), "http://127.0.0.1:3000")

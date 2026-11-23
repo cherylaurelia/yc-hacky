@@ -2,18 +2,26 @@
 # Releases the Mac app at macos/VERSION as a GitHub release, with Terminal-1.dmg attached.
 #   scripts/release.sh             dry run (default): builds the DMG and prints what --publish would do. Creates and changes nothing.
 #   scripts/release.sh --publish   creates release v<version>, then writes public/releases.json for the website. Commit and deploy that file.
-# Refuses when the git tree is dirty or the tag v<version> exists. Sign and notarize with DEVELOPER_ID and NOTARY_PROFILE (see macos/build.sh).
+# Refuses when the git tree is dirty or the tag v<version> exists. --publish also refuses unless:
+#   - DEVELOPER_ID and NOTARY_PROFILE are set, so the DMG is signed and notarized (see macos/build.sh); --allow-unsigned overrides that for a beta
+#   - LEMONSQUEEZY_STORE_ID and LEMONSQUEEZY_PRODUCT_IDS are set, so the app refuses other stores' license keys
+#   - the release repo is public (RELEASE_REPO=owner/name picks it), because buyers download the DMG without a GitHub login
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 die() { echo "release: $*" >&2; exit 1; }
 
 publish=0
-case "$*" in
-  "") ;;
-  --publish) publish=1 ;;
-  *) echo "usage: scripts/release.sh [--publish]" >&2; exit 2 ;;
-esac
+unsigned=0
+for arg in "$@"; do
+  case "$arg" in
+    --publish) publish=1 ;;
+    --allow-unsigned) unsigned=1 ;;
+    *) echo "usage: scripts/release.sh [--publish] [--allow-unsigned]" >&2; exit 2 ;;
+  esac
+done
+signed=1
+[[ -n "${DEVELOPER_ID:-}" && -n "${NOTARY_PROFILE:-}" ]] || signed=0
 
 VERSION="$(tr -d '[:space:]' < macos/VERSION)"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "macos/VERSION must be x.y.z, got '$VERSION'"
@@ -36,14 +44,21 @@ REPO="${RELEASE_REPO:-$(git config --get remote.origin.url | sed -E 's#^(https:/
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "cannot read owner/repo from the origin remote; set RELEASE_REPO=owner/name"
 
 if (( publish )); then
+  (( signed || unsigned )) || die "--publish needs DEVELOPER_ID and NOTARY_PROFILE so the DMG is signed and notarized; for a beta, pass --allow-unsigned"
+  [[ -n "${LEMONSQUEEZY_STORE_ID:-}" && -n "${LEMONSQUEEZY_PRODUCT_IDS:-}" ]] || die "--publish needs LEMONSQUEEZY_STORE_ID and LEMONSQUEEZY_PRODUCT_IDS: without them the app would accept any store's license key"
   command -v gh >/dev/null || die "--publish needs the gh CLI"
   gh auth status >/dev/null 2>&1 || die "--publish needs gh logged in: gh auth login"
+  visibility="$(gh repo view "$REPO" --json visibility -q .visibility)" || die "could not read $REPO from GitHub; check RELEASE_REPO and that gh can see it"
+  [[ "$visibility" == "PUBLIC" ]] || die "$REPO is $visibility: buyers cannot download from it. Set RELEASE_REPO to a public repo (owner/name)"
   git fetch -q origin || die "git fetch origin failed"
   [[ -n "$(git branch -r --contains HEAD)" ]] || die "HEAD is not on origin; push first so the tag points at the commit that was built"
 fi
 
-if [[ -z "${DEVELOPER_ID:-}" || -z "${NOTARY_PROFILE:-}" ]]; then
-  echo "warning: this build will not be signed and notarized (DEVELOPER_ID and NOTARY_PROFILE): macOS asks buyers to right-click > Open" >&2
+if (( ! signed )); then
+  echo "warning: this build will not be signed and notarized (DEVELOPER_ID and NOTARY_PROFILE): macOS asks buyers to right-click > Open; --publish refuses it without --allow-unsigned" >&2
+fi
+if [[ -z "${LEMONSQUEEZY_STORE_ID:-}" || -z "${LEMONSQUEEZY_PRODUCT_IDS:-}" ]]; then
+  echo "warning: LEMONSQUEEZY_STORE_ID or LEMONSQUEEZY_PRODUCT_IDS is unset: this app would accept any store's license key; --publish refuses it" >&2
 fi
 bash macos/build.sh
 [[ -f "$DMG" ]] || die "macos/build.sh did not produce $DMG"
@@ -60,8 +75,9 @@ trap 'rm -f "$NOTES"' EXIT
   echo "Terminal 1 $VERSION for macOS 13.3 or newer."
   echo
   echo "Open Terminal-1.dmg and drag Terminal 1 to Applications."
-  if [[ -z "${DEVELOPER_ID:-}" || -z "${NOTARY_PROFILE:-}" ]]; then
-    echo "This build is not notarized: right-click Terminal 1 in Applications, choose Open, then Open again."
+  echo "Upgrading from the old Coworker app? Quit it and delete it from Applications; settings and permissions start fresh."
+  if (( ! signed )); then
+    echo "This beta is not signed and notarized: right-click Terminal 1 in Applications, choose Open, then Open again."
   fi
   echo
   echo "Changes"
