@@ -19,7 +19,7 @@ export async function swiftSpec(spec: string, deps: string[]) {
   if (missing.length) throw new Error(`missing ${missing.map((m) => `macos/Coworker/${m}`).join(", ")}`);
   const out = join(tmp("swift"), spec);
   try {
-    await run("swiftc", ["-parse-as-library", "-swift-version", "5", ...deps.map((d) => join(MAC, d)), join(ROOT, "tests/product/mac", `${spec}.swift`), "-o", out], { timeout: 240_000 });
+    await run("swiftc", ["-parse-as-library", "-swift-version", "5", "-wmo", ...deps.map((d) => join(MAC, d)), join(ROOT, "tests/product/mac", `${spec}.swift`), "-o", out], { timeout: 240_000 });
   } catch (e) {
     throw new Error(`compile failed:\n${String((e as { stderr?: string }).stderr ?? e).slice(0, 3000)}`);
   }
