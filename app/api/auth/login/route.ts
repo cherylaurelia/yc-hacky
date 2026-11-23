@@ -8,7 +8,7 @@ const go = (to: string, cookie?: string) =>
 // your agent board and file issues as you; `read:user` for your name and avatar.
 export async function GET(req: Request) {
   const app = oauthApp();
-  if (!app) return go("/?auth_error=not_configured");
+  if (!app) return go("/app?auth_error=not_configured");
 
   const next = Buffer.from(safeNext(new URL(req.url).searchParams.get("next") ?? "")).toString("base64url");
   const state = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("hex");

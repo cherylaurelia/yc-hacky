@@ -1,11 +1,11 @@
-import Coworker from "@/components/Coworker";
+// Landing page (replaced by the full marketing page in the next commit). The app lives at /app.
+import Link from "next/link";
 
-type Param = string | string[] | undefined;
-const one = (v: Param) => (typeof v === "string" ? v : "");
-
-// ?repo=owner/name  ?board=<issue number>  ?embed=1 (compact layout for the Mac app's panel)
-export default async function Home({ searchParams }: { searchParams: Promise<{ repo?: Param; board?: Param; embed?: Param }> }) {
-  const q = await searchParams;
-  const board = Number(one(q.board));
-  return <Coworker initialRepo={one(q.repo)} board={Number.isInteger(board) && board > 0 ? board : undefined} embed={one(q.embed) === "1"} />;
+export default function Home() {
+  return (
+    <main>
+      <h1>Terminal 1</h1>
+      <Link href="/app">Open the app</Link>
+    </main>
+  );
 }
