@@ -145,7 +145,7 @@ export default function Stage() {
           <Row name="Sam's Claude" tape="var(--tape-roger)" state="working" line="editing src/billing/invoice.ts" />
           <Row name="Sam's Codex" tape="var(--tape-sarah)" state={b.codex} line={b.codexLine} wait={waited} />
           {b.codex === "standby" && (
-            <div className="mx-3 mb-1 mt-1 rounded-[9px] bg-[var(--page-ink)] px-3.5 py-2.5 text-[13px] leading-[1.5] text-[var(--page)]">
+            <div className="mx-3 mb-1 mt-1 rounded-[9px] bg-[var(--wings-hi)] px-3.5 py-2.5 text-[13px] leading-[1.5] text-[var(--text)] shadow-[inset_0_0_0_1px_var(--rule)]">
               <span className="cmd">$ npm test -- auth</span>
               <br />
               <span className="cmd text-[var(--stuck-text)]">✕ 3 failed</span>

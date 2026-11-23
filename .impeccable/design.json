@@ -1,0 +1,700 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-23T19:45:54+00:00",
+  "title": "Design System: Coworker",
+  "extensions": {
+    "colorMeta": {
+      "wings": {
+        "role": "neutral",
+        "displayName": "Wings",
+        "canonical": "oklch(0.205 0.045 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.011 264)",
+          "oklch(0.264 0.015 264)",
+          "oklch(0.379 0.025 264)",
+          "oklch(0.493 0.035 264)",
+          "oklch(0.607 0.044 264)",
+          "oklch(0.721 0.034 264)",
+          "oklch(0.836 0.024 264)",
+          "oklch(0.950 0.013 264)"
+        ]
+      },
+      "wings-raise": {
+        "role": "neutral",
+        "displayName": "Wings Raise",
+        "canonical": "oklch(0.24 0.05 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.013 264)",
+          "oklch(0.264 0.016 264)",
+          "oklch(0.379 0.028 264)",
+          "oklch(0.493 0.039 264)",
+          "oklch(0.607 0.049 264)",
+          "oklch(0.721 0.038 264)",
+          "oklch(0.836 0.026 264)",
+          "oklch(0.950 0.015 264)"
+        ]
+      },
+      "wings-hi": {
+        "role": "neutral",
+        "displayName": "Wings High",
+        "canonical": "oklch(0.285 0.058 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.015 264)",
+          "oklch(0.264 0.019 264)",
+          "oklch(0.379 0.032 264)",
+          "oklch(0.493 0.046 264)",
+          "oklch(0.607 0.057 264)",
+          "oklch(0.721 0.044 264)",
+          "oklch(0.836 0.031 264)",
+          "oklch(0.950 0.017 264)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "oklch(0.335 0.05 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.013 264)",
+          "oklch(0.264 0.016 264)",
+          "oklch(0.379 0.028 264)",
+          "oklch(0.493 0.039 264)",
+          "oklch(0.607 0.049 264)",
+          "oklch(0.721 0.038 264)",
+          "oklch(0.836 0.026 264)",
+          "oklch(0.950 0.015 264)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Text",
+        "canonical": "oklch(0.97 0.008 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.002 264)",
+          "oklch(0.264 0.003 264)",
+          "oklch(0.379 0.004 264)",
+          "oklch(0.493 0.006 264)",
+          "oklch(0.607 0.008 264)",
+          "oklch(0.721 0.006 264)",
+          "oklch(0.836 0.004 264)",
+          "oklch(0.950 0.002 264)"
+        ]
+      },
+      "dim": {
+        "role": "neutral",
+        "displayName": "Dim",
+        "canonical": "oklch(0.8 0.03 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.007 264)",
+          "oklch(0.264 0.010 264)",
+          "oklch(0.379 0.017 264)",
+          "oklch(0.493 0.024 264)",
+          "oklch(0.607 0.030 264)",
+          "oklch(0.721 0.023 264)",
+          "oklch(0.836 0.016 264)",
+          "oklch(0.950 0.009 264)"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint",
+        "canonical": "oklch(0.7 0.035 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.009 264)",
+          "oklch(0.264 0.012 264)",
+          "oklch(0.379 0.020 264)",
+          "oklch(0.493 0.028 264)",
+          "oklch(0.607 0.034 264)",
+          "oklch(0.721 0.026 264)",
+          "oklch(0.836 0.018 264)",
+          "oklch(0.950 0.010 264)"
+        ]
+      },
+      "page": {
+        "role": "primary",
+        "displayName": "Prompt-Book White",
+        "canonical": "oklch(0.985 0.004 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.001 264)",
+          "oklch(0.264 0.001 264)",
+          "oklch(0.379 0.002 264)",
+          "oklch(0.493 0.003 264)",
+          "oklch(0.607 0.004 264)",
+          "oklch(0.721 0.003 264)",
+          "oklch(0.836 0.002 264)",
+          "oklch(0.950 0.001 264)"
+        ]
+      },
+      "page-ink": {
+        "role": "primary",
+        "displayName": "Page Ink",
+        "canonical": "oklch(0.21 0.035 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.009 264)",
+          "oklch(0.264 0.012 264)",
+          "oklch(0.379 0.020 264)",
+          "oklch(0.493 0.028 264)",
+          "oklch(0.607 0.034 264)",
+          "oklch(0.721 0.026 264)",
+          "oklch(0.836 0.018 264)",
+          "oklch(0.950 0.010 264)"
+        ]
+      },
+      "page-dim": {
+        "role": "neutral",
+        "displayName": "Page Dim",
+        "canonical": "oklch(0.46 0.03 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.007 264)",
+          "oklch(0.264 0.010 264)",
+          "oklch(0.379 0.017 264)",
+          "oklch(0.493 0.024 264)",
+          "oklch(0.607 0.030 264)",
+          "oklch(0.721 0.023 264)",
+          "oklch(0.836 0.016 264)",
+          "oklch(0.950 0.009 264)"
+        ]
+      },
+      "page-rule": {
+        "role": "neutral",
+        "displayName": "Page Rule",
+        "canonical": "oklch(0.905 0.01 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.003 264)",
+          "oklch(0.264 0.003 264)",
+          "oklch(0.379 0.006 264)",
+          "oklch(0.493 0.008 264)",
+          "oklch(0.607 0.010 264)",
+          "oklch(0.721 0.008 264)",
+          "oklch(0.836 0.005 264)",
+          "oklch(0.950 0.003 264)"
+        ]
+      },
+      "page-well": {
+        "role": "neutral",
+        "displayName": "Page Well",
+        "canonical": "oklch(0.955 0.008 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.002 264)",
+          "oklch(0.264 0.003 264)",
+          "oklch(0.379 0.004 264)",
+          "oklch(0.493 0.006 264)",
+          "oklch(0.607 0.008 264)",
+          "oklch(0.721 0.006 264)",
+          "oklch(0.836 0.004 264)",
+          "oklch(0.950 0.002 264)"
+        ]
+      },
+      "standby": {
+        "role": "secondary",
+        "displayName": "Standby Amber",
+        "canonical": "oklch(0.84 0.155 80)",
+        "tonalRamp": [
+          "oklch(0.150 0.039 80)",
+          "oklch(0.264 0.051 80)",
+          "oklch(0.379 0.086 80)",
+          "oklch(0.493 0.122 80)",
+          "oklch(0.607 0.153 80)",
+          "oklch(0.721 0.117 80)",
+          "oklch(0.836 0.082 80)",
+          "oklch(0.950 0.046 80)"
+        ]
+      },
+      "stuck": {
+        "role": "secondary",
+        "displayName": "Stuck Red",
+        "canonical": "oklch(0.68 0.2 27)",
+        "tonalRamp": [
+          "oklch(0.150 0.050 27)",
+          "oklch(0.264 0.066 27)",
+          "oklch(0.379 0.111 27)",
+          "oklch(0.493 0.157 27)",
+          "oklch(0.607 0.197 27)",
+          "oklch(0.721 0.151 27)",
+          "oklch(0.836 0.106 27)",
+          "oklch(0.950 0.060 27)"
+        ]
+      },
+      "done": {
+        "role": "secondary",
+        "displayName": "Done Green",
+        "canonical": "oklch(0.8 0.15 155)",
+        "tonalRamp": [
+          "oklch(0.150 0.037 155)",
+          "oklch(0.264 0.049 155)",
+          "oklch(0.379 0.084 155)",
+          "oklch(0.493 0.118 155)",
+          "oklch(0.607 0.148 155)",
+          "oklch(0.721 0.114 155)",
+          "oklch(0.836 0.079 155)",
+          "oklch(0.950 0.045 155)"
+        ]
+      },
+      "stuck-text": {
+        "role": "secondary",
+        "displayName": "Stuck Red Text",
+        "canonical": "oklch(0.76 0.16 27)",
+        "tonalRamp": [
+          "oklch(0.150 0.040 27)",
+          "oklch(0.264 0.053 27)",
+          "oklch(0.379 0.089 27)",
+          "oklch(0.493 0.126 27)",
+          "oklch(0.607 0.158 27)",
+          "oklch(0.721 0.121 27)",
+          "oklch(0.836 0.085 27)",
+          "oklch(0.950 0.048 27)"
+        ]
+      },
+      "standby-ink": {
+        "role": "secondary",
+        "displayName": "Standby Ink",
+        "canonical": "oklch(0.52 0.13 70)",
+        "tonalRamp": [
+          "oklch(0.150 0.033 70)",
+          "oklch(0.264 0.043 70)",
+          "oklch(0.379 0.072 70)",
+          "oklch(0.493 0.102 70)",
+          "oklch(0.607 0.128 70)",
+          "oklch(0.721 0.098 70)",
+          "oklch(0.836 0.069 70)",
+          "oklch(0.950 0.039 70)"
+        ]
+      },
+      "page-edge": {
+        "role": "neutral",
+        "displayName": "Page Edge",
+        "canonical": "oklch(0.82 0.015 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.004 264)",
+          "oklch(0.264 0.005 264)",
+          "oklch(0.379 0.008 264)",
+          "oklch(0.493 0.012 264)",
+          "oklch(0.607 0.015 264)",
+          "oklch(0.721 0.011 264)",
+          "oklch(0.836 0.008 264)",
+          "oklch(0.950 0.004 264)"
+        ]
+      },
+      "stop-edge": {
+        "role": "neutral",
+        "displayName": "Stop Edge",
+        "canonical": "oklch(0.86 0.05 27)",
+        "tonalRamp": [
+          "oklch(0.150 0.013 27)",
+          "oklch(0.264 0.016 27)",
+          "oklch(0.379 0.028 27)",
+          "oklch(0.493 0.039 27)",
+          "oklch(0.607 0.049 27)",
+          "oklch(0.721 0.038 27)",
+          "oklch(0.836 0.026 27)",
+          "oklch(0.950 0.015 27)"
+        ]
+      },
+      "tape-roger": {
+        "role": "tertiary",
+        "displayName": "Roger Tape",
+        "canonical": "oklch(0.83 0.12 192)",
+        "tonalRamp": [
+          "oklch(0.150 0.030 192)",
+          "oklch(0.264 0.039 192)",
+          "oklch(0.379 0.067 192)",
+          "oklch(0.493 0.094 192)",
+          "oklch(0.607 0.118 192)",
+          "oklch(0.721 0.091 192)",
+          "oklch(0.836 0.063 192)",
+          "oklch(0.950 0.036 192)"
+        ]
+      },
+      "tape-sarah": {
+        "role": "tertiary",
+        "displayName": "Sarah Tape",
+        "canonical": "oklch(0.76 0.17 356)",
+        "tonalRamp": [
+          "oklch(0.150 0.043 356)",
+          "oklch(0.264 0.056 356)",
+          "oklch(0.379 0.095 356)",
+          "oklch(0.493 0.134 356)",
+          "oklch(0.607 0.168 356)",
+          "oklch(0.721 0.129 356)",
+          "oklch(0.836 0.090 356)",
+          "oklch(0.950 0.051 356)"
+        ]
+      },
+      "tape-charlie": {
+        "role": "tertiary",
+        "displayName": "Charlie Tape",
+        "canonical": "oklch(0.89 0.17 125)",
+        "tonalRamp": [
+          "oklch(0.150 0.043 125)",
+          "oklch(0.264 0.056 125)",
+          "oklch(0.379 0.095 125)",
+          "oklch(0.493 0.134 125)",
+          "oklch(0.607 0.168 125)",
+          "oklch(0.721 0.129 125)",
+          "oklch(0.836 0.090 125)",
+          "oklch(0.950 0.051 125)"
+        ]
+      },
+      "tape-alice": {
+        "role": "tertiary",
+        "displayName": "Alice Tape",
+        "canonical": "oklch(0.8 0.11 238)",
+        "tonalRamp": [
+          "oklch(0.150 0.028 238)",
+          "oklch(0.264 0.036 238)",
+          "oklch(0.379 0.061 238)",
+          "oklch(0.493 0.086 238)",
+          "oklch(0.607 0.108 238)",
+          "oklch(0.721 0.083 238)",
+          "oklch(0.836 0.058 238)",
+          "oklch(0.950 0.033 238)"
+        ]
+      },
+      "tape-george": {
+        "role": "tertiary",
+        "displayName": "George Tape",
+        "canonical": "oklch(0.95 0.015 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.004 264)",
+          "oklch(0.264 0.005 264)",
+          "oklch(0.379 0.008 264)",
+          "oklch(0.493 0.012 264)",
+          "oklch(0.607 0.015 264)",
+          "oklch(0.721 0.011 264)",
+          "oklch(0.836 0.008 264)",
+          "oklch(0.950 0.004 264)"
+        ]
+      },
+      "tape-jessica": {
+        "role": "tertiary",
+        "displayName": "Jessica Tape",
+        "canonical": "oklch(0.76 0.14 296)",
+        "tonalRamp": [
+          "oklch(0.150 0.035 296)",
+          "oklch(0.264 0.046 296)",
+          "oklch(0.379 0.078 296)",
+          "oklch(0.493 0.110 296)",
+          "oklch(0.607 0.138 296)",
+          "oklch(0.721 0.106 296)",
+          "oklch(0.836 0.074 296)",
+          "oklch(0.950 0.042 296)"
+        ]
+      },
+      "add-bg": {
+        "role": "tertiary",
+        "displayName": "Diff Add Fill",
+        "canonical": "oklch(0.95 0.05 152)",
+        "tonalRamp": [
+          "oklch(0.150 0.013 152)",
+          "oklch(0.264 0.016 152)",
+          "oklch(0.379 0.028 152)",
+          "oklch(0.493 0.039 152)",
+          "oklch(0.607 0.049 152)",
+          "oklch(0.721 0.038 152)",
+          "oklch(0.836 0.026 152)",
+          "oklch(0.950 0.015 152)"
+        ]
+      },
+      "add-ink": {
+        "role": "tertiary",
+        "displayName": "Diff Add Ink",
+        "canonical": "oklch(0.42 0.12 152)",
+        "tonalRamp": [
+          "oklch(0.150 0.030 152)",
+          "oklch(0.264 0.039 152)",
+          "oklch(0.379 0.067 152)",
+          "oklch(0.493 0.094 152)",
+          "oklch(0.607 0.118 152)",
+          "oklch(0.721 0.091 152)",
+          "oklch(0.836 0.063 152)",
+          "oklch(0.950 0.036 152)"
+        ]
+      },
+      "del-bg": {
+        "role": "tertiary",
+        "displayName": "Diff Delete Fill",
+        "canonical": "oklch(0.955 0.035 27)",
+        "tonalRamp": [
+          "oklch(0.150 0.009 27)",
+          "oklch(0.264 0.012 27)",
+          "oklch(0.379 0.020 27)",
+          "oklch(0.493 0.028 27)",
+          "oklch(0.607 0.034 27)",
+          "oklch(0.721 0.026 27)",
+          "oklch(0.836 0.018 27)",
+          "oklch(0.950 0.010 27)"
+        ]
+      },
+      "del-ink": {
+        "role": "tertiary",
+        "displayName": "Diff Delete Ink",
+        "canonical": "oklch(0.48 0.16 27)",
+        "tonalRamp": [
+          "oklch(0.150 0.040 27)",
+          "oklch(0.264 0.053 27)",
+          "oklch(0.379 0.089 27)",
+          "oklch(0.493 0.126 27)",
+          "oklch(0.607 0.158 27)",
+          "oklch(0.721 0.121 27)",
+          "oklch(0.836 0.085 27)",
+          "oklch(0.950 0.048 27)"
+        ]
+      },
+      "pill": {
+        "role": "neutral",
+        "displayName": "Pill Black",
+        "canonical": "oklch(0.13 0.025 264)",
+        "tonalRamp": [
+          "oklch(0.150 0.006 264)",
+          "oklch(0.264 0.008 264)",
+          "oklch(0.379 0.014 264)",
+          "oklch(0.493 0.020 264)",
+          "oklch(0.607 0.025 264)",
+          "oklch(0.721 0.019 264)",
+          "oklch(0.836 0.013 264)",
+          "oklch(0.950 0.007 264)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The app screen's one headline."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The question on the lit page."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Transcript lines."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default copy, tabular figures."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Section headings, name labels, buttons."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Commands, paths and diffs only."
+      },
+      "display-site": {
+        "displayName": "Display, site",
+        "purpose": "Marketing page headline; 38-44px on phones, up to 60px."
+      },
+      "headline-site": {
+        "displayName": "Headline, site",
+        "purpose": "Marketing section heads; 34px on phones."
+      },
+      "lede-site": {
+        "displayName": "Lede",
+        "purpose": "The line under a marketing headline; 16.5px on phones."
+      },
+      "body-site": {
+        "displayName": "Body, site",
+        "purpose": "Marketing section copy in dim ink."
+      },
+      "caption-site": {
+        "displayName": "Caption",
+        "purpose": "Sample-data labels and the demo control."
+      }
+    },
+    "shadows": [
+      {
+        "name": "page-lift",
+        "value": "0 1px 0 oklch(1 0 0 / 0.6) inset, 0 18px 40px -12px oklch(0.08 0.04 264 / 0.7), 0 2px 6px oklch(0.08 0.04 264 / 0.35)",
+        "purpose": "The lit page."
+      },
+      {
+        "name": "pill-float",
+        "value": "0 14px 34px -10px oklch(0.05 0.03 264 / 0.8), 0 2px 6px oklch(0.05 0.03 264 / 0.5)",
+        "purpose": "The talk pill."
+      },
+      {
+        "name": "keycap",
+        "value": "inset 0 -1px 0 oklch(1 0 0 / 0.08), 0 0 0 1px oklch(1 0 0 / 0.14)",
+        "purpose": "Key hints and numbered step marks."
+      },
+      {
+        "name": "focused-row",
+        "value": "inset 0 0 0 1px oklch(0.45 0.06 264)",
+        "purpose": "The board row whose request is on the page."
+      },
+      {
+        "name": "rule-hairline",
+        "value": "inset 0 0 0 1px oklch(0.335 0.05 264)",
+        "purpose": "Flat edge for quiet buttons, outlined links and the command well on navy."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Marketing pages: buttons (200ms), lamps (300ms), pill width (500ms)."
+      },
+      {
+        "name": "standby-pulse",
+        "value": "2.4s",
+        "purpose": "Amber lamp pulse; stops under reduced motion."
+      },
+      {
+        "name": "pill-width",
+        "value": "260ms",
+        "purpose": "App talk pill width change."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Go Button (on page)",
+      "kind": "button",
+      "refersTo": "button-go",
+      "description": "Primary Allow action inside the lit page.",
+      "html": "<button class=\"ds-btn-go\">Allow</button>",
+      "css": ".ds-btn-go { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: oklch(0.21 0.035 264); color: oklch(0.985 0.004 264); font-size: 14.5px; font-weight: 600; cursor: pointer; transition: background 160ms; } .ds-btn-go:hover { background: oklch(0.28 0.04 264); } .ds-btn-go:focus-visible { outline: 2px solid oklch(0.21 0.035 264); outline-offset: 2px; }"
+    },
+    {
+      "name": "Go Button (on navy)",
+      "kind": "button",
+      "refersTo": "button-go-navy",
+      "description": "Marketing primary action on the navy ground: page fill, page-ink text.",
+      "html": "<div class=\"ds-navy\"><a class=\"ds-btn-go-navy\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><path d=\"M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>Download for Mac</a></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-btn-go-navy { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; border-radius: 10px; background: oklch(0.985 0.004 264); color: oklch(0.21 0.035 264); font-weight: 600; text-decoration: none; transition: background 200ms cubic-bezier(0.16,1,0.3,1), transform 200ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-go-navy:hover { background: oklch(0.94 0.012 264); } .ds-btn-go-navy:active { transform: translateY(1px); } .ds-btn-go-navy:focus-visible { outline: 2px solid oklch(0.8 0.11 238); outline-offset: 3px; }"
+    },
+    {
+      "name": "Quiet Button (on navy)",
+      "kind": "button",
+      "refersTo": "button-quiet-navy",
+      "description": "Secondary action on navy: rule hairline, fills wings-raise on hover.",
+      "html": "<div class=\"ds-navy\"><a class=\"ds-btn-quiet-navy\" href=\"#\">Open web app</a></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-btn-quiet-navy { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 10px; color: oklch(0.97 0.008 264); font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1px oklch(0.335 0.05 264); transition: background 200ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-quiet-navy:hover { background: oklch(0.24 0.05 264); } .ds-btn-quiet-navy:focus-visible { outline: 2px solid oklch(0.8 0.11 238); outline-offset: 3px; }"
+    },
+    {
+      "name": "Lit Page",
+      "kind": "card",
+      "refersTo": "lit-page",
+      "description": "The one light-lifted surface per screen, holding the current decision.",
+      "html": "<div class=\"ds-navy\"><div class=\"ds-lit\"><div class=\"ds-lit-meta\"><b>Sam's Claude wants to run</b><span class=\"ds-standby-ink\">waiting on you · 0:21</span></div><code class=\"ds-cmd\">npm run migrate</code></div></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-lit { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; background: oklch(0.985 0.004 264); color: oklch(0.21 0.035 264); border-radius: 14px; padding: 20px 22px 18px; box-shadow: 0 1px 0 oklch(1 0 0 / 0.6) inset, 0 18px 40px -12px oklch(0.08 0.04 264 / 0.7), 0 2px 6px oklch(0.08 0.04 264 / 0.35); } .ds-lit-meta { display: flex; justify-content: space-between; font-size: 13px; color: oklch(0.46 0.03 264); } .ds-lit-meta b { color: oklch(0.21 0.035 264); } .ds-standby-ink { font-weight: 600; color: oklch(0.52 0.13 70); } .ds-cmd { font-family: 'JetBrains Mono', ui-monospace, monospace; display: block; margin-top: 12px; padding: 12px 14px; border-radius: 9px; background: oklch(0.21 0.035 264); color: oklch(0.985 0.004 264); font-size: 14px; }"
+    },
+    {
+      "name": "Command Well (on navy)",
+      "kind": "custom",
+      "refersTo": "command-well",
+      "description": "A command standing on the navy ground: raised wings-hi well with a rule hairline.",
+      "html": "<div class=\"ds-navy\"><code class=\"ds-cmd-well\">npx coworker install --agent claude</code></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-cmd-well { font-family: 'JetBrains Mono', ui-monospace, monospace; display: block; overflow-x: auto; white-space: pre; border-radius: 9px; background: oklch(0.285 0.058 264); color: oklch(0.97 0.008 264); padding: 12px 14px; font-size: 14px; line-height: 1.5; box-shadow: inset 0 0 0 1px oklch(0.335 0.05 264); }"
+    },
+    {
+      "name": "Keyed Talk Pill",
+      "kind": "custom",
+      "refersTo": "talk-pill-keyed",
+      "description": "The voice surface with the fn keycap inside; widens when speaking or listening.",
+      "html": "<div class=\"ds-navy\"><div class=\"ds-pill\"><span class=\"ds-key\">fn</span><span class=\"ds-wave\"><i></i><i></i><i></i><i></i><i></i></span><span class=\"ds-pill-text\">hold to talk</span></div></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-pill { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: inline-flex; align-items: center; gap: 12px; height: 48px; width: 150px; padding: 0 20px 0 10px; border-radius: 999px; background: oklch(0.13 0.025 264); color: oklch(0.97 0.008 264); font-size: 14px; box-shadow: 0 14px 34px -10px oklch(0.05 0.03 264 / 0.8), 0 2px 6px oklch(0.05 0.03 264 / 0.5); transition: width 500ms cubic-bezier(0.16,1,0.3,1); } .ds-pill:hover { width: 300px; } .ds-key { padding: 2px 8px; border-radius: 5px; font-size: 12px; font-weight: 600; background: oklch(1 0 0 / 0.08); box-shadow: inset 0 -1px 0 oklch(1 0 0 / 0.08), 0 0 0 1px oklch(1 0 0 / 0.14); transition: transform 150ms; } .ds-pill:hover .ds-key { background: oklch(1 0 0 / 0.2); transform: translateY(1px); } .ds-wave { display: flex; align-items: center; gap: 3px; height: 22px; } .ds-wave i { display: block; width: 3px; height: 4px; border-radius: 2px; background: oklch(0.97 0.008 264); } .ds-pill-text { color: oklch(0.7 0.035 264); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }"
+    },
+    {
+      "name": "Lamps",
+      "kind": "chip",
+      "refersTo": "lamp",
+      "description": "Round state lamps: working and idle are hollow rings, standby / done / stuck are filled.",
+      "html": "<div class=\"ds-navy ds-lamps\"><span class=\"ds-lamp ds-working\"></span>working<span class=\"ds-lamp ds-idle\"></span>idle<span class=\"ds-lamp ds-standby\"></span>waiting on you<span class=\"ds-lamp ds-done\"></span>done<span class=\"ds-lamp ds-stuck\"></span>stuck</div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-lamps { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; align-items: center; gap: 8px; color: oklch(0.7 0.035 264); font-size: 13px; } .ds-lamp { width: 10px; height: 10px; border-radius: 999px; margin-left: 10px; } .ds-working { box-shadow: inset 0 0 0 2px oklch(0.7 0.035 264); } .ds-idle { box-shadow: inset 0 0 0 2px oklch(0.335 0.05 264); } .ds-standby { background: oklch(0.84 0.155 80); } .ds-done { background: oklch(0.8 0.15 155); } .ds-stuck { background: oklch(0.68 0.2 27); }"
+    },
+    {
+      "name": "Site Navigation",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Slim marketing header: dim text links that fill wings-raise on hover, one outlined link.",
+      "html": "<div class=\"ds-navy\"><nav class=\"ds-nav\"><a href=\"#\">Download</a><a href=\"#\">Pricing</a><a href=\"#\">Docs</a><a class=\"ds-nav-out\" href=\"#\">Open web app</a></nav></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-nav { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; display: flex; gap: 4px; font-size: 15px; } .ds-nav a { padding: 8px 12px; border-radius: 8px; color: oklch(0.8 0.03 264); text-decoration: none; transition: background 150ms, color 150ms; } .ds-nav a:hover { background: oklch(0.24 0.05 264); color: oklch(0.97 0.008 264); } .ds-nav a:focus-visible { outline: 2px solid oklch(0.8 0.11 238); outline-offset: 3px; } .ds-nav .ds-nav-out { margin-left: 8px; font-weight: 600; color: oklch(0.97 0.008 264); box-shadow: inset 0 0 0 1px oklch(0.335 0.05 264); }"
+    },
+    {
+      "name": "Sample Label",
+      "kind": "custom",
+      "refersTo": "sample-label",
+      "description": "One-line faint caption closing any section of invented example content.",
+      "html": "<div class=\"ds-navy\"><p class=\"ds-sample\">Sample exchange.</p></div>",
+      "css": ".ds-navy { background: oklch(0.205 0.045 264); padding: 24px; } .ds-sample { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; margin: 0; font-size: 12.5px; color: oklch(0.7 0.035 264); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calling Desk",
+    "overview": "The room is backstage: a running-light navy ground where everything is low and quiet, and one lit white page carries the single decision in front of you. The person is the stage manager; agents are crew standing by. State is shown by cue lamps, identity by colored spike tape, and the eye goes to the light, never to a field of equal cards.\n\nDensity is tight and tabular: fixed columns, numbers in tabular figures, rows ranked by how long someone has waited. Colour is scarce on the navy and reserved for meaning (lamps, tape, the one amber count). The page is the only bright, high-contrast surface on a screen. The same system scales down unchanged to the 360x520 Mac panel.\n\nThe product ships as **Terminal 1**; \"Coworker\" stays the name of this design system. The marketing routes (/, /pricing, /download, /docs, /privacy, /terms) wear the same world scoped under one wrapper: the navy wings, one lit page per viewport, lamps and tape, and the talk pill. They add a larger display ramp, a split-desk hero and a few navy-ground variants (light primary button, raised command well), recorded below. The /app page's cream-and-serif styling is drift from this world and is not part of the system.",
+    "keyCharacteristics": [
+      "Dark navy wings, one lit page per screen.",
+      "Round lamps mean state; rectangular tape means who.",
+      "Amber is reserved for \"waiting on you\".",
+      "Archivo throughout, headings narrowed to 87.5% width; JetBrains Mono only for commands and diffs.",
+      "A small black talk pill, bottom center, is the voice surface."
+    ],
+    "rules": [
+      {
+        "name": "The Standby Rule",
+        "body": "Amber means \"an agent is waiting on you\" and nothing else. No amber for warnings, highlights, brand or hover.",
+        "section": "colors"
+      },
+      {
+        "name": "The Lamp and Tape Rule",
+        "body": "State is a round lamp (10px, hollow ring when working, filled when standby, stuck or done; idle is a hollow ring drawn in the rule color, quieter than working's faint ring). Identity is a rectangular tape chip (14x9px, slightly skewed). Never swap the shapes.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Light Rule",
+        "body": "Only one lit page per screen. Everything else stays on the navy. On a scrolling marketing page that means one per viewport: the hero's draft, a sample request further down, the Pro plan on pricing.",
+        "section": "colors"
+      },
+      {
+        "name": "The Narrow Heading Rule",
+        "body": "Every heading sets `font-stretch: 87.5%` on Archivo; body copy stays at normal width.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Is Evidence Rule",
+        "body": "JetBrains Mono appears only for commands, paths and diffs: things an agent literally wrote or will run.",
+        "section": "typography"
+      },
+      {
+        "name": "The Only Light Lifts Rule",
+        "body": "Board, rows and buttons on navy never carry drop shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep standby amber for \"waiting on you\" alone, on the lamp, the waiting count and the waiting state label.",
+      "**Do** give every agent voice its tape color everywhere it appears: chip, waveform, transcript name, standup segment.",
+      "**Do** set headings in Archivo at 87.5% width and use JetBrains Mono only for commands and diffs.",
+      "**Do** rank agent rows by wait and keep columns fixed so state changes in place.",
+      "**Do** keep exactly one lit page per screen, with the command as its reversed plate.",
+      "**Do** honor reduced motion: the waveform, thinking dots and standby pulse stop.",
+      "**Do** reverse the primary button to page-on-ink (the go-on-navy button) when it sits on navy, and put commands on navy in the raised command well.",
+      "**Do** label invented example content with a 12.5px faint sample caption.",
+      "**Do** offer \"Try the web app\" with \"Mac app coming soon\" until a Mac release exists."
+    ],
+    "donts": [
+      "**Don't** use amber for warnings, emphasis, hover or branding.",
+      "**Don't** make tape chips round or lamps rectangular.",
+      "**Don't** lay agents out as a grid of equal cards, and don't make a giant mic button; voice lives in the small pill.",
+      "**Don't** put drop shadows on navy surfaces; only the page and pill lift.",
+      "**Don't** use mono for labels, numbers or UI chrome.",
+      "**Don't** set a near-black page-ink plate directly on the navy ground outside a lit page; use the command well.",
+      "**Don't** show a download button that leads nowhere."
+    ]
+  }
+}
