@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+# coworker: lets an agent or a script reach your voice coworker. Needs bash, curl and jq (gh for the board).
+#
+#   coworker ask "<question>" [--agent NAME] [--timeout S]   prints your answer; exit 2 when there is none in time
+#   coworker notify "<text>" [--kind done|blocked|stuck]     fire and forget
+#   coworker verdict "<reply>"                                prints allow | deny | stop | none (the one reply parser)
+#   coworker hook claude|codex|cursor                         what each agent runs on its hook events (JSON on stdin)
+#   coworker install|uninstall claude|codex|cursor            wires those hooks into the agent's config, or removes them
+#   coworker doctor                                           what works and what is missing; exit 1 if nothing can reach you
+#
+# Transport: the local relay (<COWORKER_HOME>/relay.json, default ~/.coworker) when its /v1/health answers, else the
+# team board on GitHub through gh. The board side of hooks (approvals, stuck detection, stop by reply) is
+# hooks/coworker-hook.sh, which also gets every hook event the relay does not take (UserPromptSubmit, *ToolUse*).
+# A hook never fails the agent: with no answer it prints nothing (Cursor: "ask") and the agent asks in its terminal.
+# Env: COWORKER_HOME, COWORKER_NAME (first name in the label; default git user.name), COWORKER_TIMEOUT (seconds to
+#      wait for a reply, default 90), COWORKER_BOARD, COWORKER_REPO, COWORKER_APPROVERS (as in hooks/coworker-hook.sh)
+
+# shellcheck disable=SC2016  # the jq programs sit in single quotes on purpose
+set -u
+NUM='^[0-9]+$'
+REPO_RE='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+RELAY_DIR="${COWORKER_HOME:-$HOME/.coworker}"
+TIMEOUT="${COWORKER_TIMEOUT:-90}"; [[ "$TIMEOUT" =~ $NUM ]] || TIMEOUT=90
+die() { echo "coworker: $*" >&2; exit 1; }
+
+# the real path of this script (hooks written by install keep working through a symlink)
+ME="$0"
+while [ -L "$ME" ]; do link="$(readlink "$ME")"; case "$link" in /*) ME="$link" ;; *) ME="$(dirname "$ME")/$link" ;; esac; done
+ME="$(cd "$(dirname "$ME")" && pwd)/$(basename "$ME")"
+BOARD_HOOK="$(dirname "$ME")/../hooks/coworker-hook.sh"
+
+# jq: secrets masked (mask); one line, @mentions defused, cut to $n characters (clean). Same as hooks/coworker-hook.sh.
+MASK='def mask: gsub("(?<k>\\b(gh[pousr]_|sk-|xox[a-z]-)|(token|key|secret|passw(or)?d|authorization|bearer)[=: ]+(bearer |basic )?)[^ \\n]+"; "\(.k)***"; "i");'
+CLEAN="$MASK"'def clean($n): gsub("\\s+"; " ") | mask | gsub("@"; "@\u200b") | ltrimstr(" ") | if length > $n then .[:$n] + "…" else . end;'
+
+# ---------- reading a reply ----------
+
+# allow | deny | stop | none. A negation ("don't", "not") before an allow word turns it into a deny; an allow word with
+# a deny word, a question, or nothing recognisable is none, so only a clear reply ever acts.
+verdict() {
+  local w k a=0 d=0 s=0 neg=0
+  case "$*" in *\?*) echo none; return ;; esac
+  for w in $(printf '%s' "$*" | tr '[:upper:]' '[:lower:]' | sed "s/’//g" | tr -d "'" | tr -c '[:lower:]' ' '); do
+    case "$w" in
+      allow|allowed|approve|approved|yes|yeah|yep|ahead|proceed|accept|permit) k=a ;;
+      deny|denied|reject|rejected|no|nope|decline|refuse|block|cancel) k=d ;;
+      stop|kill|abort|halt|quit|terminate) k=s ;;
+      not|dont|never|cannot|cant|wont|shouldnt) k=n ;;
+      *) k= ;;
+    esac
+    if [ "$neg" = 1 ]; then   # a negation alone ("do not run it") is a deny; before an allow word too; before stop it cancels it
+      neg=0
+      case "$k" in s) continue ;; a) d=$((d + 1)); continue ;; *) d=$((d + 1)) ;; esac
+    fi
+    case "$k" in a) a=$((a + 1)) ;; d) d=$((d + 1)) ;; s) s=$((s + 1)) ;; n) neg=1 ;; esac
+  done
+  [ "$neg" = 0 ] || d=$((d + 1))
+  if [ "$s" -gt 0 ] && [ "$a" -eq 0 ]; then echo stop
+  elif [ "$s" -eq 0 ] && [ "$a" -gt 0 ] && [ "$d" -eq 0 ]; then echo allow
+  elif [ "$s" -eq 0 ] && [ "$d" -gt 0 ] && [ "$a" -eq 0 ]; then echo deny
+  else echo none; fi
+}
+
+# ---------- identity ----------
+
+# owner/name of the origin remote of directory $1
+repo_of() {
+  local u; u="$(git -C "$1" remote get-url origin 2>/dev/null)" || return 1
+  u="${u%/}"; u="${u%.git}"
+  case "$u" in *://*) u="${u#*://}"; u="${u#*/}" ;; *:*) u="${u#*:}" ;; *) return 1 ;; esac
+  [[ "$u" =~ $REPO_RE ]] && printf '%s' "$u"
+}
+
+name_of() {
+  local n="${COWORKER_NAME:-$(git -C "$1" config user.name 2>/dev/null | awk '{print $1}')}"
+  printf '%s' "${n:-${USER:-someone}}" | tr -d '[]\n'
+}
+
+# ---------- the relay ----------
+
+# Sets RELAY and TOKEN and succeeds when the relay named in relay.json answers its health check.
+relay_load() {
+  local port
+  read -r port TOKEN <<<"$(jq -r '"\(.port // "") \(.token // "")"' "$RELAY_DIR/relay.json" 2>/dev/null)"
+  [[ "${port:-}" =~ $NUM ]] && [[ "${TOKEN:-}" =~ ^[A-Za-z0-9._~+/=-]+$ ]] || return 1
+  RELAY="http://127.0.0.1:$port"
+  curl -sf -m 2 "$RELAY/v1/health" >/dev/null
+}
+
+# curl with the token read from a config on stdin, so it never shows in a process list
+rcurl() { printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | curl -s -K - "$@"; }
+
+# Long-polls the answer to relay event $1 for up to $2 seconds and prints it; fails when there is none.
+relay_wait() {
+  local end=$(( $(date +%s) + $2 )) left out
+  while left=$(( end - $(date +%s) )); [ "$left" -gt 0 ]; do
+    [ "$left" -le 25 ] || left=25
+    out="$(rcurl -m $(( left + 5 )) -w '\n%{http_code}' "$RELAY/v1/events/$1/answer?wait=$left")"
+    case "${out##*$'\n'}" in
+      200) printf '%s' "${out%$'\n'*}" | jq -r '.answer // ""'; return 0 ;;
+      204) ;;
+      *) sleep 1 ;;
+    esac
+  done
+  return 1
+}
+
+# ---------- the board ----------
+
+# Sets REPO and BOARD (the issue to post on) for $CWD; fails without gh or a board.
+board_target() {
+  command -v gh >/dev/null || return 1
+  REPO="${COWORKER_REPO:-$(repo_of "$CWD")}"; [[ "$REPO" =~ $REPO_RE ]] || return 1
+  BOARD="${COWORKER_BOARD:-}"
+  [ -n "$BOARD" ] || BOARD="$(gh api "repos/$REPO/issues?labels=board&state=open&sort=created&direction=asc&per_page=10" \
+    --jq '[.[] | select(.pull_request | not)] | (.[0].number // 0)')" || return 1
+  [[ "$BOARD" =~ $NUM ]] && [ "$BOARD" -ge 1 ]
+}
+
+# Polls the board for a reply "req $1 <answer>" from an approver, posted after comment $2 (created $3), for up to $4 seconds.
+board_wait() {
+  local end=$(( $(date +%s) + $4 )) ok rows a left
+  ok="${COWORKER_APPROVERS:-$(gh api user --jq .login)}" && [ -n "$ok" ] || return 1
+  while :; do
+    rows="$(gh api --paginate "repos/$REPO/issues/$BOARD/comments?per_page=100&since=$3" --jq '.[] | {id, u: .user.login, b: .body}')" \
+      && a="$(printf '%s' "$rows" | jq -rs --arg id "$1" --argjson pid "$2" --arg ok "$ok" '
+        ($ok | ascii_downcase | split(",") | map(gsub("\\s"; ""))) as $ok
+        | [ .[] | select(.id > $pid and (((.u // "") | ascii_downcase) as $u | $ok | index($u) != null))
+            | .b | capture("req\\s+" + $id + "\\b[\\s,:.-]*(?<r>[\\s\\S]*)"; "i").r | gsub("\\s+$"; "") ]
+        | first // empty')" \
+      && [ -n "$a" ] && { printf '%s' "$a"; return 0; }
+    left=$(( end - $(date +%s) )); [ "$left" -gt 0 ] || return 1
+    sleep $(( left < 3 ? left : 3 ))
+  done
+}
+
+# ---------- sending ----------
+
+# The event as one JSON object, with the context of the hook event in $IN ({} for ask and notify). The fields are the
+# board's coworker comment (lib/board.ts Ctx) plus the text, so the app reads relay and board events the same way.
+event_json() { # KIND TEXT [REQ]
+  printf '%s' "$IN" | jq -c --arg kind "$1" --arg text "$2" --arg req "${3:-}" --arg agent "$AGENT" --arg cwd "$CWD" \
+    --arg repo "$(repo_of "$CWD")" "$MASK"'
+    def nul: if . == "" then null else . end;
+    def lines($p): split("\n") | map($p + .);
+    (.tool_input // {}) as $i
+    | (if .tool_name == "Write" then ($i.content // "") | lines("+")
+       elif .tool_name == "Edit" or .tool_name == "MultiEdit" then [($i.edits // [$i])[] | ((.old_string // "") | lines("-")) + ((.new_string // "") | lines("+"))] | add
+       else null end) as $d
+    | {v: 1, agent: $agent, kind: $kind, text: ($text | mask | .[:500]), req: ($req | nul), cwd: $cwd, repo: ($repo | nul),
+       session: ((.session_id // "")[:8] | nul), tool: (.tool_name // null),
+       command: ((.tool_input.command? // "") | if type == "string" then mask | .[:300] | nul else null end),
+       file: ($i.file_path // $i.notebook_path // null),
+       diff: ($d | if . then join("\n") | mask | .[:3000] else null end)}'
+}
+
+# Picks the transport: T=relay, else T=board.
+connect() { if relay_load; then T=relay; elif board_target; then T=board; else return 1; fi; }
+
+# Delivers KIND TEXT over $T and sets REQ, which answer() waits on (relay: the event id; board: a req id, questions only).
+send() { # KIND TEXT
+  local kind="$1" line
+  REQ=""
+  case "$T" in
+    relay)
+      REQ="$(rcurl -f -m 5 -H 'Content-Type: application/json' --data-raw "$(event_json "$kind" "$2")" "$RELAY/v1/events" | jq -r '.id // empty')"
+      [ -n "$REQ" ] ;;
+    board)
+      if [ "$kind" = question ]; then kind=blocked; REQ="$(head -c3 /dev/urandom | od -An -tx1 | tr -d ' \n')"; fi
+      line="$(jq -nr --arg t "$2" "$CLEAN"'$t | clean(500)')"
+      # ctx() of hooks/coworker-hook.sh: @ < > as \uXXXX, so GitHub never sees a mention or a comment end inside the JSON
+      read -r PID CTS <<<"$(gh api "repos/$REPO/issues/$BOARD/comments" \
+        -f body="[$AGENT] $kind: $line${REQ:+ (req $REQ)}"$'\n\n'"<!-- coworker:$(event_json "$kind" "$2" "$REQ" | jq -c 'del(.text)' | sed 's/@/\\u0040/g; s/</\\u003c/g; s/>/\\u003e/g') -->" \
+        --jq '"\(.id) \(.created_at)"')"
+      [ -n "${PID:-}" ] ;;
+  esac
+}
+
+answer() { case "$T" in relay) relay_wait "$REQ" "$1" ;; board) board_wait "$REQ" "$PID" "$CTS" "$1" ;; esac; }
+
+cmd_send() { # ask|notify TEXT [--agent LABEL] [--timeout S] [--kind K]
+  local mode="$1" kind text="" label="" ans; shift
+  kind="done"; [ "$mode" != ask ] || kind=question
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --agent|--timeout|--kind)
+        [ $# -ge 2 ] || die "$1 needs a value"
+        case "$1" in --agent) label="$2" ;; --timeout) TIMEOUT="$2" ;; *) kind="$2" ;; esac; shift 2 ;;
+      -*) die "unknown option $1" ;;
+      *) text="${text:+$text }$1"; shift ;;
+    esac
+  done
+  [ -n "$text" ] || die "usage: coworker $mode \"<text>\""
+  [[ "$TIMEOUT" =~ $NUM ]] || die "--timeout takes seconds"
+  case "$mode:$kind" in ask:question|notify:done|notify:blocked|notify:stuck) ;; *) die "bad --kind $kind" ;; esac
+  IN='{}'; CWD="$PWD"; AGENT="$label"; [ -n "$AGENT" ] || AGENT="$(name_of "$CWD")'s Agent"
+  connect || die "no relay and no board: run 'coworker doctor'"
+  send "$kind" "$text" || die "could not deliver to the $T"
+  [ "$mode" = ask ] || return 0
+  ans="$(answer "$TIMEOUT")" || { echo "coworker: no answer in ${TIMEOUT}s" >&2; exit 2; }
+  printf '%s\n' "$ans"
+}
+
+# ---------- hooks ----------
+
+j() { printf '%s' "$IN" | jq -r "$1"; }
+
+# Cursor's hook input as the Claude Code event it corresponds to, so one code path serves all three agents.
+cursor_in() {
+  jq -c '(.workspace_roots[0]? // "") as $w
+    | if .hook_event_name == "stop"
+      then {hook_event_name: "Stop", cwd: $w, session_id: .conversation_id, last_assistant_message: (if (.status // "completed") == "completed" then "finished" else .status end)}
+      else {hook_event_name: "PermissionRequest", cwd: (if (.cwd // "") != "" then .cwd else $w end), session_id: .conversation_id, tool_name: "Bash", tool_input: {command: .command}} end'
+}
+
+# decide BEHAVIOR [MESSAGE] [stop]: the PermissionRequest answer shared by Claude Code and Codex
+decide() {
+  jq -nc --arg b "$1" --arg m "${2:-}" --arg stop "${3:-}" --arg app "$APP" '{hookSpecificOutput: {hookEventName: "PermissionRequest", decision:
+    ({behavior: $b} + (if $m != "" then {message: $m} else {} end) + (if $stop != "" and $app == "claude" then {interrupt: true} else {} end))}}'
+}
+
+# Posts the hook event over the relay and, for an approval, waits for the reply. Fails only when the relay would not
+# take the event (then the board gets it); no answer or an unclear one prints nothing, so the agent asks in its terminal.
+relay_hook() {
+  local what ans
+  case "$EVENT" in
+    PermissionRequest)
+      case "$(j '.tool_name // empty')" in ''|AskUserQuestion|ExitPlanMode) return 0 ;; esac
+      what="$(j '.tool_name + " " + (.tool_input | (.command // .file_path // .notebook_path // .url // .pattern // .query // tojson))')"
+      send approval "$what" || return 1
+      ans="$(answer "$TIMEOUT")" || return 0
+      case "$(verdict "$ans")" in
+        allow) decide allow ;;
+        deny) decide deny "Denied via Coworker: $ans" ;;
+        stop) decide deny "Stopped via Coworker" stop ;;
+      esac ;;
+    Notification)   # PermissionRequest already asked for permission prompts
+      [ "$(j '.notification_type // empty')" = permission_prompt ] && return 0
+      send blocked "$(j '(.message // "waiting for input") | sub("[ .]+$"; "")')" ;;
+    Stop)
+      [ "$(j '.stop_hook_active // false')" = true ] && return 0
+      send "done" "$(j '((.last_assistant_message // "") | split("\n") | map(select(test("\\S"))) | first // "finished") | sub("[ .]+$"; "") | .[:140]')" ;;
+  esac
+}
+
+hooks_file() { case "$1" in claude) echo "$HOME/.claude/settings.json" ;; codex) echo "${CODEX_HOME:-$HOME/.codex}/hooks.json" ;; cursor) echo "$HOME/.cursor/hooks.json" ;; esac; }
+# where hooks/coworker-hook.sh keeps its per-session state for that agent
+state_dir() { echo "$(dirname "$(hooks_file "$1")")/coworker-hook"; }
+
+hook_flow() {
+  case "$EVENT" in PermissionRequest|Notification|Stop) relay_load && T=relay && relay_hook && return 0 ;; esac
+  [ -x "$BOARD_HOOK" ] || return 0
+  printf '%s' "$IN" | COWORKER_AGENT="$LABEL" COWORKER_STATE_DIR="$(state_dir "$APP")" "$BOARD_HOOK"
+}
+
+cmd_hook() {
+  local out=""
+  case "${1:-}" in claude) LABEL=Claude ;; codex) LABEL=Codex ;; cursor) LABEL=Cursor ;; *) die "usage: coworker hook claude|codex|cursor" ;; esac
+  APP="$1"
+  exec 2>/dev/null   # a hook prints its answer and nothing else
+  IN="$(cat)"
+  if command -v jq >/dev/null; then
+    [ "$APP" != cursor ] || IN="$(printf '%s' "$IN" | cursor_in)"
+    EVENT="$(j '.hook_event_name // empty')"
+    CWD="$(j '.cwd // empty')"; [ -d "$CWD" ] || CWD="$PWD"
+    AGENT="$(name_of "$CWD")'s $LABEL"
+    out="$(hook_flow)"
+  fi
+  if [ "$APP" != cursor ]; then [ -z "$out" ] || printf '%s\n' "$out"; return 0; fi
+  # Cursor's answer: allow, deny with the reason, or ask (its own prompt); {} for stop
+  jq -nc --arg ev "${EVENT:-}" --argjson o "${out:-null}" '($o.hookSpecificOutput.decision // {}) as $d
+    | if $d.behavior == "allow" then {permission: "allow"}
+      elif $d.behavior == "deny" then {permission: "deny", user_message: ($d.message // "Denied via Coworker"), agent_message: ($d.message // "Denied via Coworker")}
+      elif $ev == "Stop" then {} else {permission: "ask"} end' || echo '{"permission":"ask"}'
+}
+
+# ---------- install and uninstall ----------
+
+# jq: our hook handlers are the ones whose command ends in "coworker hook <agent>"; strip removes them and what they leave empty
+HOOKS_JQ='
+  def ours: (.command // "") | test($re);
+  def purge: map(if has("hooks") then (.hooks |= map(select(ours | not))) | select(.hooks | length > 0) else select(ours | not) end);
+  def strip: if .hooks then .hooks |= (with_entries(.value |= purge) | with_entries(select(.value | length > 0))) else . end
+    | if .hooks == {} then del(.hooks) else . end;'
+
+cmd_install() { # install|uninstall claude|codex|cursor
+  local mode="$1" app="${2:-}" file events flat=false cur new prog
+  # events: [name, timeout seconds, matcher]. The tool and prompt events feed the board's stuck detection and stop by reply.
+  case "$app" in
+    claude) events='[["PermissionRequest",120],["Notification",20,"idle_prompt|elicitation_dialog"],["Stop",20],["UserPromptSubmit",10],["PreToolUse",5],["PostToolUse",10],["PostToolUseFailure",10]]' ;;
+    codex) events='[["PermissionRequest",120,"*"],["Stop",20],["UserPromptSubmit",10]]' ;;
+    cursor) events='[["beforeShellExecution"],["stop"]]'; flat=true ;;
+    *) die "usage: coworker $mode claude|codex|cursor" ;;
+  esac
+  file="$(hooks_file "$app")"; cur='{}'
+  if [ -e "$file" ]; then
+    jq -e 'type == "object" and ((.hooks // {}) | type == "object" and all(.[]; type == "array"))' "$file" >/dev/null 2>&1 \
+      || die "$file is not a JSON object with a valid hooks section; not touching it"
+    cur="$(cat "$file")"
+  elif [ "$mode" = uninstall ]; then
+    echo "nothing to uninstall: $file does not exist"; return 0
+  fi
+  prog="$HOOKS_JQ strip"
+  [ "$mode" = uninstall ] || prog="$prog
+    | reduce \$ev[] as [\$e, \$t, \$m] (.; .hooks[\$e] += [if \$flat then {command: \$cmd}
+        else (if \$m then {matcher: \$m} else {} end) + {hooks: [{type: \"command\", command: \$cmd, timeout: \$t}]} end])
+    | if \$flat then .version //= 1 else . end"
+  new="$(printf '%s' "$cur" | jq --arg re "coworker.* hook $app\$" --arg cmd "$(printf '%q hook %s' "$ME" "$app")" \
+    --argjson ev "$events" --argjson flat "$flat" "$prog")" && [ -n "$new" ] || die "jq failed on $file"
+  if [ "$(printf '%s' "$cur" | jq -cS .)" = "$(printf '%s' "$new" | jq -cS .)" ]; then
+    echo "nothing to $mode in $file"
+  else
+    mkdir -p "$(dirname "$file")" || die "could not create $(dirname "$file")"
+    printf '%s\n' "$new" > "$file" || die "could not write $file"
+    echo "${mode}ed the Coworker hooks: $file"
+  fi
+  [ "$mode" = install ] || rm -rf "$(state_dir "$app")"
+}
+
+# ---------- doctor ----------
+
+cmd_doctor() {
+  local up=0 gh=0 app CWD="$PWD"
+  if relay_load; then echo "relay: ok (127.0.0.1:${RELAY##*:})"; up=1
+  elif [ -e "$RELAY_DIR/relay.json" ]; then echo "relay: not running (open the Coworker app)"
+  else echo "relay: not running (no $RELAY_DIR/relay.json; open the Coworker app)"; fi
+  if ! command -v gh >/dev/null; then echo "gh: missing (https://cli.github.com), so no team board"
+  elif ! gh auth status >/dev/null 2>&1; then echo "gh: found, not logged in (gh auth login)"
+  else
+    echo "gh: ok, logged in"; gh=1
+    if board_target; then echo "board: issue #$BOARD in $REPO"; else echo "board: none for $PWD (set COWORKER_BOARD, or label an issue \"board\")"; fi
+  fi
+  for app in claude codex cursor; do
+    if jq -e --arg re "coworker.* hook $app\$" '[.. | .command? | strings | select(test($re))] | length > 0' "$(hooks_file "$app")" >/dev/null 2>&1
+    then echo "$app: hooks installed"; else echo "$app: not installed (coworker install $app)"; fi
+  done
+  [ $((up + gh)) -gt 0 ]
+}
+
+# ---------- main ----------
+
+cmd="${1:-help}"; [ $# -eq 0 ] || shift
+case "$cmd" in
+  verdict|help|-h|--help|hook) ;;
+  *) for t in jq curl; do command -v "$t" >/dev/null || die "needs $t"; done ;;
+esac
+case "$cmd" in
+  ask|notify) cmd_send "$cmd" "$@" ;;
+  verdict) verdict "$@" ;;
+  hook) cmd_hook "$@"; exit 0 ;;
+  install|uninstall) cmd_install "$cmd" "$@" ;;
+  doctor) cmd_doctor ;;
+  help|-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown command $cmd (try: coworker help)" ;;
+esac

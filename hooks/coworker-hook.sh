@@ -18,6 +18,7 @@
 #      COWORKER_BOARD   board issue number      (default: the repo's oldest open issue labeled "board", looked up
 #                       once per 10 min; a repo with none gets no posts, the hook never falls back to #1)
 #      COWORKER_NAME    first name in the tag   (default: git user.name first word, then $USER)
+#      COWORKER_AGENT   agent name in the tag   (default Claude; bin/coworker sets Codex or Cursor)
 #      COWORKER_TIMEOUT seconds to wait for an approval reply (default 90)
 #      COWORKER_APPROVERS comma list of GitHub logins whose replies count (default: the gh user)
 #      COWORKER_DONE_MIN  seconds a turn must run before "done" is posted (default 60)
@@ -92,7 +93,7 @@ WHERE="${SESSION_REPO#*/}"; [ -n "$WHERE" ] || WHERE="$(basename "$CWD")"
 
 NAME="${COWORKER_NAME:-$(git -C "$CWD" config user.name | awk '{print $1}')}"
 NAME="$(printf '%s' "${NAME:-${USER:-someone}}" | tr -d '[]\n')"
-TAG="[$NAME's Claude]"
+TAG="[$NAME's ${COWORKER_AGENT:-Claude}]"
 
 # jq: secrets masked (mask); one line, @mentions defused, cut to $n characters (clean)
 MASK='def mask: gsub("(?<k>\\b(gh[pousr]_|sk-|xox[a-z]-)|(token|key|secret|passw(or)?d|authorization|bearer)[=: ]+(bearer |basic )?)[^ \\n]+"; "\(.k)***"; "i");'
@@ -134,7 +135,7 @@ ctx() {
   local f line diff d c; f="$(j '.tool_input.file_path // .tool_input.notebook_path // empty')"
   line="$(line_of "$f")"; diff="$(diff_of "$f")"
   for d in "$diff" ""; do   # over 6000 characters: drop the diff
-    c="$(printf '%s' "$IN" | jq -c --arg kind "$1" --arg req "${2:-}" --argjson stuck "${3:-null}" --arg agent "$NAME's Claude" \
+    c="$(printf '%s' "$IN" | jq -c --arg kind "$1" --arg req "${2:-}" --argjson stuck "${3:-null}" --arg agent "$NAME's ${COWORKER_AGENT:-Claude}" \
       --arg repo "${SESSION_REPO:-$(basename "$CWD")}" --arg cwd "$CWD" --arg file "$f" --arg line "$line" --arg diff "$d" "$MASK"'
       def nul: if . == "" then null else . end;
       {v: 1, kind: $kind, req: ($req | nul), session: ((.session_id // "")[:8]), agent: $agent, cwd: $cwd, repo: $repo,
