@@ -32,6 +32,8 @@ const line = (i: { number: number; title: string; user: User }) => `number ${i.n
 const num = (v: unknown, d: number, lo: number, hi: number) =>
   typeof v === "number" ? Math.min(hi, Math.max(lo, Math.trunc(v))) : d;
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+// "bug, ui" -> ["bug", "ui"]; logins lose a spoken "@".
+const list = (v: unknown) => str(v).split(",").map((s) => s.trim().replace(/^@/, "")).filter(Boolean).slice(0, 20);
 
 // ---------- handlers (one per spec name; the type enforces it) ----------
 
@@ -187,6 +189,77 @@ export const HANDLERS: Record<ServerToolName, Handler> = {
     await boardPost(repo, token, num(args.board, 0, 0, 1e9) || undefined, `req ${id} ${decision}${note ? ` ${note}` : ""}`, "");
     return `Sent ${decision} for request ${id}.`;
   },
+
+  async create_issue({ repo, token }, args) {
+    const labels = list(args.labels), assignees = list(args.assignees);
+    const body = { title: str(args.title).slice(0, 256), ...(str(args.body) ? { body: str(args.body) } : {}), ...(labels.length ? { labels } : {}), ...(assignees.length ? { assignees } : {}) };
+    const i = await gh<{ number: number }>(`/repos/${repo}/issues`, { token, method: "POST", body });
+    return `Opened issue number ${i.number}.`;
+  },
+
+  async comment({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    await gh(`/repos/${repo}/issues/${n}/comments`, { token, method: "POST", body: { body: str(args.text) } });
+    return `Commented on number ${n}.`;
+  },
+
+  async set_state({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const closing = args.state === "closed";
+    await gh(`/repos/${repo}/issues/${n}`, { token, method: "PATCH", body: { state: closing ? "closed" : "open", ...(closing ? { state_reason: args.reason === "not_planned" ? "not_planned" : "completed" } : {}) } });
+    return `${closing ? "Closed" : "Reopened"} number ${n}.`;
+  },
+
+  async create_pr({ repo, token }, args) {
+    const base = str(args.base) || (await gh<{ default_branch: string }>(`/repos/${repo}`, { token })).default_branch;
+    const pr = await gh<{ number: number }>(`/repos/${repo}/pulls`, {
+      token,
+      method: "POST",
+      body: { head: str(args.head), base, title: str(args.title).slice(0, 256), ...(str(args.body) ? { body: str(args.body) } : {}), draft: args.draft === "yes" },
+    });
+    return `Opened pull request number ${pr.number} from ${str(args.head)} into ${base}.`;
+  },
+
+  async merge_pr({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const method = args.method === "merge" || args.method === "rebase" ? args.method : "squash";
+    try {
+      await gh(`/repos/${repo}/pulls/${n}/merge`, { token, method: "PUT", body: { merge_method: method } });
+    } catch (e) {
+      // 405: not mergeable, or this merge method is off for the repo; 409: the head moved. Keep GitHub's reason.
+      if (e instanceof GhError && (e.status === 405 || e.status === 409)) {
+        const why = e.message.replace(/^GitHub won't allow that right now\.\s*/, "").trim();
+        throw new GhError(`I couldn't merge number ${n}: ${why || "it has conflicts, failing required checks, or needs a review."}`, 409);
+      }
+      throw e;
+    }
+    return `Merged number ${n}${method === "squash" ? ", squashed" : ""}.`;
+  },
+
+  async review_pr({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const event = args.verdict === "approve" ? "APPROVE" : args.verdict === "request_changes" ? "REQUEST_CHANGES" : "COMMENT";
+    const text = str(args.text);
+    if (event !== "APPROVE" && !text) throw new GhError("I need the review text for that.", 400);
+    await gh(`/repos/${repo}/pulls/${n}/reviews`, { token, method: "POST", body: { event, ...(text ? { body: text } : {}) } });
+    return event === "APPROVE" ? `Approved number ${n}.` : event === "REQUEST_CHANGES" ? `Requested changes on number ${n}.` : `Reviewed number ${n}.`;
+  },
+
+  async update_item({ repo, token }, args) {
+    const n = num(args.number, 0, 1, 1e9);
+    const add = list(args.add_labels), remove = list(args.remove_labels), assignees = list(args.assignees);
+    if (!add.length && !remove.length && !assignees.length) throw new GhError("Tell me which labels or people to change.", 400);
+    if (add.length) await gh(`/repos/${repo}/issues/${n}/labels`, { token, method: "POST", body: { labels: add } });
+    for (const l of remove) {
+      // A label the item doesn't have is already removed; carry on with the rest.
+      await gh(`/repos/${repo}/issues/${n}/labels/${encodeURIComponent(l)}`, { token, method: "DELETE" }).catch((e) => {
+        if (!(e instanceof GhError && e.status === 404)) throw e;
+      });
+    }
+    if (assignees.length) await gh(`/repos/${repo}/issues/${n}/assignees`, { token, method: "POST", body: { assignees } });
+    const done = [add.length && `added ${add.join(", ")}`, remove.length && `removed ${remove.join(", ")}`, assignees.length && `assigned ${assignees.join(", ")}`].filter(Boolean);
+    return `On number ${n}: ${done.join("; ")}.`;
+  },
 };
 
 // ---------- argument validation (boundary) ----------
@@ -196,6 +269,10 @@ const SPECS = new Map(TOOL_SPECS.map((s) => [s.name as string, s]));
 
 export const isToolName = (n: string): n is ServerToolName => SPECS.has(n) && !("local" in SPECS.get(n)!);
 export const isWriteTool = (n: ToolName) => SPECS.get(n)!.write;
+// Signed out, a write goes out as the server's own token (WRITE_REPOS). Only answering and relaying on the board
+// may do that; merging, closing, reviewing and the rest must be the signed-in user acting as themselves.
+const ANONYMOUS_WRITES = new Set<string>(["board_post", "answer_request"]);
+export const needsSignIn = (n: ToolName | string) => SPECS.has(n) && SPECS.get(n)!.write && !ANONYMOUS_WRITES.has(n);
 
 export function validateArgs(name: ToolName, raw: unknown): { ok: true; args: Args } | { ok: false; error: string } {
   if (raw !== undefined && (typeof raw !== "object" || raw === null || Array.isArray(raw))) return { ok: false, error: "args must be an object." };

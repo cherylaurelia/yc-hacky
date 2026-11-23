@@ -151,6 +151,124 @@ export const TOOL_SPECS = [
     },
   },
   {
+    name: "create_issue",
+    description:
+      "Open a new issue in the repo. WRITE ACTION: first say the title back in a few words and get an explicit yes. Afterwards say its number.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["title"],
+      properties: {
+        title: { type: "string", description: "Short issue title in the user's words." },
+        body: { type: "string", description: "Details: steps, expected and actual behavior. Optional." },
+        labels: { type: "string", description: "Comma-separated label names. Optional." },
+        assignees: { type: "string", description: "Comma-separated GitHub logins. Optional." },
+      },
+    },
+  },
+  {
+    name: "comment",
+    description: "Comment on an issue or pull request. WRITE ACTION: first say the comment back in a few words and get an explicit yes.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["number", "text"],
+      properties: {
+        number: { type: "integer", description: "The issue or pull request number." },
+        text: { type: "string", description: "The comment, in plain text." },
+      },
+    },
+  },
+  {
+    name: "set_state",
+    description: "Close or reopen an issue or pull request. WRITE ACTION: first say what you will close or reopen and get an explicit yes.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["number", "state"],
+      properties: {
+        number: { type: "integer", description: "The issue or pull request number." },
+        state: { type: "string", enum: ["open", "closed"], description: "closed to close it, open to reopen it." },
+        reason: { type: "string", enum: ["completed", "not_planned"], description: "Why an issue is closed. Optional, defaults to completed." },
+      },
+    },
+  },
+  {
+    name: "create_pr",
+    description:
+      "Open a pull request from an existing branch. WRITE ACTION: first say the branch and title back and get an explicit yes. To have code written first, use start_agent instead: it opens its own pull request.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["head", "title"],
+      properties: {
+        head: { type: "string", description: "The branch with the changes." },
+        title: { type: "string", description: "Pull request title." },
+        base: { type: "string", description: "Branch to merge into. Optional: defaults to the repo's default branch." },
+        body: { type: "string", description: "Description. Optional." },
+        draft: { type: "string", enum: ["yes", "no"], description: "yes to open it as a draft. Optional, defaults to no." },
+      },
+    },
+  },
+  {
+    name: "merge_pr",
+    description:
+      "Merge a pull request. WRITE ACTION: merging cannot be undone from here, so first say 'Merge number N, <title>?' and wait for an explicit yes. Squash by default.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["number"],
+      properties: {
+        number: { type: "integer", description: "The pull request number." },
+        method: { type: "string", enum: ["squash", "merge", "rebase"], description: "How to merge. Optional, defaults to squash." },
+      },
+    },
+  },
+  {
+    name: "review_pr",
+    description: "Approve a pull request, request changes, or leave a review comment. WRITE ACTION: first say the verdict back and get an explicit yes.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["number", "verdict"],
+      properties: {
+        number: { type: "integer", description: "The pull request number." },
+        verdict: { type: "string", enum: ["approve", "request_changes", "comment"], description: "The review verdict." },
+        text: { type: "string", description: "Review text. Required for request_changes and comment." },
+      },
+    },
+  },
+  {
+    name: "update_item",
+    description: "Add or remove labels, or assign people, on an issue or pull request. WRITE ACTION: first say the change back and get an explicit yes.",
+    write: true,
+    parameters: {
+      type: "object",
+      required: ["number"],
+      properties: {
+        number: { type: "integer", description: "The issue or pull request number." },
+        add_labels: { type: "string", description: "Comma-separated labels to add. Optional." },
+        remove_labels: { type: "string", description: "Comma-separated labels to remove. Optional." },
+        assignees: { type: "string", description: "Comma-separated GitHub logins to assign. Optional." },
+      },
+    },
+  },
+  {
+    name: "start_agent",
+    description:
+      "Hand a coding task to an agent: it is posted on the team board, where a board worker runs Claude Code on it and opens a pull request. First say the task back in a few words and get an explicit yes. Afterwards say it is on the board; progress shows up on the board (board_digest).",
+    write: false,
+    local: true,
+    parameters: {
+      type: "object",
+      required: ["task"],
+      properties: {
+        task: { type: "string", description: "What to build or fix, in the user's words, specific enough to act on." },
+        agent: { type: "string", enum: ["claude", "codex"], description: "Which agent. Optional, defaults to claude." },
+      },
+    },
+  },
+  {
     name: "show_me",
     description:
       "Put a board alert's context on the user's screen as a full-screen card: what the agent is doing, the command, the diff and the file. Use when the user says 'show me', 'let me see', 'pull it up' or asks about the diff. Afterwards say one short line like \"Here's the diff.\" and never read the diff aloud. It runs in the browser, so it is instant and needs no GitHub call.",

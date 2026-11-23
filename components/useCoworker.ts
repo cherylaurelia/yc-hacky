@@ -9,6 +9,8 @@ import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswe
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
+import { boardTask } from "@/lib/agents-bridge";
+import { type Said, confirmed } from "@/lib/confirm";
 import { alertFromRelay, isRelayEvent, relayAnswerText, sendToApp } from "@/lib/relay-bridge";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost, unlockAudio } from "@/lib/speak-client";
@@ -24,6 +26,8 @@ export type BoardState = { kind: "checking" | "ok" | "none" } | { kind: "error";
 type NativeBridge = { webkit?: { messageHandlers?: { coworker?: { postMessage(m: unknown): void } } } };
 
 const POLL_MS = 6_000;
+// Tools that can't be taken back from here, or that start work on this machine: only on the user's own yes.
+const NEEDS_YES = new Set<string>(["merge_pr", "set_state", "start_agent"]);
 const REPO_KEY = "coworker.repo";
 const INTERRUPTIONS_KEY = "coworker.interruptions";
 const VOICE_KEY = "coworker.voice";
@@ -97,6 +101,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const alertsRef = useRef<Alert[]>([]);
   const answeredReqs = useRef(new Set<string>());
   const relayReqs = useRef(new Set<string>()); // requests that came from the Mac app's relay, answered back through it
+  const lastSaid = useRef<Said | undefined>(undefined); // the user's own last words, for the yes check on risky tools
   const lastActive = useRef(0);
   const repoRef = useRef("");
   const sources = useRef(new Set<string>());
@@ -182,7 +187,24 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   // Local tools (no /api/tool route) run in the browser; the rest go to the server.
   const clientTools = useMemo(() => {
     const strArg = (v: unknown) => (typeof v === "string" ? v : undefined);
-    const local: Record<LocalToolName, (a: Record<string, unknown>) => string> = {
+    const local: Record<LocalToolName, (a: Record<string, unknown>) => string | Promise<string>> = {
+      // The task goes to the team board as a TASK post; a board worker turns it into a pull request.
+      async start_agent(a) {
+        const task = strArg(a.task)?.trim();
+        if (!task) throw new Error("I need the task.");
+        const agent = strArg(a.agent) === "codex" ? "codex" : "claude";
+        const me = (await fetch("/api/me").then((r) => r.json()).catch(() => ({}))) as { user?: { login: string; name?: string | null } | null };
+        const owner = me.user?.name?.split(" ")[0] || me.user?.login;
+        if (!owner) throw new Error("Sign in with GitHub to hand tasks to the board.");
+        const res = await fetch("/api/tool/board_post", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ repo: repoRef.current, args: { text: boardTask(owner, task, agent), ...(board ? { board } : {}) } }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(j.error ?? `Could not post the task (HTTP ${res.status}).`);
+        return "Put it on the board; a board worker will pick it up and open a pull request.";
+      },
       show_me(a) {
         const r = findAlert(alertsRef.current, strArg(a.agent), strArg(a.req));
         if ("error" in r) throw new Error(r.error);
@@ -218,8 +240,10 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
             const finish = (state: Call["state"], text: string) =>
               setCalls((c) => c.map((x) => (x.id === id ? { ...x, state, text, ms: Math.round(performance.now() - t0) } : x)));
             try {
+              // The model may only take these on the user's own recent yes, never on text it read.
+              if (NEEDS_YES.has(s.name) && !confirmed(lastSaid.current)) throw new Error("Ask the user to confirm first, and wait for a clear yes.");
               if ("local" in s) {
-                const text = local[s.name](sent);
+                const text = await local[s.name](sent);
                 finish("ok", text);
                 return text;
               }
@@ -263,6 +287,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     clientTools,
     onMessage: ({ role, message }) => {
       setMsgs((m) => [...m, { id: ++seq.current, role, text: message }]);
+      if (role === "user") lastSaid.current = { text: message, at: Date.now() };
       lastActive.current = Date.now();
       if (role === "agent") setAwaiting(false);
     },
@@ -528,6 +553,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     const t = text.trim();
     if (!t || !live) return;
     setMsgs((m) => [...m, { id: ++seq.current, role: "user", text: t }]);
+    lastSaid.current = { text: t, at: Date.now() };
     convo.sendUserMessage(t);
   }
 

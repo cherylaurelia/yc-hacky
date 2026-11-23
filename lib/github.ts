@@ -54,6 +54,7 @@ export async function gh<T = unknown>(path: string, { token, method = "GET", bod
   }
   if (res.status === 403) throw new GhError("I am not allowed to do that on this repo.", 403);
   if (res.status === 404) throw new GhError("I could not find that. The repo or item may not exist, or I may not have access.", 404);
+  if (res.status === 405) throw new GhError(`GitHub won't allow that right now. ${apiMessage}`.trim().slice(0, 200), 405);
   if (res.status === 409) throw new GhError("That repo has no commits yet.", 409);
   if (res.status === 410) throw new GhError("Issues are turned off for this repo.", 410);
   if (res.status === 422) throw new GhError(`GitHub refused that. ${apiMessage}`.trim().slice(0, 200), 422);
