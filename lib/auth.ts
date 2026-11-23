@@ -35,13 +35,4 @@ export async function resolveToken(req: Request): Promise<{ token: string | unde
 export const checkWrite = (repo: string, session: Session | null) =>
   canWrite(repo, session, process.env.WRITE_REPOS, async (r, token) => (await gh<{ permissions?: { push?: boolean } }>(`/repos/${r}`, { token })).permissions?.push === true);
 
-// A cookie-authenticated write must come from our own page, not another site or local port.
-export function sameOrigin(req: Request): boolean {
-  const origin = req.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === req.headers.get("host");
-  } catch {
-    return false;
-  }
-}
+export { sameOrigin } from "./origin";
