@@ -44,7 +44,7 @@ async function call(name: string, args: Record<string, unknown>, routes: Record<
 }
 
 const WRITES = ["create_issue", "comment", "set_state", "create_pr", "merge_pr", "review_pr", "update_item"];
-const AGENTS = ["start_agent", "list_agents", "stop_agent"];
+const AGENTS = ["start_agent"];
 
 test("actions: the voice agent has GitHub write tools and agent tools", async () => {
   const { TOOL_SPECS } = await load("lib/tool-specs.ts");
@@ -58,7 +58,7 @@ test("actions: the voice agent has GitHub write tools and agent tools", async ()
   for (const n of AGENTS) {
     const s = by.get(n) as { local?: boolean } | undefined;
     assert.ok(s, `missing tool ${n}`);
-    assert.equal(s.local, true, `${n} runs in the page (the Mac app starts agents on this machine)`);
+    assert.equal(s.local, true, `${n} runs in the page`);
   }
 });
 
@@ -178,13 +178,13 @@ test("actions: the voice agent's prompt knows it can act, and confirms first", (
   assert.match(p, /merge_pr[^\n]*(yes|confirm)/i, "merging needs an explicit yes");
 });
 
-test("actions: start_agent goes to the Mac app, or to the board as a TASK without it", async () => {
-  const { agentMessage, boardTask } = await load("lib/agents-bridge.ts");
-  assert.deepEqual(agentMessage("start", { task: "fix login", agent: "codex", repo: "acme/widgets" }), { agent: { op: "start", task: "fix login", agent: "codex", repo: "acme/widgets" } });
-  assert.equal(agentMessage("start", { task: "x", repo: "acme/widgets" }).agent.agent, "claude", "Claude Code by default");
-  assert.deepEqual(agentMessage("stop", { id: "r1" }), { agent: { op: "stop", id: "r1" } });
+test("actions: start_agent hands the task to the board, with no Mac app or extension in the path", async () => {
+  const { boardTask } = await load("lib/agents-bridge.ts");
   assert.equal(boardTask("Sam", "fix login", "claude"), "TASK for Sam's Claude: fix login");
   const page = readFileSync(join(ROOT, "components/useCoworker.ts"), "utf8") + readFileSync(join(ROOT, "lib/agents-bridge.ts"), "utf8");
-  assert.match(page, /coworkerAsync/, "agent tools await the app's reply over messageHandlers.coworkerAsync");
+  assert.doesNotMatch(page, /coworkerAsync/, "no Mac app bridge");
+  assert.match(page, /boardTask\(/, "useCoworker posts the TASK");
   for (const n of AGENTS) assert.match(readFileSync(join(ROOT, "components/useCoworker.ts"), "utf8"), new RegExp(`\\b${n}\\b`), `useCoworker implements ${n}`);
+  const specs = readFileSync(join(ROOT, "lib/tool-specs.ts"), "utf8");
+  for (const n of ["list_agents", "stop_agent"]) assert.doesNotMatch(specs, new RegExp(`name: "${n}"`), `${n} needed the Mac app; agents are listed and stopped with the coworker CLI`);
 });
