@@ -313,7 +313,7 @@ cmd_install() { # install|uninstall claude|codex|cursor
         else (if \$m then {matcher: \$m} else {} end) + {hooks: [{type: \"command\", command: \$cmd, timeout: \$t}]} end])
     | if \$flat then .version //= 1 else . end"
   # also matches hooks/install.sh's coworker-hook.sh entries, so a reinstall replaces them instead of doubling every post
-  new="$(printf '%s' "$cur" | jq --arg re "coworker.* hook $app\$|coworker-hook\\\\.sh\$" --arg cmd "$(printf '%q hook %s' "$ME" "$app")" \
+  new="$(printf '%s' "$cur" | jq --arg re "coworker.* hook $app\$|coworker-hook\\.sh\$" --arg cmd "$(printf '%q hook %s' "$ME" "$app")" \
     --argjson ev "$events" --argjson flat "$flat" "$prog")" && [ -n "$new" ] || die "jq failed on $file"
   if [ "$(printf '%s' "$cur" | jq -cS .)" = "$(printf '%s' "$new" | jq -cS .)" ]; then
     echo "nothing to $mode in $file"
