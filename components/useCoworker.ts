@@ -9,7 +9,7 @@ import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswe
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
 import { localNow } from "@/lib/now";
-import { alertFromRelay, isRelayEvent, sendToApp } from "@/lib/relay-bridge";
+import { alertFromRelay, isRelayEvent, relayAnswerText, sendToApp } from "@/lib/relay-bridge";
 import { parseRepo, rememberRecent } from "@/lib/repo";
 import { speakPost, unlockAudio } from "@/lib/speak-client";
 import { headline } from "@/lib/spoken";
@@ -230,7 +230,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
                 // A relay request goes back to the Mac app; a question's answer is the note, a verdict otherwise.
                 if (relayReqs.current.has(req)) {
                   const decision = strArg(sent.decision) ?? "allow";
-                  if (!sendToApp(req, strArg(sent.note)?.trim() || decision)) throw new Error("The Coworker app is not connected.");
+                  const kind = alertsRef.current.find((x) => x.req === req)?.kind ?? null;
+                  if (!sendToApp(req, relayAnswerText(kind, decision, strArg(sent.note)))) throw new Error("The Coworker app is not connected.");
                   settle(s.name, sent);
                   const text = `Sent ${decision} for request ${req}.`;
                   finish("ok", text);

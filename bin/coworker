@@ -92,14 +92,14 @@ rcurl() { printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" | curl -s -K -
 
 # Long-polls the answer to relay event $1 for up to $2 seconds and prints it; fails when there is none.
 relay_wait() {
-  local end=$(( $(date +%s) + $2 )) left out
+  local end=$(( $(date +%s) + $2 )) left out errors=0
   while left=$(( end - $(date +%s) )); [ "$left" -gt 0 ]; do
     [ "$left" -le 25 ] || left=25
     out="$(rcurl -m $(( left + 5 )) -w '\n%{http_code}' "$RELAY/v1/events/$1/answer?wait=$left")"
     case "${out##*$'\n'}" in
       200) printf '%s' "${out%$'\n'*}" | jq -r '.answer // ""'; return 0 ;;
-      204) ;;
-      *) sleep 1 ;;
+      204) errors=0 ;;
+      *) errors=$(( errors + 1 )); [ "$errors" -lt 3 ] || return 1; sleep 1 ;;  # the app quit: let the agent ask in its terminal
     esac
   done
   return 1
@@ -239,6 +239,11 @@ relay_hook() {
       send blocked "$(j '(.message // "waiting for input") | sub("[ .]+$"; "")')" ;;
     Stop)
       [ "$(j '.stop_hook_active // false')" = true ] && return 0
+      # Like the board: only a turn that ran COWORKER_DONE_MIN seconds is news. The board hook records the start on UserPromptSubmit.
+      local key started
+      key="$(j '.session_id // "nosession"')"; key="${key//[^A-Za-z0-9_-]/_}"
+      started="$(cat "$(state_dir "$APP")/$key.start" 2>/dev/null)"
+      [[ "$started" =~ $NUM ]] && [ $(( $(date +%s) - started )) -lt "${COWORKER_DONE_MIN:-60}" ] && return 0
       send "done" "$(j '((.last_assistant_message // "") | split("\n") | map(select(test("\\S"))) | first // "finished") | sub("[ .]+$"; "") | .[:140]')" ;;
   esac
 }
@@ -257,6 +262,8 @@ cmd_hook() {
   local out=""
   case "${1:-}" in claude) LABEL=Claude ;; codex) LABEL=Codex ;; cursor) LABEL=Cursor ;; *) die "usage: coworker hook claude|codex|cursor" ;; esac
   APP="$1"
+  # Cursor runs this before every shell command, so a missed answer must not stall its auto-run for long.
+  [ "$APP" != cursor ] || [ -n "${COWORKER_TIMEOUT:-}" ] || TIMEOUT=20
   exec 2>/dev/null   # a hook prints its answer and nothing else
   IN="$(cat)"
   if command -v jq >/dev/null; then
@@ -267,11 +274,11 @@ cmd_hook() {
     out="$(hook_flow)"
   fi
   if [ "$APP" != cursor ]; then [ -z "$out" ] || printf '%s\n' "$out"; return 0; fi
-  # Cursor's answer: allow, deny with the reason, or ask (its own prompt); {} for stop
+  # Cursor's answer: allow, or deny with the reason; {} otherwise
   jq -nc --arg ev "${EVENT:-}" --argjson o "${out:-null}" '($o.hookSpecificOutput.decision // {}) as $d
     | if $d.behavior == "allow" then {permission: "allow"}
       elif $d.behavior == "deny" then {permission: "deny", user_message: ($d.message // "Denied via Coworker"), agent_message: ($d.message // "Denied via Coworker")}
-      elif $ev == "Stop" then {} else {permission: "ask"} end' || echo '{"permission":"ask"}'
+      else {} end' || echo '{}'   # no verdict: Cursor's own allowlist and auto-run rules decide
 }
 
 # ---------- install and uninstall ----------
@@ -305,7 +312,8 @@ cmd_install() { # install|uninstall claude|codex|cursor
     | reduce \$ev[] as [\$e, \$t, \$m] (.; .hooks[\$e] += [if \$flat then {command: \$cmd}
         else (if \$m then {matcher: \$m} else {} end) + {hooks: [{type: \"command\", command: \$cmd, timeout: \$t}]} end])
     | if \$flat then .version //= 1 else . end"
-  new="$(printf '%s' "$cur" | jq --arg re "coworker.* hook $app\$" --arg cmd "$(printf '%q hook %s' "$ME" "$app")" \
+  # also matches hooks/install.sh's coworker-hook.sh entries, so a reinstall replaces them instead of doubling every post
+  new="$(printf '%s' "$cur" | jq --arg re "coworker.* hook $app\$|coworker-hook\\\\.sh\$" --arg cmd "$(printf '%q hook %s' "$ME" "$app")" \
     --argjson ev "$events" --argjson flat "$flat" "$prog")" && [ -n "$new" ] || die "jq failed on $file"
   if [ "$(printf '%s' "$cur" | jq -cS .)" = "$(printf '%s' "$new" | jq -cS .)" ]; then
     echo "nothing to $mode in $file"

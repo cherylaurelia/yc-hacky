@@ -38,6 +38,8 @@ final class RelayServer {
     private let queue = DispatchQueue(label: "coworker.relay")
     private var listener: NWListener?
     // Touched only on `queue`.
+    private static let maxPending = 64
+    private var unparsed = Set<ObjectIdentifier>()  // connections still sending their request
     private var answers: [String: String] = [:]
     private var waiting: [String: [NWConnection]] = [:]
 
@@ -95,8 +97,15 @@ final class RelayServer {
     // MARK: HTTP
 
     private func serve(_ c: NWConnection) {
+        // A local process that opens sockets and never finishes a request must not use up the app's file descriptors.
+        guard unparsed.count < Self.maxPending else { return c.cancel() }
+        let key = ObjectIdentifier(c)
+        unparsed.insert(key)
         c.start(queue: queue)
         receive(c, Data())
+        queue.asyncAfter(deadline: .now() + 10) { [weak self] in
+            if self?.unparsed.remove(key) != nil { c.cancel() }
+        }
     }
 
     private func receive(_ c: NWConnection, _ received: Data) {
@@ -104,7 +113,9 @@ final class RelayServer {
             guard let self else { return c.cancel() }
             let buffer = received + (data ?? Data())
             switch Self.parse(buffer) {
-            case .request(let request): route(request, c)
+            case .request(let request):
+                unparsed.remove(ObjectIdentifier(c))
+                route(request, c)
             case .bad: reply(c, 400, ["error": "bad request"])
             case .incomplete:
                 if closed || error != nil || buffer.count > Self.maxRequest { c.cancel() } else { receive(c, buffer) }
@@ -157,7 +168,7 @@ final class RelayServer {
               let text = (json["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
             return reply(c, 400, ["error": "send a JSON object with text"])
         }
-        let id = UUID().uuidString
+        let id = UUID().uuidString.lowercased()
         json["id"] = id
         let event = RelayEvent(id: id, agent: json["agent"] as? String ?? "Agent", kind: json["kind"] as? String ?? "done", text: text,
                                json: String(decoding: (try? JSONSerialization.data(withJSONObject: json)) ?? Data(), as: UTF8.self))
@@ -165,8 +176,9 @@ final class RelayServer {
         reply(c, 200, ["id": id])
     }
 
-    private func getAnswer(_ id: String, wait: Int, _ c: NWConnection) {
-        if let answer = answers[id] { return reply(c, 200, ["answer": answer]) }
+    private func getAnswer(_ raw: String, wait: Int, _ c: NWConnection) {
+        let id = raw.lowercased()  // the page normalizes ids to lowercase; agents poll the id they were given
+        if let answer = answers.removeValue(forKey: id) { return reply(c, 200, ["answer": answer]) }
         guard wait > 0 else { return reply(c, 204) }
         waiting[id, default: []].append(c)
         queue.asyncAfter(deadline: .now() + .seconds(min(wait, Self.maxWait))) { [weak self] in
@@ -184,8 +196,10 @@ final class RelayServer {
         reply(c, 200, ["ok": true])
     }
 
-    private func deliver(_ id: String, _ text: String) {
-        answers[id] = text
-        for c in waiting.removeValue(forKey: id) ?? [] { reply(c, 200, ["answer": text]) }
+    private func deliver(_ raw: String, _ text: String) {
+        let id = raw.lowercased()
+        let polls = waiting.removeValue(forKey: id) ?? []
+        for c in polls { reply(c, 200, ["answer": text]) }
+        if polls.isEmpty { answers[id] = text }  // kept until the agent's next poll reads it
     }
 }

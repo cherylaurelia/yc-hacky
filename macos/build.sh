@@ -15,10 +15,11 @@ lipo -create build/obj/Coworker-arm64 build/obj/Coworker-x86_64 -output "$APP/Co
 
 VERSION="$(tr -d '[:space:]' < VERSION)"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "macos/VERSION must be x.y.z, got '$VERSION'" >&2; exit 1; }
-mkdir -p "$APP/Contents/Resources/bin"
+mkdir -p "$APP/Contents/Resources/bin" "$APP/Contents/Resources/hooks"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
-# The CLI agents call (coworker ask, hooks); Settings > Agents links it into the user's PATH.
-if [ -f ../bin/coworker ]; then install -m 755 ../bin/coworker "$APP/Contents/Resources/bin/coworker"; fi
+# The CLI agents call (coworker ask, hooks), and the board hook it falls back to (found at ../hooks from bin/).
+install -m 755 ../bin/coworker "$APP/Contents/Resources/bin/coworker"
+install -m 755 ../hooks/coworker-hook.sh "$APP/Contents/Resources/hooks/coworker-hook.sh"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

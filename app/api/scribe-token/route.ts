@@ -6,10 +6,11 @@ const fail = (status: number, error: string) => Response.json({ error }, { statu
 
 // POST -> { token } for one dictation session. Signed-in users only: dictation spends the server's ElevenLabs credits.
 export async function POST(req: Request) {
-  const limited = rateLimit(req, "scribe");
-  if (limited) return limited;
   if (!sameOrigin(req)) return fail(403, "Dictation tokens are only handed to the Coworker page.");
-  if (!(await sessionFrom(req))) return fail(401, "Sign in with GitHub to dictate.");
+  const session = await sessionFrom(req);
+  if (!session) return fail(401, "Sign in with GitHub to dictate.");
+  const limited = rateLimit(req, "scribe", session.login);  // per user, so one account can't spend everyone's credits from many IPs
+  if (limited) return limited;
   const key = process.env.ELEVENLABS_API_KEY;
   if (!key) return fail(503, "Dictation is not set up on the server.");
 

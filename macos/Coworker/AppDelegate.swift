@@ -17,6 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var relay = RelayServer(token: relayToken)
     private var scribe: ScribeClient?
     private var holdMode = TalkMode.agent  // decided when the key goes down, because the hold itself clears the alert
+    private var awaiting = Set<String>()       // relay approvals and questions an agent is still waiting on
+    private var relayAlertIDs = Set<String>()  // pill alerts that came from the relay rather than the page
     private var simulatedAlerts = 0
     private var panel: CoworkerPanel!
     private var activity: NSObjectProtocol?
@@ -95,13 +97,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             switch event {
             case .down:
-                holdMode = TalkRouter.mode(alertPending: pill.alert != nil, agentModifier: false)
+                // An agent waiting on an answer, or a board alert the page is reading, gets the hold; so does the open panel.
+                let pageAlert = pill.alert.map { !self.relayAlertIDs.contains($0.id ?? "") } ?? false
+                holdMode = TalkRouter.mode(alertPending: !awaiting.isEmpty || pageAlert, agentModifier: panel.isVisible)
                 apply(.talkDown)
                 mic.start()
                 if holdMode == .dictate { startDictation() }
             case .up(let cancelled):
                 mic.stop()
-                apply(.talkUp(cancelled: cancelled))
+                apply(.talkUp(cancelled: cancelled || holdMode == .dictate))  // dictating is not an answer to the alert
                 if holdMode == .dictate {
                     if cancelled { scribe?.cancel() } else { scribe?.finish() }
                 }
@@ -193,6 +197,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// An agent's event: the pill and a notification (with answer buttons) for you, and the page, which can speak it.
     private func relayEvent(_ event: RelayEvent) {
+        relayAlertIDs.insert(event.id)
+        if event.kind == "approval" || event.kind == "question" {
+            awaiting.insert(event.id)
+            // The agent stops waiting after its own timeout; never let a dead request take over the talk key.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in self?.awaiting.remove(event.id) }
+        }
         panel.deliverRelay(event.json)
         apply(.page(PageMessage(phase: nil, alert: .set(event.alert))), kind: AlertKind(rawValue: event.kind))
     }
@@ -200,6 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// From a notification button or the page: the agent's long-poll gets it, and the pill stops asking.
     private func answered(_ id: String, _ text: String) {
         relay.answer(id: id, text: text)
+        awaiting.remove(id.lowercased())
         if pill.alert?.id == id { apply(.page(PageMessage(phase: nil, alert: .clear))) }
     }
 
