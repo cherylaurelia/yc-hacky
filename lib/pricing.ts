@@ -35,6 +35,6 @@ export const PLANS: Plan[] = [
     price: "$20",
     per: "per seat, per month",
     pitch: "Pro for everyone who runs agents.",
-    includes: ["Everything in Pro, for every seat", "One invoice; add and remove seats any time", "Shared team board with a voice for each agent", "Priority email support"],
+    includes: ["Everything in Pro, for every seat", "One invoice; add and remove seats any time", "Shared team board with a voice for each agent"],
   },
 ];

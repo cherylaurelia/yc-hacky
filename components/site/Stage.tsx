@@ -3,7 +3,7 @@
 // One scripted exchange loops: an agent asks, you answer by holding fn, then you dictate into your draft.
 import { useEffect, useRef, useState } from "react";
 
-type AgentState = "working" | "standby" | "done";
+type AgentState = "working" | "standby" | "done" | "idle";
 type Beat = {
   at: number; // ms into the loop
   codex: AgentState;
@@ -54,7 +54,7 @@ function Row({ name, tape, state, line, wait }: { name: string; tape: string; st
       <span className="truncate text-[15px] font-semibold" style={{ color: tape }}>
         {name}
       </span>
-      <span className={`text-[13px] ${state === "standby" ? "font-semibold text-[var(--standby)]" : "text-[var(--faint)]"}`}>{state === "standby" ? `waiting on you${wait ? ` · ${wait}` : ""}` : state === "done" ? "done" : "working"}</span>
+      <span className={`text-[13px] ${state === "standby" ? "font-semibold text-[var(--standby)]" : "text-[var(--faint)]"}`}>{state === "standby" ? `waiting on you${wait ? ` · ${wait}` : ""}` : state}</span>
       <span />
       <span className="col-span-2 truncate text-[13.5px] text-[var(--dim)]">{line}</span>
     </div>
@@ -140,7 +140,7 @@ export default function Stage() {
         <div className="flex min-h-[240px] flex-col rounded-[14px] bg-[var(--wings-raise)] px-3 pb-20 pt-4 sm:ml-5">
           <div className="flex items-center justify-between px-3 pb-2 text-[13px] text-[var(--faint)]">
             <span className="font-semibold text-[var(--dim)]">Your agents</span>
-            <span>{b.codex === "standby" ? "1 waiting" : "none waiting"}</span>
+            <span className={b.codex === "standby" ? "font-semibold text-[var(--standby)]" : ""}>{b.codex === "standby" ? "1 waiting" : "none waiting"}</span>
           </div>
           <Row name="Sam's Claude" tape="var(--tape-roger)" state="working" line="editing src/billing/invoice.ts" />
           <Row name="Sam's Codex" tape="var(--tape-sarah)" state={b.codex} line={b.codexLine} wait={waited} />
@@ -152,7 +152,7 @@ export default function Stage() {
               <span className="cmd text-[var(--dim)]"> · fixtures/user.json out of date</span>
             </div>
           )}
-          <Row name="Sam's Cursor" tape="var(--tape-jessica)" state="working" line="idle, last turn 12 min ago" />
+          <Row name="Sam's Cursor" tape="var(--tape-jessica)" state="idle" line="last turn 12 min ago" />
         </div>
 
         {/* The seam: the pill */}
