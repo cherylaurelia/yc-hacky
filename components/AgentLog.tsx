@@ -51,7 +51,7 @@ export default function AgentLog({ repo, board, embed, onClose }: { repo: string
       id="agent-log"
       aria-label="Agent log"
       aria-busy={busy}
-      className={`card-rise mx-auto mt-3 flex w-full flex-col rounded-[28px] bg-card text-[14px] text-ink ${embed ? "max-h-[70vh] max-w-sm gap-3 overflow-y-auto p-4" : "max-h-[75vh] max-w-xl gap-4 overflow-y-auto p-6"}`}
+      className={`card-rise mx-auto mt-3 flex w-full flex-col rounded-[14px] bg-card text-[14px] text-ink ${embed ? "max-h-[70vh] max-w-sm gap-3 overflow-y-auto p-4" : "max-h-[75vh] max-w-xl gap-4 overflow-y-auto p-6"}`}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-lg">Agent log</h2>

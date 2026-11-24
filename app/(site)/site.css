@@ -1,87 +1,99 @@
-/* The Calling Desk (DESIGN.md), scoped to the marketing routes. The app at /app keeps its own styles. */
+/* The marketing site, in the same warm world as the app (app/globals.css): paper, ink, one deep green,
+   amber only for "waiting on you". The variable names are the site's; the values match the app's tokens. */
 .site {
-  --wings: oklch(0.205 0.045 264);
-  --wings-raise: oklch(0.24 0.05 264);
-  --wings-hi: oklch(0.285 0.058 264);
-  --rule: oklch(0.335 0.05 264);
-  --text: oklch(0.97 0.008 264);
-  --dim: oklch(0.8 0.03 264);
-  --faint: oklch(0.7 0.035 264);
-  --page: oklch(0.985 0.004 264);
-  --page-ink: oklch(0.21 0.035 264);
-  --page-dim: oklch(0.46 0.03 264);
-  --page-rule: oklch(0.905 0.01 264);
-  --page-well: oklch(0.955 0.008 264);
-  --page-edge: oklch(0.82 0.015 264);
-  --standby: oklch(0.84 0.155 80);
-  --standby-ink: oklch(0.52 0.13 70);
-  --stuck: oklch(0.68 0.2 27);
-  --stuck-text: oklch(0.76 0.16 27);
-  --done: oklch(0.8 0.15 155);
-  --tape-roger: oklch(0.83 0.12 192);
-  --tape-sarah: oklch(0.76 0.17 356);
-  --tape-charlie: oklch(0.89 0.17 125);
-  --tape-alice: oklch(0.8 0.11 238);
-  --tape-jessica: oklch(0.76 0.14 296);
-  --add-bg: oklch(0.95 0.05 152);
-  --add-ink: oklch(0.42 0.12 152);
-  --del-bg: oklch(0.955 0.035 27);
-  --del-ink: oklch(0.48 0.16 27);
-  --pill: oklch(0.13 0.025 264);
+  --wings: #fdfcf6; /* the paper ground */
+  --wings-raise: #f6f4ea; /* a card on the paper */
+  --wings-hi: #efeddf; /* a well inside a card */
+  --rule: #e2ddcd;
+  --text: #1f1d18;
+  --dim: #4f4b43;
+  --faint: #6f6b61;
+  --page: #ffffff; /* the lit sheet */
+  --page-ink: #1f1d18;
+  --page-dim: #5c584f;
+  --page-rule: #ece8dc;
+  --page-well: #f6f4ea;
+  --page-edge: #d9d4c5;
+  --brand: #0f4a3f;
+  --sage: #e8edd2;
+  --standby: #b7791f;
+  --standby-ink: #8a5a12;
+  --stuck: #c0492f;
+  --stuck-text: #a3382a;
+  --done: #2e7d4f;
+  --tape-roger: #2f6f6a;
+  --tape-sarah: #a4473f;
+  --tape-charlie: #5e6a2a;
+  --tape-alice: #3d5f8a;
+  --tape-jessica: #7a4f86;
+  --add-bg: #e3ede0;
+  --add-ink: #2e6542;
+  --del-bg: #f6e2da;
+  --del-ink: #a3382a;
+  --pill: #1f1d18;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   background: var(--wings);
   color: var(--text);
-  font-family: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  font-feature-settings: "tnum";
+  font-family: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
   min-height: 100vh;
 }
 html:has(.site),
 body:has(.site) {
-  background: oklch(0.205 0.045 264);
-  color-scheme: dark;
+  background: #fdfcf6;
+  color-scheme: light;
 }
 
+/* Headings: EB Garamond, regular weight; <em> inside a heading is the one italic phrase. */
 .site h1,
 .site h2,
 .site h3 {
-  font-stretch: 87.5%;
-  font-weight: 650;
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-weight: 450;
   text-wrap: balance;
 }
-.site h1 { letter-spacing: -0.03em; line-height: 1.02; }
-.site h2 { letter-spacing: -0.025em; line-height: 1.06; }
-.site h3 { letter-spacing: -0.015em; line-height: 1.2; }
+.site h1 { letter-spacing: -0.03em; line-height: 1; }
+.site h2 { letter-spacing: -0.025em; line-height: 1.04; }
+.site h3 { letter-spacing: -0.01em; line-height: 1.2; font-weight: 500; }
+.site h1 em,
+.site h2 em { font-style: italic; }
 .site p { text-wrap: pretty; }
 .site code,
-.site .cmd { font-family: var(--font-jetbrains), ui-monospace, monospace; font-feature-settings: normal; }
+.site .cmd { font-family: var(--font-jetbrains), ui-monospace, monospace; }
 
-.site ::selection { background: oklch(0.8 0.11 238 / 0.35); color: var(--text); }
-.site .lit ::selection { background: oklch(0.8 0.11 238 / 0.3); color: var(--page-ink); }
-.site :focus-visible { outline: 2px solid var(--tape-alice); outline-offset: 3px; border-radius: 5px; }
-.site .lit :focus-visible { outline-color: var(--page-ink); }
+.site ::selection { background: color-mix(in oklab, var(--brand) 18%, transparent); color: var(--text); }
+.site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 5px; }
 .site a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
-.site * { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; caret-color: var(--tape-alice); }
+.site * { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; caret-color: var(--brand); }
 
-/* The lit page: the one light-lifted surface per screen. */
+/* The lit sheet: white paper lifted off the warm ground. */
 .site .lit {
   background: var(--page);
   color: var(--page-ink);
-  box-shadow:
-    0 1px 0 oklch(1 0 0 / 0.6) inset,
-    0 18px 40px -12px oklch(0.08 0.04 264 / 0.7),
-    0 2px 6px oklch(0.08 0.04 264 / 0.35);
+  box-shadow: 0 1px 2px rgb(31 29 24 / 0.06), 0 24px 48px -24px rgb(31 29 24 / 0.28);
 }
+/* The talk pill stays dark in a light world; inside it, text tokens flip to paper. */
 .site .pill {
+  --text: #fdfcf6;
+  --dim: #d9d5c7;
+  --faint: #aaa596;
+  --tape-roger: #8fd1c9;
+  --tape-sarah: #f2a89e;
+  --tape-charlie: #c9d38e;
+  --tape-alice: #a9c4ea;
+  --tape-jessica: #d2b2dc;
   background: var(--pill);
-  box-shadow: 0 14px 34px -10px oklch(0.05 0.03 264 / 0.8), 0 2px 6px oklch(0.05 0.03 264 / 0.5);
+  color: var(--text);
+  box-shadow: 0 12px 28px -12px rgb(31 29 24 / 0.55);
 }
 .site .keycap {
-  background: oklch(1 0 0 / 0.08);
-  box-shadow: inset 0 -1px 0 oklch(1 0 0 / 0.08), 0 0 0 1px oklch(1 0 0 / 0.14);
+  background: var(--wings-hi);
+  box-shadow: inset 0 -1px 0 rgb(31 29 24 / 0.08), 0 0 0 1px var(--rule);
   border-radius: 5px;
 }
-.site .keycap.down { background: oklch(1 0 0 / 0.2); transform: translateY(1px); }
+.site .pill .keycap { background: rgb(253 252 246 / 0.1); box-shadow: 0 0 0 1px rgb(253 252 246 / 0.18); }
+.site .keycap.down { background: var(--rule); transform: translateY(1px); }
+.site .pill .keycap.down { background: rgb(253 252 246 / 0.26); }
 
 /* Lamps: hollow ring while working, filled when waiting / done / stuck. */
 .site .lamp { width: 10px; height: 10px; border-radius: 999px; flex: none; transition: background 300ms var(--ease-out), box-shadow 300ms var(--ease-out); }
@@ -91,20 +103,48 @@ body:has(.site) {
 .site .lamp.done { background: var(--done); }
 .site .lamp.stuck { background: var(--stuck); }
 
+/* One primary button for the whole product: ink, like the app's. */
 .site .btn-go {
-  display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; border-radius: 10px;
-  background: var(--page); color: var(--page-ink); font-weight: 600; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px; border-radius: 10px;
+  background: var(--text); color: var(--wings); font-weight: 600; text-decoration: none;
   transition: background 200ms var(--ease-out), transform 200ms var(--ease-out);
 }
-.site .btn-go:hover { background: oklch(0.94 0.012 264); }
+.site .btn-go:hover { background: var(--brand); }
 .site .btn-go:active { transform: translateY(1px); }
 .site .btn-quiet {
-  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px;
-  color: var(--text); font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1px var(--rule);
+  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: 10px;
+  color: var(--text); font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1px var(--page-edge);
   transition: background 200ms var(--ease-out);
 }
 .site .btn-quiet:hover { background: var(--wings-raise); }
 .site .btn-quiet[aria-disabled="true"] { color: var(--faint); pointer-events: none; }
+
+/* The deep green band that paces the scroll; text tokens flip to paper inside it. */
+.site .band {
+  --text: #fdfcf6;
+  --dim: #d4e0d6;
+  --faint: #a9c1b3;
+  --rule: rgb(253 252 246 / 0.18);
+  background: var(--brand);
+  color: var(--text);
+}
+
+/* The closing band: ink instead of green, with the primary button flipped to paper. */
+.site .band-ink { background: var(--pill); }
+.site .band .btn-go { background: #fdfcf6; color: #1f1d18; }
+.site .band .btn-go:hover { background: #e8edd2; }
+
+/* The wash behind the product demo (from Willow's hero): two soft fields of sage and lavender. */
+.site .wash {
+  background:
+    radial-gradient(60% 70% at 15% 20%, #edf1dc 0%, transparent 70%),
+    radial-gradient(55% 65% at 85% 80%, #efe9fb 0%, transparent 70%),
+    #f8f7f0;
+}
+
+/* The hero painting's torn-paper edge, and the brush stroke behind the headline (scripts/site-art.py). */
+.site .torn { -webkit-mask: url("/site/torn.svg") center / 100% 100% no-repeat; mask: url("/site/torn.svg") center / 100% 100% no-repeat; }
+.site .brush { background: url("/site/brush.svg") center / 100% 100% no-repeat; }
 
 /* The stage's typing caret and waveform. */
 .site .caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 1px; vertical-align: -0.15em; background: var(--page-ink); animation: blink 1s steps(2, start) infinite; }

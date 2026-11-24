@@ -148,7 +148,7 @@ export function RepoChip({ repo, repos, loading, onPick }: { repo: string; repos
         aria-labelledby={title}
         onClose={() => setOpen(false)}
         onClick={(e) => e.target === e.currentTarget && setOpen(false)}
-        className="card-rise m-auto w-[calc(100vw-2rem)] max-w-md overflow-hidden rounded-[28px] border-0 bg-card p-0 text-ink backdrop:bg-ink/30"
+        className="card-rise m-auto w-[calc(100vw-2rem)] max-w-md overflow-hidden rounded-[14px] border-0 bg-card p-0 text-ink backdrop:bg-ink/30"
       >
         {open && (
           <div className="flex max-h-[calc(100dvh-2rem)] flex-col gap-4 p-5 sm:p-6">

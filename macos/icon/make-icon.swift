@@ -1,4 +1,4 @@
-// Draws the app icon (DESIGN.md "wings" navy, white waveform) into macos/Resources/AppIcon.icns.
+// Draws the app icon: the wordmark tile (warm ink, paper-coloured waveform) into macos/Resources/AppIcon.icns.
 // Run: swift macos/icon/make-icon.swift   (needs only the Command Line Tools)
 import AppKit
 
@@ -15,13 +15,13 @@ func png(_ px: Int) -> Data {
     // Apple's grid: the tile is 80% of the canvas with a ~22% corner radius.
     let tile = NSRect(x: s * 0.1, y: s * 0.1, width: s * 0.8, height: s * 0.8)
     let path = NSBezierPath(roundedRect: tile, xRadius: s * 0.18, yRadius: s * 0.18)
-    NSGradient(starting: NSColor(srgbRed: 0.122, green: 0.165, blue: 0.267, alpha: 1),
-               ending: NSColor(srgbRed: 0.067, green: 0.094, blue: 0.165, alpha: 1))!.draw(in: path, angle: -90)
+    NSGradient(starting: NSColor(srgbRed: 0.176, green: 0.165, blue: 0.137, alpha: 1),
+               ending: NSColor(srgbRed: 0.122, green: 0.114, blue: 0.094, alpha: 1))!.draw(in: path, angle: -90)
     let config = NSImage.SymbolConfiguration(pointSize: s * 0.42, weight: .semibold)
     if let wave = NSImage(systemSymbolName: "waveform", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
         let tinted = NSImage(size: wave.size, flipped: false) { r in
             wave.draw(in: r)
-            NSColor.white.set()
+            NSColor(srgbRed: 0.992, green: 0.988, blue: 0.965, alpha: 1).set()
             r.fill(using: .sourceAtop)
             return true
         }

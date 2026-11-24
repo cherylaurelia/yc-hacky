@@ -1,5 +1,6 @@
 "use client";
 
+import Wordmark from "@/components/Wordmark";
 import { ConversationProvider } from "@elevenlabs/react";
 import { useEffect, useRef, useState } from "react";
 import AgentLog from "@/components/AgentLog";
@@ -14,16 +15,17 @@ import { type Interruptions, QUIET_MS, endQuiet, goQuiet } from "@/lib/interrupt
 import { ago, plural } from "@/lib/spoken";
 import { COWORKER_VOICE, type Voice, voiceFor } from "@/lib/voices";
 
-// Each poster keeps one colour everywhere, keyed by the voice they speak in. All pass AA with white text.
+// Each poster keeps one colour everywhere, keyed by the voice they speak in. Earthy and dark enough
+// to carry white letters on the warm paper (all pass AA).
 const VOICE_COLOR: Record<string, string> = {
-  Roger: "#3b6788",
-  Sarah: "#a84c73",
-  Charlie: "#477552",
-  Alice: "#7d58ab",
-  George: "#94591f",
-  Jessica: "#2a7474",
+  Roger: "#2f6f6a",
+  Sarah: "#a4473f",
+  Charlie: "#5e6a2a",
+  Alice: "#3d5f8a",
+  George: "#7a5a2e",
+  Jessica: "#7a4f86",
 };
-const INK = "#221d17";
+const INK = "#1f1d18";
 const colorOf = (who: string) => (who === "coworker" || who === "you" ? INK : (VOICE_COLOR[voiceFor(who).name] ?? INK));
 const firstName = (who: string) => who.replace(/[[\]]/g, "").split(/['’\s]/)[0] || who;
 
@@ -66,7 +68,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
   return (
     <div className={`relative flex flex-col ${embed ? "h-screen overflow-hidden px-4 pb-4 pt-3" : "min-h-screen px-6 pb-8 pt-5 sm:px-10"}`}>
       <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
-        <span className="shrink-0 font-display text-base text-ink">Terminal 1</span>
+        <Wordmark size={18} />
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
           {quiet && (
             <span role="status" className="rounded-full bg-chip px-3 py-0.5 font-semibold text-ink">
@@ -181,7 +183,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
       {repo && (
         <footer className="flex flex-col items-center gap-3">
           {offered && (
-            <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl bg-card px-4 py-2.5 text-[13px] text-ink shadow-[0_1px_2px_rgba(60,40,20,0.06)]">
+            <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl bg-card px-4 py-2.5 text-[13px] text-ink">
               <span>{plural(queued, "agent")} waiting on you. Read them one at a time?</span>
               <button type="button" onClick={readQueued} className="h-8 rounded-full bg-ink px-4 font-semibold text-paper hover:bg-ink/90">
                 Read them
@@ -230,9 +232,9 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
                 press("pointer", true);
               }}
               onContextMenu={(e) => e.preventDefault()}
-              className={`pill flex h-11 touch-none select-none items-center gap-3 rounded-full bg-ink pl-4 pr-5 text-paper [-webkit-touch-callout:none] ${phase === "idle" ? "" : "pill-on"}`}
+              className={`pill flex h-11 touch-none select-none items-center gap-3 rounded-full bg-pill pl-4 pr-5 text-paper [-webkit-touch-callout:none] ${phase === "idle" ? "" : "pill-on"}`}
             >
-              <VoiceMeter source={source} color={speaker ? (speaker === "you" ? "#f3eee6" : lighten(colorOf(speaker))) : "#f3eee6"} />
+              <VoiceMeter source={source} color="#fdfcf6" />
               <span className="text-[13px] font-medium tracking-[0.01em]" aria-live="polite">
                 {phase === "idle" ? (mic === "muted" ? "Mic muted" : hint) : phase === "speaking" && speaker && speaker !== "coworker" ? firstName(speaker) : PILL_WORD[phase]}
                 <span className="sr-only">. {sub}</span>
@@ -243,7 +245,6 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
         </footer>
       )}
 
-      {!embed && <p className="mt-6 text-center text-[12px] text-faint">Built at YC × ElevenLabs Hackathon</p>}
     </div>
   );
 }
@@ -358,13 +359,13 @@ function SettingsPanel({
     <section
       id="settings"
       aria-label="Settings"
-      className={`card-rise mx-auto mt-3 flex w-full flex-col rounded-[28px] bg-card text-[14px] text-ink ${embed ? "max-h-[70vh] max-w-sm gap-4 overflow-y-auto p-4" : "max-w-xl gap-5 p-6"}`}
+      className={`card-rise mx-auto mt-3 flex w-full flex-col rounded-[14px] bg-card text-[14px] text-ink ${embed ? "max-h-[70vh] max-w-sm gap-4 overflow-y-auto p-4" : "max-w-xl gap-5 p-6"}`}
     >
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 font-display text-lg">Interruptions</legend>
         {(["all", "blockers"] as const).map((m) => (
           <label key={m} className="flex cursor-pointer items-start gap-3">
-            <input type="radio" name="interruptions" checked={!quiet && interruptions.mode === m} onChange={() => onInterruptions({ mode: m })} className="mt-1 accent-[var(--ink)]" />
+            <input type="radio" name="interruptions" checked={!quiet && interruptions.mode === m} onChange={() => onInterruptions({ mode: m })} className="mt-1 accent-[var(--focus)]" />
             <span>
               <span className="block font-semibold">{MODE_LABEL[m]}</span>
               <span className="text-soft">
@@ -485,15 +486,15 @@ function AlertCard({
     <div className="relative w-full">
       {behind > 0 && !embed && (
         <>
-          <div aria-hidden className="stack-layer absolute inset-x-6 -bottom-2.5 top-2.5 rounded-[28px]" />
-          {behind > 1 && <div aria-hidden className="stack-layer absolute inset-x-12 -bottom-5 top-5 rounded-[28px] opacity-70" />}
+          <div aria-hidden className="stack-layer absolute inset-x-6 -bottom-2.5 top-2.5 rounded-[14px]" />
+          {behind > 1 && <div aria-hidden className="stack-layer absolute inset-x-12 -bottom-5 top-5 rounded-[14px] opacity-70" />}
         </>
       )}
       <article
         data-alert={a.state}
         data-kind={a.kind ?? a.why}
         aria-label={`${a.from} needs you`}
-        className={`card-rise relative flex flex-col rounded-[28px] bg-card ${embed ? "gap-3 p-4" : "gap-5 p-7"} ${stuck ? "ring-1 ring-stop/35" : ""}`}
+        className={`card-rise lit relative flex flex-col rounded-[14px] bg-card ${embed ? "gap-3 p-4" : "gap-5 p-7"} ${stuck ? "ring-1 ring-stop/35" : ""}`}
       >
         <div className="flex items-center gap-2.5 text-[13px]">
           <Avatar who={a.from} size={embed ? 22 : 26} />
@@ -503,7 +504,7 @@ function AlertCard({
         <h2 className={`font-display text-balance leading-[1.15] tracking-[-0.01em] text-ink ${embed ? "text-xl" : "text-[2rem]"}`}>{headline(a)}</h2>
 
         {(c?.command || c?.stuck?.signature) && (
-          <code className={`self-start break-all rounded-xl bg-chip px-3 py-1.5 font-mono text-ink ${embed ? "text-xs" : "text-[13px]"}`}>{c?.command ?? c?.stuck?.signature}</code>
+          <code className={`self-start break-all rounded-xl bg-ink px-3 py-1.5 font-mono text-paper ${embed ? "text-xs" : "text-[13px]"}`}>{c?.command ?? c?.stuck?.signature}</code>
         )}
 
         {(rows.length > 0 || c?.file) && (
@@ -576,12 +577,6 @@ function AlertCard({
   );
 }
 
-// Mix a voice colour toward white so it reads on the ink pill.
-function lighten(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  const mix = (v: number) => Math.round(v + (255 - v) * 0.45);
-  return `rgb(${mix(n >> 16)}, ${mix((n >> 8) & 255)}, ${mix(n & 255)})`;
-}
 
 // Resting bar heights: a still voice shape when nobody is talking (and always under reduced motion).
 const REST = [0.25, 0.4, 0.6, 0.35, 0.8, 0.5, 0.3, 0.65, 0.45, 0.25];

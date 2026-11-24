@@ -48,7 +48,7 @@ export default function Pricing() {
               {p.name}
             </h2>
             <p>
-              <span className="text-[44px] font-semibold tracking-[-0.03em]" style={{ fontStretch: "87.5%" }}>
+              <span className="text-[44px] font-semibold tracking-[-0.03em]">
                 {p.price}
               </span>{" "}
               <span className={p.id === "pro" ? "text-[var(--page-dim)]" : "text-[var(--dim)]"}>{p.per}</span>

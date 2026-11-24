@@ -1,4 +1,9 @@
-import { DownloadButton, DownloadNote, PreReleaseNote, TextLink } from "@/components/site/bits";
+import {
+  DownloadButton,
+  DownloadNote,
+  PreReleaseNote,
+  TextLink,
+} from "@/components/site/bits";
 import Stage from "@/components/site/Stage";
 
 const WRAP = "mx-auto max-w-[1180px] px-5 sm:px-8";
@@ -41,33 +46,62 @@ const ACTIONS: [said: string, done: string][] = [
   ],
 ];
 
-
 export default function Home() {
   return (
     <main>
-      {/* Phones lead with the promise and the download; the demo follows. From sm up the stage leads. */}
-      <section className="flex flex-col gap-7 pt-2 sm:gap-10 sm:pt-6">
-        <div className="order-2 sm:order-1">
-          <Stage />
-        </div>
-        <div
-          className={`${WRAP} order-1 flex w-full flex-col items-start gap-4 sm:order-2`}
-        >
-          <h1 className="max-w-[24ch] text-[38px] sm:text-[56px]">
-            Write anywhere. Answer your agents without leaving it.
-          </h1>
-          <p className="max-w-[60ch] text-[16.5px] leading-[1.5] text-[var(--dim)] sm:text-[18px]">
-            A menu-bar app for Mac: hold a key to dictate into any app, and
-            answer Claude Code, Codex or Cursor out loud when they need you.
-          </p>
-          <div
-            id="hero-cta"
-            className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-3"
-          >
-            <DownloadButton />
-            <DownloadNote />
+      <section
+        className={`${WRAP} grid items-center gap-12 pb-8 pt-10 sm:pt-16 lg:grid-cols-[1.05fr_1fr] lg:gap-10`}
+      >
+        <div className="relative">
+          <div className="relative flex flex-col items-start gap-6">
+            <div className="relative">
+              {/* The sage brush stroke behind the headline, as in a painter's sketchbook. */}
+              <div
+                aria-hidden="true"
+                className="brush absolute -inset-x-8 -inset-y-6 sm:-inset-x-12"
+              />
+              <h1 className="relative max-w-[13ch] text-[46px] sm:text-[72px]">
+                Write anywhere. <em>Answer your agents</em> without leaving it.
+              </h1>
+            </div>
+            <p className="max-w-[46ch] text-[17px] leading-[1.6] text-[var(--dim)] sm:text-[19px]">
+              A menu-bar app for Mac. Hold a key and talk: your words land in
+              whatever you&apos;re writing. When Claude Code, Codex or Cursor
+              needs you, it asks out loud, and you answer the same way.
+            </p>
+            <div
+              id="hero-cta"
+              className="flex flex-wrap items-center gap-x-5 gap-y-3"
+            >
+              <DownloadButton />
+              <DownloadNote />
+            </div>
           </div>
         </div>
+        <figure className="relative mx-auto w-full max-w-[520px]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a single static image; next/image adds nothing here */}
+          <img
+            src="/site/curiosity.webp"
+            width={860}
+            height={800}
+            alt="A woman writes a letter at a table while another leans over her shoulder to read it."
+            className="torn block h-auto w-full"
+          />
+          <figcaption className="mt-3 text-right text-[12.5px] text-[var(--faint)]">
+            Gerard ter Borch, <i>Curiosity</i>, about 1660. The Met, public
+            domain.
+          </figcaption>
+        </figure>
+      </section>
+
+      {/* The product, framed on a soft sage-to-lavender wash so it reads as the thing to look at. */}
+      <section className="wash mx-auto mt-20 max-w-[1260px] rounded-[28px] py-14 sm:mt-28 sm:py-20">
+        <div className={`${WRAP} mb-8 flex flex-col gap-3`}>
+          <h2 className="max-w-[20ch] text-[34px] sm:text-[48px]">
+            Your agents ask. <em>You answer out loud.</em>
+          </h2>
+        </div>
+        <Stage />
       </section>
 
       <section className={`${WRAP} mt-32 grid gap-12 lg:grid-cols-[1fr_1.1fr]`}>
@@ -205,36 +239,38 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={`${WRAP} mt-32`}>
-        <h2 className="max-w-[18ch] text-[34px] sm:text-[44px]">
-          Private where it counts.
-        </h2>
-        <dl className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-3">
-          {[
-            [
-              "Approvals stay on your Mac.",
-              "Agents reach the app over a local relay on 127.0.0.1, behind a private token. No server sits between your agent and your answer.",
-            ],
-            [
-              "The mic is live only while you hold the key.",
-              "Audio streams to ElevenLabs for transcription and voice while the key is down, and stops when you let go.",
-            ],
-            [
-              "GitHub happens as you.",
-              "Issues, reviews and merges go out from your own account after you sign in, with your own permissions.",
-            ],
-          ].map(([t, d]) => (
-            <div
-              key={t}
-              className="flex flex-col gap-2 border-t border-[var(--rule)] pt-5"
-            >
-              <dt className="text-[18px] font-semibold">{t}</dt>
-              <dd className="text-[15.5px] leading-[1.6] text-[var(--dim)]">
-                {d}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      <section className="band mt-32 py-20 sm:py-28">
+        <div className={WRAP}>
+          <h2 className="max-w-[18ch] text-[34px] sm:text-[44px]">
+            Private where it counts.
+          </h2>
+          <dl className="mt-10 grid gap-x-12 gap-y-8 md:grid-cols-3">
+            {[
+              [
+                "Approvals stay on your Mac.",
+                "Agents reach the app over a local relay on 127.0.0.1, behind a private token. No server sits between your agent and your answer.",
+              ],
+              [
+                "The mic is live only while you hold the key.",
+                "Audio streams to ElevenLabs for transcription and voice while the key is down, and stops when you let go.",
+              ],
+              [
+                "GitHub happens as you.",
+                "Issues, reviews and merges go out from your own account after you sign in, with your own permissions.",
+              ],
+            ].map(([t, d]) => (
+              <div
+                key={t}
+                className="flex flex-col gap-2 border-t border-[var(--rule)] pt-5"
+              >
+                <dt className="text-[18px] font-semibold">{t}</dt>
+                <dd className="text-[15.5px] leading-[1.6] text-[var(--dim)]">
+                  {d}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
       <section className={`${WRAP} mt-32`} id="install">
@@ -272,13 +308,15 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={`${WRAP} mt-36 flex flex-col items-start gap-6`}>
-        <h2 className="max-w-[20ch] text-[40px] sm:text-[56px]">
-          Your agents are waiting on someone. Make it a quick conversation.
-        </h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <DownloadButton />
-          <DownloadNote />
+      <section className="band band-ink mt-36 py-24 sm:py-32">
+        <div className={`${WRAP} flex flex-col items-start gap-6`}>
+          <h2 className="max-w-[20ch] text-[40px] sm:text-[56px]">
+            Your agents are waiting on someone. Make it a quick conversation.
+          </h2>
+          <div className="flex flex-wrap items-center gap-4">
+            <DownloadButton />
+            <DownloadNote />
+          </div>
         </div>
       </section>
     </main>

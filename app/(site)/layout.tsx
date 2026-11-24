@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { Archivo } from "next/font/google";
 import Link from "next/link";
+import Wordmark from "@/components/Wordmark";
 import "./site.css";
 
-const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-archivo" });
 
 // Checkout links, the download URL and company details come from the host's env at request time
 // (lib/site.ts), so they can change without rebuilding the image.
@@ -15,17 +14,6 @@ export const metadata: Metadata = {
     "A Mac menu-bar app. Hold a key and talk: your words land in whatever you're writing. When Claude Code, Codex or Cursor needs you, it asks out loud, and you answer without switching windows.",
 };
 
-function Wordmark() {
-  return (
-    <Link href="/" className="flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.01em] no-underline" aria-label="Terminal 1 home">
-      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-        <rect width="22" height="22" rx="6" fill="oklch(0.285 0.058 264)" />
-        <path d="M6 11h1.5M9 7.5v7M12 9v4M15 6.5v9" stroke="oklch(0.97 0.008 264)" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-      <span style={{ fontStretch: "87.5%" }}>Terminal 1</span>
-    </Link>
-  );
-}
 
 const NAV = [
   ["Download", "/download"],
@@ -35,8 +23,8 @@ const NAV = [
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`site ${archivo.variable}`}>
-      <header className="mx-auto flex h-16 max-w-[1180px] items-center justify-between px-5 sm:px-8">
+    <div className="site">
+      <header className="mx-auto flex h-20 max-w-[1180px] items-center justify-between px-5 sm:px-8">
         <Wordmark />
         <nav aria-label="Main" className="flex items-center gap-1 text-[15px]">
           {NAV.map(([label, href]) => (
@@ -64,6 +52,10 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
             ))}
           </nav>
         </div>
+        {/* The closing mark both reference sites end on: the name, set large, sinking off the page. */}
+        <p aria-hidden="true" className="mx-auto max-w-[1180px] select-none overflow-hidden px-5 pt-4 text-center font-display text-[clamp(88px,19vw,280px)] leading-[0.78] tracking-[-0.04em] text-[var(--wings-hi)] sm:px-8">
+          Terminal 1
+        </p>
       </footer>
     </div>
   );
