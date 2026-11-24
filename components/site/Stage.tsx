@@ -54,7 +54,7 @@ function Row({ name, tape, state, line, wait }: { name: string; tape: string; st
       <span className="truncate text-[15px] font-semibold" style={{ color: tape }}>
         {name}
       </span>
-      <span className={`text-[13px] ${state === "standby" ? "font-semibold text-[var(--standby)]" : "text-[var(--faint)]"}`}>{state === "standby" ? `waiting on you${wait ? ` · ${wait}` : ""}` : state}</span>
+      <span className={`text-[13px] ${state === "standby" ? "font-semibold text-[var(--standby-ink)]" : "text-[var(--faint)]"}`}>{state === "standby" ? `waiting on you${wait ? ` · ${wait}` : ""}` : state}</span>
       <span />
       <span className="col-span-2 truncate text-[13.5px] text-[var(--dim)]">{line}</span>
     </div>
@@ -140,10 +140,10 @@ export default function Stage() {
         <div className="flex min-h-[240px] flex-col rounded-[14px] bg-[var(--wings-raise)] px-3 pb-20 pt-4 sm:ml-5">
           <div className="flex items-center justify-between px-3 pb-2 text-[13px] text-[var(--faint)]">
             <span className="font-semibold text-[var(--dim)]">Your agents</span>
-            <span className={b.codex === "standby" ? "font-semibold text-[var(--standby)]" : ""}>{b.codex === "standby" ? "1 waiting" : "none waiting"}</span>
+            <span className={b.codex === "standby" ? "font-semibold text-[var(--standby-ink)]" : ""}>{b.codex === "standby" ? "1 waiting" : "none waiting"}</span>
           </div>
-          <Row name="Sam's Claude" tape="var(--tape-roger)" state="working" line="editing src/billing/invoice.ts" />
-          <Row name="Sam's Codex" tape="var(--tape-sarah)" state={b.codex} line={b.codexLine} wait={waited} />
+          <Row name="Sam's Claude" tape="var(--tape-jessica)" state="working" line="editing src/billing/invoice.ts" />
+          <Row name="Sam's Codex" tape="var(--tape-charlie)" state={b.codex} line={b.codexLine} wait={waited} />
           {b.codex === "standby" && (
             <div className="mx-3 mb-1 mt-1 rounded-[9px] bg-[var(--wings-hi)] px-3.5 py-2.5 text-[13px] leading-[1.5] text-[var(--text)] shadow-[inset_0_0_0_1px_var(--rule)]">
               <span className="cmd">$ npm test -- auth</span>
@@ -152,7 +152,7 @@ export default function Stage() {
               <span className="cmd text-[var(--dim)]"> · fixtures/user.json out of date</span>
             </div>
           )}
-          <Row name="Sam's Cursor" tape="var(--tape-jessica)" state="idle" line="last turn 12 min ago" />
+          <Row name="Sam's Cursor" tape="var(--tape-sarah)" state="idle" line="last turn 12 min ago" />
         </div>
 
         {/* The seam: the pill */}
@@ -162,12 +162,12 @@ export default function Stage() {
             style={{ width: wide ? "min(86vw, 460px)" : 150, transitionTimingFunction: "var(--ease-out)" }}
           >
             <span className={`keycap flex-none px-2 py-0.5 text-[12px] font-semibold text-[var(--text)] transition-transform duration-150 ${b.key ? "down" : ""}`}>fn</span>
-            <Wave live={b.pill === "speaking" || b.pill === "listening"} tone={asking ? "var(--tape-sarah)" : "var(--text)"} />
+            <Wave live={b.pill === "speaking" || b.pill === "listening"} tone={asking ? "var(--tape-charlie)" : "var(--text)"} />
             <span className="min-w-0 flex-1 truncate">
               {b.pill === "idle" && <span className="text-[var(--faint)]">hold to talk</span>}
               {asking && (
                 <>
-                  <span className="font-semibold" style={{ color: "var(--tape-sarah)" }}>
+                  <span className="font-semibold" style={{ color: "var(--tape-charlie)" }}>
                     Sam&apos;s Codex
                   </span>{" "}
                   <span className="text-[var(--dim)]">{b.pillText}</span>

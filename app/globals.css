@@ -18,6 +18,7 @@
   --pill: #1f1d18;
   --brand: #0f4a3f;
   --focus: #0f4a3f;
+  --btn-radius: 10px; /* every button, input and select on the site and in the app; only the talk pill is fully round */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -85,7 +86,7 @@ p {
 .card-rise {
   animation: rise 250ms var(--ease-out) both;
 }
-/* Only the lit page (and the pill) lift off the navy; boards and rows never carry shadows. */
+/* Only the lit sheet (and the pill and the painting's mount) cast shadows; cards and rows stay flat. */
 .lit {
   box-shadow:
     0 1px 2px rgb(31 29 24 / 0.06),

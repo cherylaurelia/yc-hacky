@@ -1,8 +1,6 @@
 import {
   DownloadButton,
   DownloadNote,
-  PreReleaseNote,
-  TextLink,
 } from "@/components/site/bits";
 import Stage from "@/components/site/Stage";
 
@@ -85,7 +83,7 @@ export default function Home() {
             width={860}
             height={800}
             alt="A woman writes a letter at a table while another leans over her shoulder to read it."
-            className="torn block h-auto w-full"
+            className="mount block h-auto w-full"
           />
           <figcaption className="mt-3 text-right text-[12.5px] text-[var(--faint)]">
             Gerard ter Borch, <i>Curiosity</i>, about 1660. The Met, public
@@ -123,7 +121,7 @@ export default function Home() {
         </div>
         <div className="flex flex-col gap-4 text-[16px]">
           <p>
-            <span className="font-semibold text-[var(--tape-roger)]">
+            <span className="font-semibold text-[var(--tape-jessica)]">
               Sam&apos;s Claude
             </span>{" "}
             <span className="text-[var(--dim)]">
@@ -134,36 +132,28 @@ export default function Home() {
             <span className="font-semibold">You</span>{" "}
             <span className="text-[var(--dim)]">Show me.</span>
           </p>
-          <div className="lit rounded-[14px] px-5 pb-4 pt-4">
-            <div className="flex items-center justify-between text-[13px] text-[var(--page-dim)]">
-              <span className="font-semibold text-[var(--page-ink)]">
-                Sam&apos;s Claude wants to run
-              </span>
-              <span className="font-semibold text-[var(--standby-ink)]">
-                waiting on you · 0:21
-              </span>
+          {/* The app's own alert card (components/Coworker.tsx), so the page shows the real product. */}
+          <div className="lit flex flex-col gap-4 rounded-[14px] p-6" aria-label="Sample alert from the app">
+            <div className="flex items-center gap-2.5 text-[13px]">
+              <span aria-hidden="true" className="grid h-[26px] w-[26px] place-items-center rounded-full bg-[var(--tape-jessica)] text-[12px] font-semibold text-white">S</span>
+              <span className="text-[var(--page-dim)]">just now</span>
             </div>
-            <code className="mt-3 block rounded-[9px] bg-[var(--page-ink)] px-3.5 py-3 text-[14px] text-[var(--page)]">
-              npm run migrate
-            </code>
-            <div className="mt-3 overflow-hidden rounded-[9px] border border-[var(--page-rule)] text-[13px] leading-[1.6]">
-              <div className="bg-[var(--page-well)] px-3 py-1.5 text-[var(--page-dim)]">
-                <code>db/schema.sql</code>
-              </div>
-              <code className="block px-3 text-[var(--page-dim)]">
-                {" "}
-                CREATE TABLE orders (
-              </code>
-              <code className="block bg-[var(--del-bg)] px-3 text-[var(--del-ink)]">
-                - id INTEGER PRIMARY KEY
-              </code>
-              <code className="block bg-[var(--add-bg)] px-3 text-[var(--add-ink)]">
-                + id INTEGER PRIMARY KEY,
-              </code>
-              <code className="block bg-[var(--add-bg)] px-3 text-[var(--add-ink)]">
-                + created_at TEXT NOT NULL
-              </code>
-              <code className="block px-3 text-[var(--page-dim)]"> );</code>
+            <p className="font-[family-name:var(--font-serif)] text-[28px] leading-[1.1] tracking-[-0.02em]">Sam&apos;s Claude wants to run a command.</p>
+            <code className="self-start rounded-xl bg-[var(--page-ink)] px-3 py-1.5 text-[13px] text-[var(--page)]">npm run migrate</code>
+            <div className="flex items-center gap-3 text-[13px]">
+              <span className="font-semibold underline decoration-[var(--page-edge)] underline-offset-4">Show me the change</span>
+              <code className="text-[var(--page-dim)]">db/schema.sql</code>
+            </div>
+            <div className="overflow-hidden rounded-[10px] bg-[var(--page-well)] py-2 text-[12.5px] leading-6">
+              <code className="block px-3 text-[var(--page-dim)]">{" "}CREATE TABLE orders (</code>
+              <code className="block bg-[var(--del-bg)] px-3 text-[var(--del-ink)]">-  id INTEGER PRIMARY KEY</code>
+              <code className="block bg-[var(--add-bg)] px-3 text-[var(--add-ink)]">+  id INTEGER PRIMARY KEY,</code>
+              <code className="block bg-[var(--add-bg)] px-3 text-[var(--add-ink)]">+  created_at TEXT NOT NULL</code>
+              <code className="block px-3 text-[var(--page-dim)]">{" "});</code>
+            </div>
+            <div className="flex items-center gap-2" aria-hidden="true">
+              <span className="inline-flex h-11 items-center rounded-[var(--btn-radius)] bg-[var(--page-ink)] px-6 font-semibold text-[var(--page)]">Allow</span>
+              <span className="inline-flex h-11 items-center px-5 font-semibold">Deny</span>
             </div>
           </div>
           <p>
@@ -273,42 +263,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className={`${WRAP} mt-32`} id="install">
-        <h2 className="text-[34px] sm:text-[44px]">Install in two minutes.</h2>
-        <PreReleaseNote />
-        <ol className="mt-10 grid gap-10 md:grid-cols-3">
-          {[
-            [
-              "Download and drag it to Applications.",
-              "Open the disk image and drag Terminal 1 onto the Applications folder.",
-            ],
-            [
-              "Allow the microphone and the talk key.",
-              "The first launch walks you through three macOS permissions, one at a time, and tests your talk key.",
-            ],
-            [
-              "Connect your agents.",
-              "Run coworker install for each agent you use. From then on, they can ask you things.",
-            ],
-          ].map(([t, d], i) => (
-            <li key={t} className="flex flex-col gap-3">
-              <span className="keycap inline-flex h-7 w-7 items-center justify-center text-[13px] font-semibold">
-                {i + 1}
-              </span>
-              <h3 className="text-[20px]">{t}</h3>
-              <p className="text-[15.5px] leading-[1.6] text-[var(--dim)]">
-                {d}
-              </p>
-            </li>
-          ))}
-        </ol>
-        <div className="mt-10 flex flex-wrap items-center gap-4">
-          <DownloadButton />
-          <TextLink href="/download">Full install guide</TextLink>
-        </div>
-      </section>
-
-      <section className="band band-ink mt-36 py-24 sm:py-32">
+            <section className="mt-36">
         <div className={`${WRAP} flex flex-col items-start gap-6`}>
           <h2 className="max-w-[20ch] text-[40px] sm:text-[56px]">
             Your agents are waiting on someone. Make it a quick conversation.

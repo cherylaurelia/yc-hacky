@@ -1,4 +1,4 @@
-// Small shared pieces of the marketing site, drawn in the Calling Desk vocabulary.
+// Small shared pieces of the marketing site.
 import Link from "next/link";
 import { latestRelease } from "@/lib/site";
 
@@ -42,7 +42,7 @@ export function DownloadNote() {
 }
 
 export function Cmd({ children }: { children: string }) {
-  // On the navy ground the plate is a raised well with a hairline, not near-black on navy.
+  // On paper the command sits in a well with a hairline; the dark plate is for the lit sheet.
   return <code className="block overflow-x-auto whitespace-pre rounded-[9px] bg-[var(--wings-hi)] px-3.5 py-3 text-[14px] leading-[1.5] text-[var(--text)] shadow-[inset_0_0_0_1px_var(--rule)]">{children}</code>;
 }
 
@@ -55,7 +55,7 @@ export function TextLink({ href, children }: { href: string; children: React.Rea
 }
 
 // Install steps describe the Mac app; before its first release, say they apply once it ships.
-export function PreReleaseNote() {
+export function PreReleaseNote({ children }: { children?: React.ReactNode }) {
   if (latestRelease().url) return null;
-  return <p className="mt-4 max-w-[62ch] text-[15.5px] text-[var(--faint)]">The Mac app isn&apos;t released yet. These are the steps for when it ships; the web app works today.</p>;
+  return <p className="mt-4 max-w-[62ch] text-[15.5px] text-[var(--faint)]">{children ?? <>The Mac app isn&apos;t released yet. These are the steps for when it ships; the web app works today.</>}</p>;
 }

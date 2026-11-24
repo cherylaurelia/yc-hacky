@@ -25,7 +25,7 @@ export default function Download() {
   return (
     <main className={`${WRAP} pt-14`}>
       <h1 className="text-[44px] sm:text-[60px]">Terminal 1 for Mac</h1>
-      <p className="mt-5 max-w-[54ch] text-[18px] leading-[1.55] text-[var(--dim)]">Dictation in any app, and your coding agents a key-press away. Installs in about two minutes.</p>
+      <p className="mt-5 max-w-[54ch] text-[18px] leading-[1.55] text-[var(--dim)]">Dictation in any app, and your coding agents a key-press away.</p>
       <div className="mt-8 flex flex-col items-start gap-3">
         <DownloadButton label={r.version ? `Download Terminal 1 ${r.version}` : "Download Terminal 1"} />
         <DownloadNote />

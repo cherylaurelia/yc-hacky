@@ -1,374 +1,419 @@
 ---
-name: Coworker
-description: A voice coworker for a team's coding agents, laid out like a stage manager's calling desk.
+name: Terminal 1
+description: Dictate anywhere and answer your coding agents out loud, on warm paper with ink, one deep green, and amber only for "waiting on you".
 colors:
-  wings: "oklch(0.205 0.045 264)"
-  wings-raise: "oklch(0.24 0.05 264)"
-  wings-hi: "oklch(0.285 0.058 264)"
-  rule: "oklch(0.335 0.05 264)"
-  text: "oklch(0.97 0.008 264)"
-  dim: "oklch(0.8 0.03 264)"
-  faint: "oklch(0.7 0.035 264)"
-  page: "oklch(0.985 0.004 264)"
-  page-ink: "oklch(0.21 0.035 264)"
-  page-dim: "oklch(0.46 0.03 264)"
-  page-rule: "oklch(0.905 0.01 264)"
-  page-well: "oklch(0.955 0.008 264)"
-  standby: "oklch(0.84 0.155 80)"
-  stuck: "oklch(0.68 0.2 27)"
-  done: "oklch(0.8 0.15 155)"
-  stuck-text: "oklch(0.76 0.16 27)"
-  standby-ink: "oklch(0.52 0.13 70)"
-  page-edge: "oklch(0.82 0.015 264)"
-  stop-edge: "oklch(0.86 0.05 27)"
-  tape-roger: "oklch(0.83 0.12 192)"
-  tape-sarah: "oklch(0.76 0.17 356)"
-  tape-charlie: "oklch(0.89 0.17 125)"
-  tape-alice: "oklch(0.8 0.11 238)"
-  tape-george: "oklch(0.95 0.015 264)"
-  tape-jessica: "oklch(0.76 0.14 296)"
-  add-bg: "oklch(0.95 0.05 152)"
-  add-ink: "oklch(0.42 0.12 152)"
-  del-bg: "oklch(0.955 0.035 27)"
-  del-ink: "oklch(0.48 0.16 27)"
-  pill: "oklch(0.13 0.025 264)"
+  paper: "#fdfcf6"
+  card: "#f6f4ea"
+  chip: "#efeddf"
+  ink: "#1f1d18"
+  soft: "#4f4b43"
+  faint: "#6f6b61"
+  rule: "#e2ddcd"
+  line: "#e5e1d3"
+  sheet: "#ffffff"
+  sheet-chip: "#f3f1e7"
+  sheet-dim: "#5c584f"
+  sheet-rule: "#ece8dc"
+  sheet-edge: "#d9d4c5"
+  brand: "#0f4a3f"
+  sage: "#e8edd2"
+  wash-sage: "#edf1dc"
+  wash-lavender: "#efe9fb"
+  wash-ground: "#f8f7f0"
+  band-dim: "#d4e0d6"
+  band-faint: "#a9c1b3"
+  pill-dim: "#d9d5c7"
+  pill-faint: "#aaa596"
+  standby: "#b7791f"
+  standby-ink: "#8a5a12"
+  stuck: "#c0492f"
+  stop: "#a3382a"
+  done: "#2e7d4f"
+  add: "#2e6542"
+  add-tint: "#e3ede0"
+  stop-tint: "#f6e2da"
+  voice-roger: "#2f6f6a"
+  voice-sarah: "#a4473f"
+  voice-charlie: "#5e6a2a"
+  voice-alice: "#3d5f8a"
+  voice-george: "#7a5a2e"
+  voice-jessica: "#7a4f86"
+  voice-roger-on-pill: "#8fd1c9"
+  voice-sarah-on-pill: "#f2a89e"
+  voice-charlie-on-pill: "#c9d38e"
+  voice-alice-on-pill: "#a9c4ea"
+  voice-jessica-on-pill: "#d2b2dc"
 typography:
   display:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "44px"
-    fontWeight: 650
-    lineHeight: 1.05
+    fontFamily: "EB Garamond, ui-serif, Georgia, serif"
+    fontSize: "72px"
+    fontWeight: 450
+    lineHeight: 1
+    letterSpacing: "-0.03em"
+  display-close:
+    fontFamily: "EB Garamond, ui-serif, Georgia, serif"
+    fontSize: "56px"
+    fontWeight: 450
+    lineHeight: 1.04
     letterSpacing: "-0.025em"
-    fontVariation: "'wdth' 87.5"
   headline:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "24px"
-    fontWeight: 650
+    fontFamily: "EB Garamond, ui-serif, Georgia, serif"
+    fontSize: "44px"
+    fontWeight: 450
+    lineHeight: 1.04
+    letterSpacing: "-0.025em"
+  headline-card:
+    fontFamily: "EB Garamond, ui-serif, Georgia, serif"
+    fontSize: "2rem"
+    fontWeight: 450
     lineHeight: 1.15
-    letterSpacing: "-0.02em"
-    fontVariation: "'wdth' 87.5"
+    letterSpacing: "-0.01em"
   title:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "16.5px"
+    fontFamily: "EB Garamond, ui-serif, Georgia, serif"
+    fontSize: "20px"
+    fontWeight: 500
+    lineHeight: 1.2
+    letterSpacing: "-0.01em"
+  wordmark-footer:
+    fontFamily: "EB Garamond, ui-serif, Georgia, serif"
+    fontSize: "clamp(88px, 19vw, 280px)"
+    fontWeight: 450
+    lineHeight: 0.78
+    letterSpacing: "-0.04em"
+  lede:
+    fontFamily: "Figtree, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "19px"
     fontWeight: 400
-    lineHeight: 1.45
+    lineHeight: 1.6
   body:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "15px"
+    fontFamily: "Figtree, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "17px"
     fontWeight: 400
-    lineHeight: 1.45
+    lineHeight: 1.6
     fontFeature: "tnum"
+  body-small:
+    fontFamily: "Figtree, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "15.5px"
+    fontWeight: 400
+    lineHeight: 1.6
   label:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Figtree, ui-sans-serif, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 600
-    letterSpacing: "0.01em"
+  caption:
+    fontFamily: "Figtree, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "12.5px"
+    fontWeight: 400
   mono:
     fontFamily: "JetBrains Mono, ui-monospace, monospace"
     fontSize: "14px"
     fontWeight: 400
-  display-site:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "56px"
-    fontWeight: 650
-    lineHeight: 1.02
-    letterSpacing: "-0.03em"
-    fontVariation: "'wdth' 87.5"
-  headline-site:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "44px"
-    fontWeight: 650
-    lineHeight: 1.06
-    letterSpacing: "-0.025em"
-    fontVariation: "'wdth' 87.5"
-  lede-site:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "18px"
-    fontWeight: 400
     lineHeight: 1.5
-  body-site:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "17px"
-    fontWeight: 400
-    lineHeight: 1.6
-  caption-site:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "12.5px"
-    fontWeight: 400
 rounded:
-  tape: "1.5px"
   key: "5px"
   sm: "8px"
   cmd: "9px"
-  md: "10px"
-  lg: "12px"
-  page: "14px"
+  btn: "10px"
+  plate: "12px"
+  lg: "14px"
+  xl: "16px"
+  wash: "28px"
   full: "999px"
 spacing:
   xs: "8px"
-  sm: "14px"
+  sm: "12px"
   md: "20px"
   lg: "32px"
-  xl: "40px"
+  xl: "56px"
   section: "128px"
+  wrap: "1180px"
 components:
-  button-go:
-    backgroundColor: "{colors.page-ink}"
-    textColor: "{colors.page}"
-    rounded: "{rounded.md}"
-    height: "40px"
-    padding: "0 16px"
+  button-primary:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    rounded: "{rounded.btn}"
+    height: "46px"
+    padding: "0 20px"
+  button-primary-hover:
+    backgroundColor: "{colors.brand}"
+    textColor: "{colors.paper}"
   button-quiet:
     backgroundColor: "transparent"
-    textColor: "{colors.page-ink}"
-    rounded: "{rounded.md}"
-    height: "40px"
-    padding: "0 16px"
-  button-stop:
-    backgroundColor: "transparent"
-    textColor: "{colors.del-ink}"
-    rounded: "{rounded.md}"
-    height: "40px"
-    padding: "0 16px"
-  button-dark:
-    backgroundColor: "{colors.wings-raise}"
-    textColor: "{colors.text}"
-    rounded: "{rounded.md}"
-    height: "36px"
-    padding: "0 14px"
-  lit-page:
-    backgroundColor: "{colors.page}"
-    textColor: "{colors.page-ink}"
-    rounded: "{rounded.page}"
-    padding: "20px 22px 18px"
-  command:
-    backgroundColor: "{colors.page-ink}"
-    textColor: "{colors.page}"
-    typography: "{typography.mono}"
-    rounded: "{rounded.cmd}"
-    padding: "12px 14px"
-  board:
-    backgroundColor: "{colors.wings-raise}"
-    textColor: "{colors.text}"
-    rounded: "{rounded.page}"
-    padding: "14px 20px"
-  talk-pill:
-    backgroundColor: "{colors.pill}"
-    textColor: "{colors.text}"
-    rounded: "{rounded.full}"
-    height: "48px"
-    padding: "0 18px 0 16px"
-  keycap:
-    backgroundColor: "oklch(1 0 0 / 0.08)"
-    textColor: "{colors.text}"
-    rounded: "{rounded.key}"
-    height: "20px"
-    padding: "0 6px"
-  button-go-navy:
-    backgroundColor: "{colors.page}"
-    textColor: "{colors.page-ink}"
-    rounded: "{rounded.md}"
-    height: "44px"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.btn}"
+    height: "46px"
     padding: "0 18px"
-  button-go-navy-hover:
-    backgroundColor: "oklch(0.94 0.012 264)"
-  button-quiet-navy:
-    backgroundColor: "transparent"
-    textColor: "{colors.text}"
-    rounded: "{rounded.md}"
-    height: "44px"
+  button-quiet-hover:
+    backgroundColor: "{colors.card}"
+  button-on-band:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.btn}"
+    height: "46px"
+    padding: "0 20px"
+  button-on-band-hover:
+    backgroundColor: "{colors.sage}"
+  button-app:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    rounded: "{rounded.btn}"
+    height: "48px"
+    padding: "0 28px"
+  button-stop:
+    backgroundColor: "{colors.stop}"
+    textColor: "{colors.sheet}"
+    rounded: "{rounded.btn}"
+    height: "48px"
+    padding: "0 28px"
+  input:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.btn}"
+    height: "40px"
     padding: "0 16px"
-  button-quiet-navy-hover:
-    backgroundColor: "{colors.wings-raise}"
+  lit-sheet:
+    backgroundColor: "{colors.sheet}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: "20px 32px"
+  card:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: "28px"
   command-well:
-    backgroundColor: "{colors.wings-hi}"
-    textColor: "{colors.text}"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.sheet}"
+    typography: "{typography.mono}"
+    rounded: "{rounded.plate}"
+    padding: "6px 12px"
+  diff-well:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.sheet-dim}"
+    typography: "{typography.mono}"
+    rounded: "{rounded.btn}"
+    padding: "8px 0"
+  painting-mount:
+    backgroundColor: "{colors.sheet}"
+    padding: "10px"
+  command-plate:
+    backgroundColor: "{colors.chip}"
+    textColor: "{colors.ink}"
     typography: "{typography.mono}"
     rounded: "{rounded.cmd}"
     padding: "12px 14px"
-  talk-pill-keyed:
-    backgroundColor: "{colors.pill}"
-    textColor: "{colors.text}"
+  talk-pill:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
     rounded: "{rounded.full}"
     height: "48px"
     padding: "0 20px 0 10px"
-  sample-label:
-    textColor: "{colors.faint}"
-    typography: "{typography.caption-site}"
+  keycap:
+    backgroundColor: "{colors.chip}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.key}"
+    padding: "2px 8px"
+  agent-row-waiting:
+    backgroundColor: "{colors.chip}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.btn}"
+    padding: "10px 12px"
+  band-green:
+    backgroundColor: "{colors.brand}"
+    textColor: "{colors.paper}"
+    padding: "112px 0"
+  nav-link:
+    backgroundColor: "transparent"
+    textColor: "{colors.soft}"
+    rounded: "{rounded.sm}"
+    padding: "8px 12px"
+  nav-link-hover:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.ink}"
 ---
 
-# Design System: Coworker
+# Design System: Terminal 1
 
 ## Overview
 
-**Creative North Star: "The Calling Desk"**
+**Creative North Star: "Someone Leaning Over Your Shoulder"**
 
-The room is backstage: a running-light navy ground where everything is low and quiet, and one lit white page carries the single decision in front of you. The person is the stage manager; agents are crew standing by. State is shown by cue lamps, identity by colored spike tape, and the eye goes to the light, never to a field of equal cards.
+You are writing, and someone leans in to ask a question. The whole product (the marketing site and the app at /app) lives on warm cream paper with near-black ink, like a sketchbook or letter-writing desk, not a dark dashboard. The one thing that needs you on a screen is lifted off that paper as a white sheet. Everything else stays flat and quiet: hairline rules, tinted wells, and generous space between sections.
 
-Density is tight and tabular: fixed columns, numbers in tabular figures, rows ranked by how long someone has waited. Colour is scarce on the navy and reserved for meaning (lamps, tape, the one amber count). The page is the only bright, high-contrast surface on a screen. The same system scales down unchanged to the 360x520 Mac panel.
+Headings are set in a book serif at regular weight, usually with one phrase in italic. Everything you read or click is in a plain, friendly sans. Monospace appears only for machine text. Color is rationed. Ink does the work. One deep green paces the long scroll and carries focus. Amber means exactly one thing: an agent is waiting on you. A few hand-made marks give the page warmth: a dry-brush sage stroke behind the headline, the one painting mounted like a print on a white border, a soft sage-to-lavender wash behind the product demo, and the giant serif wordmark sinking off the footer.
 
-The product ships as **Terminal 1**; "Coworker" stays the name of this design system. The marketing routes (/, /pricing, /download, /docs, /privacy, /terms) wear the same world scoped under one wrapper: the navy wings, one lit page per viewport, lamps and tape, and the talk pill. They add a larger display ramp, a split-desk hero and a few navy-ground variants (light primary button, raised command well), recorded below. The /app page's cream-and-serif styling is drift from this world and is not part of the system.
+The reference sites (Aristotle's editorial calm, Wispr Flow's dark talk pill and fn-key story, Willow's soft hero wash) inspired the mood. None of their tokens were copied; every value below comes from this build.
 
 **Key Characteristics:**
-- Dark navy wings, one lit page per screen.
-- Round lamps mean state; rectangular tape means who.
-- Amber is reserved for "waiting on you".
-- Archivo throughout, headings narrowed to 87.5% width; JetBrains Mono only for commands and diffs.
-- A small black talk pill, bottom center, is the voice surface.
+- Warm paper ground, ink type, white lit sheet for the one thing that needs you.
+- EB Garamond headings at weight 450 with one italic phrase; Figtree for everything else.
+- One brand green (the single color band, focus, selection, primary hover); amber reserved for "waiting on you".
+- A dark ink talk pill with waveform and fn keycap, the same on the site and in the app.
+- Hand-made marks used once each: brush stroke, mounted painting, wash, footer wordmark.
+- One 10px corner for every button, input and select; only the pill and small round marks are fully round.
+- Shadows only on the lit sheet, the pill and the painting mount.
 
 ## Colors
 
-A cool navy ground with one near-white page and a small set of fully saturated signal colors, all on hue 264 except the signals.
+A warm, low-chroma paper-and-ink palette with one deep green and a small set of state and voice colors.
 
 ### Primary
-- **Prompt-Book White** (page): the lit page that holds the current decision. One per screen.
-- **Page Ink** (page-ink): text on the page, and the fill of the primary Allow button and the command plate (the reversed plate).
+- **Ink** (ink): body text, headings, the primary button, the command well on a lit sheet, and the talk pill. In this system ink, not a hue, is the color of action.
+- **Writing-Desk Green** (brand): the one color band on the page (privacy), focus rings, the text caret, selection tint (18% mix), and the hover state of the primary button. It never fills cards or decorates.
 
 ### Secondary
-- **Standby Amber** (standby): lamp and count for an agent waiting on you. Pulses gently (2.4s). On the lit page its text form darkens to stay legible.
-- **Stuck Red** (stuck): lamp for an agent looping or failing; also the recording dot.
-- **Done Green** (done): lamp for finished agents and the "watching" dot.
+- **Dry Sage** (sage): the brush stroke behind the hero headline (painted at 45 to 75% opacity) and the hover of the paper button inside the green band.
+- **Wash fields** (wash-sage, wash-lavender on wash-ground): the two radial fields behind the product demo. Used only in the wash.
 
-### Tertiary
-- **Spike Tape** (tape-roger, tape-sarah, tape-charlie, tape-alice, tape-george, tape-jessica): one fluorescent color per voice. Worn by the tape chip, the pill waveform, transcript names, the live caret and standup strip segments. Alice blue doubles as the focus ring and selection tint (35% on navy, 30% on the page), the text caret on navy, and the highlight under freshly dictated words on the page (22% mixed into transparent). On the marketing pages, where an agent's name stands without a chip, the name itself is set in its tape color.
-- **Diff** (add-bg/add-ink, del-bg/del-ink): additions and deletions on the lit page only; del-ink also colors the Stop button.
+### State
+- **Standby Amber** (standby): the filled lamp and other non-text marks for an agent waiting on you. **Standby Ink** (standby-ink) is the amber used for text ("waiting on you · 0:21").
+- **Stuck** (stuck): the filled lamp of an agent in a failing loop. **Stop** (stop) is its text and button color, and is also the deleted-line ink in diffs.
+- **Done** (done): the filled lamp when an agent finishes.
+- **Add / Delete** (add on add-tint, stop on stop-tint): diff rows.
+
+### Voices
+One mapping across the site and the app, keyed by the voice an agent speaks in (lib/voices assigns the voice), so a poster keeps one color everywhere: Roger teal, Sarah brick, Charlie olive, Alice slate blue, George umber, Jessica plum. The demo's agents follow it (Sam's Claude is Jessica plum, Sam's Codex is Charlie olive, Sam's Cursor is Sarah brick). These earthy colors are for names and avatars on paper or a sheet; avatars set a white initial on the voice color. Only inside the dark pill do voices switch to their lighter **on-pill** variants (voice-*-on-pill). A dictated span in the demo is highlighted with Alice at a 22% mix.
 
 ### Neutral
-- **Wings** (wings): page background, board header row.
-- **Wings Raise / Wings High** (wings-raise, wings-hi): board body and dark buttons; hover and focused row.
-- **Rule** (rule): every hairline and dashed queue border on navy.
-- **Text / Dim / Faint** (text, dim, faint): three steps of ink on navy.
-- **Page Dim / Page Rule / Page Well** (page-dim, page-rule, page-well): secondary ink, hairlines and inset wells on the lit page.
-- **Pill Black** (pill): the talk pill only.
+- **Cream Paper** (paper): the page ground everywhere.
+- **Card** (card): a raised surface on paper: the agent board, free and team plan cells, nav hover, quiet button hover.
+- **Chip / Well** (chip): a well inside a card: command plates, keycaps, the highlighted waiting row, app chips. On a lit sheet the well is sheet-chip.
+- **Soft** (soft) and **Faint** (faint): secondary text and tertiary text (captions, sample-data labels, notes). On a white sheet, secondary text is sheet-dim.
+- **Rule** (rule) / **Line** (line): hairlines on the site and in the app respectively; sheet-rule and sheet-edge are the hairline and button outline on white.
+- **Lit Sheet White** (sheet): the one sheet per screen that needs you.
+- **Band and pill text** (band-dim, band-faint, pill-dim, pill-faint): secondary and tertiary text after the tokens flip to paper inside the green band or the pill.
 
 ### Named Rules
-**The Standby Rule.** Amber means "an agent is waiting on you" and nothing else. No amber for warnings, highlights, brand or hover.
+**The One Band Rule.** A page has exactly one color band, and it is Writing-Desk Green. Green otherwise appears only as focus, caret, selection and the primary hover. It is never a card fill, an icon tint or a text accent.
 
-**The Lamp and Tape Rule.** State is a round lamp (10px, hollow ring when working, filled when standby, stuck or done; idle is a hollow ring drawn in the rule color, quieter than working's faint ring). Identity is a rectangular tape chip (14x9px, slightly skewed). Never swap the shapes.
+**The Amber Means You Rule.** Amber is used only for an agent waiting on you. Never use it for warnings, highlights, pricing or decoration. Amber text uses standby-ink; the brighter standby is for lamps and dots only.
 
-**The One Light Rule.** Only one lit page per screen. Everything else stays on the navy. On a scrolling marketing page that means one per viewport: the hero's draft, a sample request further down, the Pro plan on pricing.
+**The Tokens Flip Rule.** Inside the green band or the pill, text tokens flip to paper (text, dim, faint, rule, voices). Components are not restyled one by one; they inherit from the surface.
+
+**The Voice Is the Color Rule.** An agent's color comes from its voice, through one mapping shared by the site and the app. Lighter variants exist only inside the dark pill.
 
 ## Typography
 
-**Display Font:** Archivo (variable, wdth 62-125, wght 400-700), with ui-sans-serif, system-ui
-**Body Font:** Archivo
-**Label/Mono Font:** JetBrains Mono (400-600), for commands and diffs only
+**Display Font:** EB Garamond (normal and italic), with ui-serif and Georgia as fallbacks
+**Body Font:** Figtree, with ui-sans-serif and system-ui as fallbacks
+**Mono Font:** JetBrains Mono, with ui-monospace as a fallback
 
-**Character:** A sturdy grotesk narrowed for headings, like a cue sheet header; mono appears only where the agent's literal words are shown.
+**Character:** A literary serif at book weight sits over a warm, round sans. The serif carries the voice and the sans carries the work.
 
 ### Hierarchy
-- **Display** (650, 44px, 1.05, -0.025em, width 87.5%): the screen's one headline, e.g. how many agents are waiting. Balanced wrap.
-- **Headline** (650, 24px, 1.15, -0.02em, width 87.5%): the question on the lit page. The wordmark (700, 16px) and panel heading (17px) use the same 87.5% width.
-- **Title** (400, 16.5px, 1.45): transcript lines, max 62ch.
-- **Body** (400, 15px, 1.45, tabular figures): default; row messages at 14px, page explanation at 14.5px, max 60-75ch.
-- **Label** (600, 13px, 0.01em, sentence case): section headings in dim ink, name labels, buttons at 14.5px. Column heads at 12px, 500, faint.
-- **Mono** (14px command, 12.5px diff at 1.6 line height): commands and diffs only.
-
-### Marketing Hierarchy
-The marketing routes run a larger ramp on the same faces. Every h1-h3 is 650 weight, 87.5% width, balanced wrap; body paragraphs wrap with `pretty`.
-- **Display, site** (56px desktop / 38px phone on the landing hero; 60px / 44px on pricing and download; 56px docs, 52px legal; 1.02, -0.03em): the page's one headline, capped at 18-24ch.
-- **Headline, site** (44px desktop / 34px phone, 1.06, -0.025em): section heads, often capped at 12-18ch. Install-guide and docs sections step down to 38px / 30px and 34px / 30px; the closing call to action steps up to 56px / 40px.
-- **Title, site** (18-20px, 1.2, -0.015em): step and question heads (h3); plan names at 26px.
-- **Lede** (18px desktop / 16.5px phone, 1.5, dim): the one line under a display headline, max 54-60ch.
-- **Body, site** (17px, 1.6, dim): section copy, max 46-62ch. Secondary notes at 15.5px in faint; row detail at 15px.
-- **Small** (14px faint): download notes, footer, row meta. Stage chrome at 13-13.5px.
-- **Caption** (12.5px faint): sample-data labels and the demo's pause control only.
+- **Display** (450, 72px, 46px on mobile, line height 1): the hero headline, balanced, max about 13ch.
+- **Display close** (450, 56px, 40px on mobile): the closing call to action, set on paper.
+- **Headline** (450, 44px, 34px on mobile, line height 1.04): section headings, 12 to 20ch wide.
+- **Headline card** (450, 2rem in the app, 28px in the landing's sample alert): the serif sentence on an alert card.
+- **Title** (500, 20px): step and FAQ headings.
+- **Lede** (Figtree 400, 19px, 17px on mobile, line height 1.6): the one support paragraph under a headline, about 46ch.
+- **Body** (Figtree 400, 17px, line height 1.6, tabular numbers): paragraphs at 46 to 62ch. Body small (15.5px) for column and plan copy.
+- **Label** (Figtree 600, 13px): sheet headers, agent names, state words.
+- **Caption** (Figtree 400, 12.5px, faint): painting credit and sample-data labels.
+- **Mono** (JetBrains Mono 14px, 12.5 to 13px in diffs): commands, file paths, test output and diffs only.
 
 ### Named Rules
-**The Narrow Heading Rule.** Every heading sets `font-stretch: 87.5%` on Archivo; body copy stays at normal width.
+**The One Italic Phrase Rule.** A serif heading may set one phrase in italic (`<em>`) for the emphasis a voice would give it ("*Answer your agents*", "*You answer out loud.*"). Never more than one per heading, and many headings carry none.
 
-**The Mono Is Evidence Rule.** JetBrains Mono appears only for commands, paths and diffs: things an agent literally wrote or will run.
+**The Machine Text Rule.** Mono is only for text a machine reads or prints: commands, file paths, terminal output, diffs. Labels, numbers, nav and buttons stay in Figtree.
+
+**The Book Weight Rule.** Serif headings stay at weight 450 (500 for small titles). Never bold the serif.
 
 ## Layout
 
-Main screen: a 60px top bar (wordmark, repo, standup, account), then a two-column grid, flexible left and a fixed 540px right column, 40px gutter, 32px side padding, 36px top and 104px bottom padding to clear the pill, max width 1440px. Left holds the headline, the agent board and the waiting line; right holds the lit page and the transcript, which fades in from the top.
+The page content sits in a 1180px wrap with 20px gutters (32px from the sm breakpoint). Sections are separated by large, even gaps (128px; 144px before the closing call to action) instead of dividers. The hero is an editorial split (copy at 1.05fr, painting at 1fr) that stacks on mobile. Text-plus-proof sections use a 1fr / 1.1fr split. Lists are ruled rows (a top and bottom hairline per row), not card grids. Three-up content (privacy points, install steps) uses a plain three-column grid, each item headed by a hairline or a numbered keycap.
 
-The board uses fixed columns (196 / 148 / flexible / 72 / 64px), 20px column gap, rows 14px x 20px, ranked by wait, with time and dollar columns right-aligned. The waiting line is a stack of 8px-gapped rows with dashed borders.
-
-Marketing pages: a 64px header (wordmark left; Download, Pricing, Docs as 15px dim links; an outlined "Open web app") and a footer above a rule hairline, both in a 1180px container with 20px side padding on phones and 32px from 640px up. Reading pages narrow to 920px (download) and 760px (legal); docs keep the 1180px container. Sections sit 128px apart (144px before the closing call to action). Two-column sections split copy against evidence at 1fr / 1.1fr from 1024px with a 48px gap; below that they stack. Every section is left-aligned; nothing is centered over a grid of cards.
-
-The landing hero is a split desk: a stage min(52vh, 440px) tall, the lit page on the left 55% and the navy board on the right 45%, a 40px seam between them, and the talk pill straddling the seam 20px above the bottom edge (its left at 55%). Under the stage, one left-aligned column carries the headline, lede and primary action. On phones the column comes first and the stage stacks (page, then board) beneath it, so the action stays in the first viewport.
-
-The Mac panel (360x520) stacks the lit page, a compact 38px-row agent list, the latest caption and a full-width pill, with 12px padding and 10px gaps. Spacing runs on 8 / 14 / 20 / 32 / 40px steps.
+The product stage is a split desk: the lit document at 55% and the agent board at 45%, with the pill floating at the seam near the bottom. It stacks on mobile. The wash frame is a wider 1260px rounded field so the stage reads as the thing to look at. The app centers one lit card with up to two stack layers behind it, and the pill docked below.
 
 ## Elevation & Depth
 
-Flat navy surfaces, separated by tone (wings, raise, high) and 1px rules. Only two things lift: the lit page and the talk pill, both with deep navy-tinted shadows, so light reads as the only thing above the stage.
+The system is flat. Depth comes from the paper-card-chip tonal steps and from one white sheet. Only three things cast shadows.
 
 ### Shadow Vocabulary
-- **Page lift** (`box-shadow: 0 1px 0 oklch(1 0 0 / 0.6) inset, 0 18px 40px -12px oklch(0.08 0.04 264 / 0.7), 0 2px 6px oklch(0.08 0.04 264 / 0.35)`): the lit page.
-- **Pill float** (`box-shadow: 0 14px 34px -10px oklch(0.05 0.03 264 / 0.8), 0 2px 6px oklch(0.05 0.03 264 / 0.5)`): the talk pill.
-- **Keycap** (`box-shadow: inset 0 -1px 0 oklch(1 0 0 / 0.08), 0 0 0 1px oklch(1 0 0 / 0.14)`): key hints; on the page, a page-rule version.
-- **Focused row** (`box-shadow: inset 0 0 0 1px oklch(0.45 0.06 264)`): the board row whose request is on the page.
-
-On navy, the outlined pieces (the quiet button, the "Open web app" link, the command well) draw their edge with a 1px inset rule hairline (`box-shadow: inset 0 0 0 1px` rule), which sits flat and is not a lift. On the page the same treatment uses page-edge.
+- **Lit sheet** (`0 1px 2px rgb(31 29 24 / 0.06), 0 24px 48px -24px rgb(31 29 24 / 0.28)`): the one sheet that needs you.
+- **Pill** (`0 12px 28px -12px rgb(31 29 24 / 0.55)`; live: `0 16px 34px -12px rgb(31 29 24 / 0.6)` with scale 1.04): the talk pill.
+- **Painting mount** (`0 1px 2px rgb(31 29 24 / 0.08), 0 24px 48px -28px rgb(31 29 24 / 0.35)` on a 10px white border): the hero painting, hung like a print.
+- Hairline rings (`inset 0 0 0 1px` in rule or sheet-edge) outline quiet buttons, the web-app nav button, command plates and keycaps. These are borders, not elevation.
 
 ### Named Rules
-**The Only Light Lifts Rule.** Board, rows and buttons on navy never carry drop shadows.
+**The One Lifted Sheet Rule.** Only one lit sheet per view: the thing that needs you (the draft in the demo, the sample alert, the Pro plan, the app's current card). Queued cards behind it are flat stack layers with no shadow. Boards, rows and cards never get shadows.
 
 ## Shapes
 
-Soft rectangles: 14px on the page and board, 12px on queue rows and panel containers, 10px buttons, 9px command and diff plates, 8px small controls, 5px keycaps. Full rounds are reserved for lamps, the account disc and the talk pill. Tape chips are the one deliberately rough shape: 1.5px corners and a slight skewed clip.
+Gentle, consistent rounding. One button radius (btn, 10px, the `--radius-btn` custom property) is used by every button, input and select on the site and in the app, and by board rows and diff wells. Keycaps are 5px, nav links 8px, command wells 9px (12px for the inline command chip on an alert), sheets and cards 14px, app panels 16px, the wash frame 28px. Only the talk pill, avatars, status chips, radio dots, lamps and meter bars are fully round. The painting is a plain rectangle on a white mount. The brush stroke (public/site/brush.svg, generated by scripts/site-art.py) is the one irregular shape: a loose, multi-stroke sage smear.
 
 ## Components
 
 ### Buttons
-- **Shape:** gently rounded (10px), 40px tall, 16px sides, 600 weight, 14.5px; background and border ease over 160ms.
-- **Go (Allow):** page-ink fill with page text; hover lightens toward navy.
-- **Quiet (Deny):** transparent with a light gray border on the page; hover fills page-well.
-- **Stop:** transparent, del-ink text, pale red border; hover fills del-bg.
-- **Dark:** on navy, wings-raise with a rule border, 36px tall; hover goes to wings-high.
-- **Focus:** 2px tape-alice outline, 2px offset; inside the page the outline turns page-ink. The marketing pages use a 3px offset with 5px corners on the ring.
-- **Go on navy:** where the primary action sits on the navy ground rather than on a lit page, it reverses: page fill, page-ink text, 44px tall, 18px sides, 10px corners, an optional 16px line icon before the label. Hover goes to a slightly greyed page tone; pressing nudges it down 1px. Easing is the site's exponential ease-out (`cubic-bezier(0.16, 1, 0.3, 1)`, 200ms).
-- **Quiet on navy:** transparent with a rule hairline, text color, 44px; hover fills wings-raise. Disabled drops to faint and stops taking clicks.
+Ink and confident, with one hover color.
+- **Shape:** one softly rounded corner (btn) on the site and in the app. Never pill-shaped.
+- **Primary:** ink fill with paper text, Figtree 600, 46px tall. It turns Writing-Desk Green on hover and drops 1px when pressed. Optional leading download icon (inline SVG, 16px).
+- **Quiet:** transparent with an inset hairline in sheet-edge, ink text. It fills with card on hover. Disabled shows faint text and no pointer.
+- **In the green band:** flips to paper fill with ink text and hovers to sage.
+- **App:** the same btn corner, 48px tall (40px when embedded): an ink primary (Allow, Done) with a quiet transparent partner (Deny, Let it run) that fills with paper on hover. Stuck requests swap the primary for a stop-red "Stop it". Press scales to 0.98.
+- **Inputs and selects:** paper fill, line hairline, btn corner, 40px tall.
 
-### Pre-release Download
-- Before the first Mac release, every download slot shows "Try the web app" as the go-on-navy button with "Mac app coming soon" beside it in 14px faint, never a dead download button. Install steps carry one faint note that they apply once the app ships. With a release, the button reads "Download for Mac" with a download icon and a faint "Free · version · macOS · chips" note beside it.
+### Lit Sheet
+White, 14px corners, the lit-sheet shadow. In the demo stage it holds the draft being written, headed by a label row over a sheet-rule hairline.
 
-### Agent Board
-- Bordered navy table (wings-raise, rule hairlines, 14px corners). Each row: tape and name with voice beneath, lamp and state, two-line clamped message, wait time, cost. Hot wait and cost go bold; stuck cost turns red. Hover and the focused row use wings-high.
-
-### Lit Page
-- Meta line (who, state, wait), narrow headline question, dim explanation, the command plate, an optional diff behind a "Show me" toggle, then Allow / Deny / Stop and a "say" hint with keycaps and quoted voice words.
-
-### Command and Diff
-- **Command:** a reversed page-ink plate, mono 14px, 9px corners, prompt glyph in tape-alice, cwd right-aligned.
-- **Command well (on navy):** where a command stands on the navy ground instead of a lit page, the plate becomes a raised well: wings-hi fill, text ink, a 1px rule hairline, mono 14px at 1.5, 9px corners, scrolling sideways rather than wrapping. A near-black plate on navy would vanish; the well keeps it readable.
-- **Diff:** page-rule bordered, 9px corners, file header in page-well, line-number gutter, green and red line fills.
+### Alert Card
+The app's request card, and the landing's sample approval, which uses the same anatomy so the page shows the real product. On a lit sheet, top to bottom: the poster's avatar (round, white initial on its voice color) and the time in sheet-dim; one serif sentence saying what the agent wants ("Sam's Claude wants to run a command."); the command in a dark ink plate with mono text; a "Show me the change" underlined link beside the file path in mono; the diff in a card-colored well with add and stop tinted rows; then Allow (ink, btn corner) and a quiet Deny. Queued alerts sit behind it as flat stack layers.
 
 ### Talk Pill
-- Black pill (48px, fully round) floating bottom center. Shows a key hint when idle, a waveform in the speaker's tape color when speaking or listening, and dots when thinking. Width eases over 260ms.
-- **Keyed pill (marketing stage):** the talk key lives inside the pill as its leading keycap ("fn", 12px semibold), 10px from the left edge, followed by a five-bar waveform and one truncating line. Idle it is 150px wide and reads "hold to talk" in faint; when it speaks or listens it widens to min(86vw, 460px) over 500ms on the ease-out. While the key is held the keycap goes down: brighter fill (white at 20%) and 1px lower. When an agent speaks, its name leads the line in its tape color and the waveform takes that color.
+The dark ink pill, fully round, 44 to 48px tall. From left: an fn keycap (translucent paper fill with a translucent ring, pressing down 1px when held), a waveform of 3px bars (2.5px in the app's VoiceMeter) in paper, then one line of text: "hold to talk", the speaking agent's name in its on-pill voice color plus its words, or the sent reply. It lifts and scales slightly while the mic or a voice is live.
 
-### Split-desk Stage
-- The landing hero's demonstration (see Layout). The page side is a draft with a file-name meta line over a page-rule hairline; dictated words type in under an alice highlight with a blinking page-ink caret. The board side lists three agents as rows (lamp, tape-colored name, state, one dim line); the waiting row lifts to wings-hi and its state reads "waiting on you · 0:38" in amber, with its failing command and output shown in mono beneath it. One scripted loop, paused off-screen and in hidden tabs, settled and static under reduced motion. A caption below reads "Demo with sample agents, not a recording." with a Pause / Play control.
+### Lamps
+10px status dots. Working is a hollow ring in faint; idle is a hollow ring in rule; waiting, done and stuck are filled with standby, done and stuck. Color changes ease over 300ms. A waiting agent's whole row also sits on a chip-colored well.
 
-### Sample Label
-- Any section that shows invented example content (an exchange, dictated lines, voice replies) ends with a one-line caption in 12.5px faint: "Sample exchange.", "Sample dictation.", "Sample replies." No invented customers, quotes or metrics stand unlabeled.
+### Agent Board
+A card-colored panel headed "Your agents" with a count ("1 waiting" in amber). Each row has a lamp, the agent's name in its voice color (600), a state word, and a one-line summary in soft. Test output appears in a chip command plate with a hairline ring, failures in stop.
 
-### Tape, Lamp, Keycap, Standup Strip
-- Tape chip 14x9px; lamp 10px (8px in the panel); keycap 20px tall, 11.5px bold; standup strip 64x6px, 2px gaps, one segment per voice in its tape color.
-- Lamp states: working (hollow ring, 2px faint), idle (hollow ring, 2px rule), standby / done / stuck (filled). Fill and ring ease over 300ms.
-- A 28px keycap with a numeral marks numbered install steps on the marketing pages.
+### Bands
+- **Green band:** full-bleed brand fill, 80 to 112px vertical padding, paper text with band-dim and band-faint for secondary text and paper-at-18% hairlines, and the primary button inverted to paper. Used once, for the privacy section. It is the only color band; the closing call to action sits on plain paper with the ink primary button.
+
+### Wash
+The product demo's frame: two radial fields (sage at top left, lavender at bottom right) on a pale ground, rounded 28px. Only the stage sits on it.
+
+### Hand-made Marks
+- **Brush stroke:** behind the hero headline only, extending past the text on every side.
+- **Painting mount:** the one painting (ter Borch, *Curiosity*, public domain) on a 10px white border with the mount shadow, like a hung print, with a right-aligned caption credit.
+- **Footer wordmark:** "Terminal 1" in EB Garamond at clamp(88px, 19vw, 280px), line height 0.78, in chip on paper, clipped so it sinks off the bottom of the page. Decorative and aria-hidden.
+
+### Navigation
+A slim 80px header: the wordmark (an ink rounded square with paper waveform bars, then "Terminal 1" in the serif) on the left; Download, Pricing and Docs as soft 15px links that fill with card on hover; then "Open web app" as a link outlined with a rule hairline (8px corners, hidden on mobile). The footer repeats the links in soft above the sinking wordmark.
+
+### Command Plates
+Two treatments, both mono: an **ink plate** (ink fill, white text) for the command on a lit sheet or alert, and a **chip plate** (chip fill, ink text, rule ring, 9px corners, 12 by 14px padding) on paper or a card, as in install docs and test output.
+
+### Pre-release Download Fallback
+Before the first release, every download button becomes the primary "Try the web app" link with "Mac app coming soon" in faint beside it, the download note disappears, and install steps get a faint note that they apply once the app ships. Pricing shows a quiet "Checkout opens soon" plate in place of unconfigured checkout links. Never show a dead download button.
+
+### Sample-data Labels
+Every staged exchange, dictation list and reply list carries a faint 12.5px caption beneath it ("Sample exchange.", "Sample dictation.", "Sample replies.", "Demo with sample agents, not a recording.").
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep standby amber for "waiting on you" alone, on the lamp, the waiting count and the waiting state label.
-- **Do** give every agent voice its tape color everywhere it appears: chip, waveform, transcript name, standup segment.
-- **Do** set headings in Archivo at 87.5% width and use JetBrains Mono only for commands and diffs.
-- **Do** rank agent rows by wait and keep columns fixed so state changes in place.
-- **Do** keep exactly one lit page per screen, with the command as its reversed plate.
-- **Do** honor reduced motion: the waveform, thinking dots and standby pulse stop.
-- **Do** reverse the primary button to page-on-ink (the go-on-navy button) when it sits on navy, and put commands on navy in the raised command well.
-- **Do** label invented example content with a 12.5px faint sample caption.
-- **Do** offer "Try the web app" with "Mac app coming soon" until a Mac release exists.
+- **Do** keep the ground paper (#fdfcf6) and lift only the one thing that needs you onto a white sheet with the lit-sheet shadow.
+- **Do** set headings in EB Garamond at 450, with at most one italic phrase per heading.
+- **Do** use the ink primary button with the green hover, and invert it to paper inside the green band.
+- **Do** give every button, input and select the one btn corner (10px).
+- **Do** flip text tokens on dark surfaces (the green band, the pill) instead of restyling each child, and use the on-pill voice variants only inside the pill.
+- **Do** color an agent by its voice, the same on the site and in the app.
+- **Do** draw any sample approval with the app alert's anatomy.
+- **Do** use standby-ink (#8a5a12) for any amber text and keep bright standby for lamps.
+- **Do** label every staged demo and example with a faint "Sample ..." caption.
+- **Do** fall back to "Try the web app" plus "Mac app coming soon" when there is no release.
+- **Do** separate sections with space (128px) and list items with hairline rules.
 
 ### Don't:
-- **Don't** use amber for warnings, emphasis, hover or branding.
-- **Don't** make tape chips round or lamps rectangular.
-- **Don't** lay agents out as a grid of equal cards, and don't make a giant mic button; voice lives in the small pill.
-- **Don't** put drop shadows on navy surfaces; only the page and pill lift.
-- **Don't** use mono for labels, numbers or UI chrome.
-- **Don't** set a near-black page-ink plate directly on the navy ground outside a lit page; use the command well.
-- **Don't** show a download button that leads nowhere.
+- **Don't** use amber for anything except an agent waiting on you.
+- **Don't** add a second color band (ink or otherwise), or use green as a card fill, icon tint or text accent.
+- **Don't** make buttons pill-shaped; full rounding belongs to the talk pill, avatars, status chips and small marks.
+- **Don't** put shadows on boards, rows, cards or queued stack layers.
+- **Don't** use mono for labels, numbers, navigation or buttons.
+- **Don't** bold the serif or stack several italic phrases in one heading.
+- **Don't** reuse the brush stroke, painting mount or wash as general decoration; each marks one place.
+- **Don't** bring back the navy "Calling Desk" palette or a dark dashboard ground.
+- **Don't** add eyebrows or kickers above headings, or invented customers, numbers or quotes.

@@ -105,14 +105,14 @@ body:has(.site) {
 
 /* One primary button for the whole product: ink, like the app's. */
 .site .btn-go {
-  display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px; border-radius: var(--btn-radius);
   background: var(--text); color: var(--wings); font-weight: 600; text-decoration: none;
   transition: background 200ms var(--ease-out), transform 200ms var(--ease-out);
 }
 .site .btn-go:hover { background: var(--brand); }
 .site .btn-go:active { transform: translateY(1px); }
 .site .btn-quiet {
-  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: 10px;
+  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: var(--btn-radius);
   color: var(--text); font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1px var(--page-edge);
   transition: background 200ms var(--ease-out);
 }
@@ -129,8 +129,7 @@ body:has(.site) {
   color: var(--text);
 }
 
-/* The closing band: ink instead of green, with the primary button flipped to paper. */
-.site .band-ink { background: var(--pill); }
+/* Inside the green band the primary button flips to paper. */
 .site .band .btn-go { background: #fdfcf6; color: #1f1d18; }
 .site .band .btn-go:hover { background: #e8edd2; }
 
@@ -142,8 +141,9 @@ body:has(.site) {
     #f8f7f0;
 }
 
-/* The hero painting's torn-paper edge, and the brush stroke behind the headline (scripts/site-art.py). */
-.site .torn { -webkit-mask: url("/site/torn.svg") center / 100% 100% no-repeat; mask: url("/site/torn.svg") center / 100% 100% no-repeat; }
+/* The hero painting is mounted like a print: a thin paper border and a soft shadow. The brush stroke
+   behind the headline comes from scripts/site-art.py. */
+.site .mount { background: #ffffff; padding: 10px; box-shadow: 0 1px 2px rgb(31 29 24 / 0.08), 0 24px 48px -28px rgb(31 29 24 / 0.35); }
 .site .brush { background: url("/site/brush.svg") center / 100% 100% no-repeat; }
 
 /* The stage's typing caret and waveform. */

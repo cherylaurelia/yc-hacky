@@ -76,7 +76,7 @@ export default function RepoPicker({ repos, loading = false, onPick, label }: { 
             e.preventDefault();
           }}
           placeholder={repos.length || loading ? "Search repositories…" : "owner/name or a GitHub link"}
-          className="h-12 w-full rounded-full border border-line bg-paper pl-11 pr-4 text-base text-ink outline-none placeholder:text-faint focus:border-ink/40"
+          className="h-12 w-full rounded-[var(--btn-radius)] border border-line bg-paper pl-11 pr-4 text-base text-ink outline-none placeholder:text-faint focus:border-ink/40"
         />
       </div>
 
@@ -136,7 +136,7 @@ export function RepoChip({ repo, repos, loading, onPick }: { repo: string; repos
         title={repo || undefined}
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
-        className="flex h-8 max-w-[11rem] items-center gap-1.5 rounded-full border border-line bg-card/60 pl-3 pr-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-card"
+        className="flex h-8 max-w-[11rem] items-center gap-1.5 rounded-[var(--btn-radius)] border border-line bg-card/60 pl-3 pr-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-card"
       >
         <span className="truncate">{repo ? (repo.split("/")[1] ?? repo) : "Choose a repo"}</span>
         <svg aria-hidden viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-soft">

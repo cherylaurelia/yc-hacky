@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cmd, TextLink } from "@/components/site/bits";
+import { Cmd, PreReleaseNote, TextLink } from "@/components/site/bits";
 
 export const metadata: Metadata = { title: "Docs", description: "How to use Terminal 1: dictation, connecting agents, voice commands, the team board and troubleshooting." };
 
@@ -63,6 +63,7 @@ export default function Docs() {
 
       <article className="min-w-0 pb-10">
         <h1 className="text-[44px] sm:text-[56px]">Terminal 1 docs</h1>
+        <PreReleaseNote>The Mac app isn&apos;t released yet; these docs describe how it will work. The web app works today.</PreReleaseNote>
         <P>Everything about using Terminal 1 day to day. For installing, start with the <TextLink href="/download">download guide</TextLink>.</P>
 
         <div className="mt-12 flex flex-col gap-4">

@@ -32,13 +32,13 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               {label}
             </Link>
           ))}
-          <Link href="/app" className="ml-2 hidden rounded-lg px-3 py-2 font-semibold text-[var(--text)] no-underline shadow-[inset_0_0_0_1px_var(--rule)] transition-colors hover:bg-[var(--wings-raise)] sm:inline-block">
+          <Link href="/app" className="ml-2 hidden rounded-[var(--btn-radius)] px-3 py-2 font-semibold text-[var(--text)] no-underline shadow-[inset_0_0_0_1px_var(--rule)] transition-colors hover:bg-[var(--wings-raise)] sm:inline-block">
             Open web app
           </Link>
         </nav>
       </header>
       {children}
-      <footer className="mt-28 border-t border-[var(--rule)]">
+      <footer className="mt-24 border-t border-[var(--rule)]">
         <div className="mx-auto flex max-w-[1180px] flex-col gap-6 px-5 py-10 text-[14px] text-[var(--faint)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <div className="flex items-center gap-3">
             <Wordmark />

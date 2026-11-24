@@ -40,9 +40,9 @@ export default function LicensePrompt({ message, onActivated }: { message: strin
             value={key}
             onChange={(e) => setKey(e.target.value)}
             placeholder="License key"
-            className="h-9 w-56 rounded-full border border-line bg-paper px-4 text-ink outline-none placeholder:text-faint focus:border-ink/40"
+            className="h-9 w-56 rounded-[var(--btn-radius)] border border-line bg-paper px-4 text-ink outline-none placeholder:text-faint focus:border-ink/40"
           />
-          <button type="submit" disabled={busy || !key.trim()} className="h-9 rounded-full bg-ink px-4 font-semibold text-paper hover:bg-ink/90 disabled:opacity-50">
+          <button type="submit" disabled={busy || !key.trim()} className="h-9 rounded-[var(--btn-radius)] bg-ink px-4 font-semibold text-paper hover:bg-ink/90 disabled:opacity-50">
             {busy ? "Checking…" : "Activate"}
           </button>
         </form>

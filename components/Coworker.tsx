@@ -67,9 +67,9 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
 
   return (
     <div className={`relative flex flex-col ${embed ? "h-screen overflow-hidden px-4 pb-4 pt-3" : "min-h-screen px-6 pb-8 pt-5 sm:px-10"}`}>
-      <header className="flex items-start justify-between gap-4 text-[13px] text-soft">
-        <Wordmark size={18} />
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
+      <header className="flex items-start justify-between gap-3 text-[13px] text-soft sm:gap-4">
+        <Wordmark size={18} compact />
+        <div className="flex min-w-0 flex-nowrap items-center justify-end gap-x-2.5 sm:flex-wrap sm:gap-x-3 sm:gap-y-2">
           {quiet && (
             <span role="status" className="rounded-full bg-chip px-3 py-0.5 font-semibold text-ink">
               Do Not Disturb{queued > 0 ? ` · ${plural(queued, "agent")} waiting` : ""}
@@ -163,7 +163,7 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
                 </p>
               )}
               {boardState.kind === "error" && account.ready && !account.user && /sign in/i.test(boardState.message) && (
-                <button type="button" onClick={account.signIn} className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98]">
+                <button type="button" onClick={account.signIn} className="h-11 rounded-[var(--btn-radius)] bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-brand active:scale-[0.98]">
                   Sign in with GitHub
                 </button>
               )}
@@ -185,10 +185,10 @@ function Panel({ initialRepo, board, embed }: { initialRepo: string; board?: num
           {offered && (
             <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-2xl bg-card px-4 py-2.5 text-[13px] text-ink">
               <span>{plural(queued, "agent")} waiting on you. Read them one at a time?</span>
-              <button type="button" onClick={readQueued} className="h-8 rounded-full bg-ink px-4 font-semibold text-paper hover:bg-ink/90">
+              <button type="button" onClick={readQueued} className="h-8 rounded-[var(--btn-radius)] bg-ink px-4 font-semibold text-paper hover:bg-brand">
                 Read them
               </button>
-              <button type="button" onClick={holdQueued} className="h-8 rounded-full px-3 font-semibold text-ink hover:bg-paper">
+              <button type="button" onClick={holdQueued} className="h-8 rounded-[var(--btn-radius)] px-3 font-semibold text-ink hover:bg-paper">
                 Not now
               </button>
             </div>
@@ -271,7 +271,7 @@ function CopyCommand({ command }: { command: string }) {
       <code ref={code} className="min-w-0 flex-1 select-all break-all font-mono text-[12.5px] leading-5 text-ink">
         {command}
       </code>
-      <button type="button" onClick={copy} className="h-9 shrink-0 rounded-full bg-ink px-4 text-[13px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98]">
+      <button type="button" onClick={copy} className="h-9 shrink-0 rounded-[var(--btn-radius)] bg-ink px-4 text-[13px] font-semibold text-paper transition-[background-color,transform] hover:bg-brand active:scale-[0.98]">
         {state === "copied" ? "Copied" : state === "selected" ? "Press Cmd+C" : "Copy"}
       </button>
     </div>
@@ -318,7 +318,7 @@ function CreateBoard({ account, onCreate }: { account: Account; onCreate: () => 
         data-create-board
         disabled={busy}
         onClick={account.user ? go : account.signIn}
-        className="h-11 rounded-full bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-ink/90 active:scale-[0.98] disabled:opacity-50"
+        className="h-11 rounded-[var(--btn-radius)] bg-ink px-6 text-[15px] font-semibold text-paper transition-[background-color,transform] hover:bg-brand active:scale-[0.98] disabled:opacity-50"
       >
         {busy ? "Creating…" : account.user ? "Create the board" : "Sign in to create the board"}
       </button>
@@ -354,7 +354,7 @@ function SettingsPanel({
   onClose: () => void;
 }) {
   const quiet = interruptions.mode === "dnd" ? interruptions : null;
-  const pick = "h-9 rounded-full px-4 text-[13px] font-semibold transition-colors";
+  const pick = "h-9 rounded-[var(--btn-radius)] px-4 text-[13px] font-semibold transition-colors";
   return (
     <section
       id="settings"
@@ -384,13 +384,13 @@ function SettingsPanel({
                 <span>
                   On {quiet.quietUntil === null ? "until you turn it off" : `until ${clock(quiet.quietUntil)}`}. {queued ? `${plural(queued, "agent")} waiting.` : "No agents waiting."}
                 </span>
-                <button type="button" onClick={() => onInterruptions(endQuiet(interruptions))} className={`${pick} bg-ink text-paper hover:bg-ink/90`}>
+                <button type="button" onClick={() => onInterruptions(endQuiet(interruptions))} className={`${pick} bg-ink text-paper hover:bg-brand`}>
                   Turn off, back to {MODE_LABEL[quiet.previousMode]}
                 </button>
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => onInterruptions(goQuiet(interruptions, Date.now(), QUIET_MS))} className={`${pick} bg-ink text-paper hover:bg-ink/90`}>
+                <button type="button" onClick={() => onInterruptions(goQuiet(interruptions, Date.now(), QUIET_MS))} className={`${pick} bg-ink text-paper hover:bg-brand`}>
                   Quiet for 30 minutes
                 </button>
                 <button type="button" onClick={() => onInterruptions(goQuiet(interruptions, Date.now(), null))} className={`${pick} bg-chip text-ink hover:bg-line`}>
@@ -406,7 +406,7 @@ function SettingsPanel({
         <label htmlFor="coworker-voice" className="font-display text-lg">
           Terminal 1&rsquo;s voice
         </label>
-        <select id="coworker-voice" value={voiceId} onChange={(e) => onVoice(e.target.value)} className="h-10 max-w-60 rounded-full border border-line bg-paper px-4 text-ink">
+        <select id="coworker-voice" value={voiceId} onChange={(e) => onVoice(e.target.value)} className="h-10 max-w-60 rounded-[var(--btn-radius)] border border-line bg-paper px-4 text-ink">
           {voices.map((v) => (
             <option key={v.id} value={v.id}>
               {v.name}
@@ -480,7 +480,7 @@ function AlertCard({
     }
   };
 
-  const btn = `rounded-full font-semibold transition-[background-color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:opacity-50 ${embed ? "h-10 flex-1 px-4 text-sm" : "h-12 px-7 text-[15px]"}`;
+  const btn = `rounded-[var(--btn-radius)] font-semibold transition-[background-color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:opacity-50 ${embed ? "h-10 flex-1 px-4 text-sm" : "h-12 px-7 text-[15px]"}`;
 
   return (
     <div className="relative w-full">
@@ -549,7 +549,7 @@ function AlertCard({
             </>
           ) : a.req ? (
             <>
-              <button type="button" disabled={busy} onClick={() => act("allow")} className={`${btn} bg-ink text-paper hover:bg-ink/90`}>
+              <button type="button" disabled={busy} onClick={() => act("allow")} className={`${btn} bg-ink text-paper hover:bg-brand`}>
                 Allow
               </button>
               <button type="button" disabled={busy} onClick={() => act("deny")} className={`${btn} text-ink hover:bg-paper`}>
@@ -557,7 +557,7 @@ function AlertCard({
               </button>
             </>
           ) : (
-            <button type="button" onClick={onDismiss} className={`${btn} bg-ink text-paper hover:bg-ink/90`}>
+            <button type="button" onClick={onDismiss} className={`${btn} bg-ink text-paper hover:bg-brand`}>
               Got it
             </button>
           )}

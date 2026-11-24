@@ -40,7 +40,7 @@ export default function TextChatThread({ messages, onSend }: { messages: readonl
             placeholder="Type to your coworker"
             className="max-h-28 min-w-0 flex-1 resize-none self-center bg-transparent py-1.5 text-[15px] text-paper outline-none placeholder:text-paper/60"
           />
-          <ComposerPrimitive.Send className="h-9 shrink-0 rounded-full bg-paper px-4 text-sm font-semibold text-ink disabled:opacity-40">Send</ComposerPrimitive.Send>
+          <ComposerPrimitive.Send className="h-9 shrink-0 rounded-[var(--btn-radius)] bg-paper px-4 text-sm font-semibold text-ink disabled:opacity-40">Send</ComposerPrimitive.Send>
         </ComposerPrimitive.Root>
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>

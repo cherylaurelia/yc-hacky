@@ -107,7 +107,7 @@ export default function AccountControl({ account: { user, ready, error, repoErro
         </>
       ) : (
         <button type="button" onClick={signIn} className="font-semibold text-ink underline-offset-4 hover:underline">
-          Sign in with GitHub
+          Sign in<span className="hidden sm:inline"> with GitHub</span>
         </button>
       )}
       {note && (

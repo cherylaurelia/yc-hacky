@@ -70,14 +70,14 @@ export default function Pricing() {
               {p.id === "pro" && (
                 <>
                   {checkout.proMonthly ? (
-                    <a href={checkout.proMonthly} className="inline-flex h-11 items-center rounded-[10px] bg-[var(--page-ink)] px-[18px] font-semibold text-[var(--page)] no-underline hover:bg-[oklch(0.28_0.04_264)]">
+                    <a href={checkout.proMonthly} className="inline-flex h-11 items-center rounded-[var(--btn-radius)] bg-[var(--page-ink)] px-[18px] font-semibold text-[var(--page)] no-underline hover:bg-[var(--brand)]">
                       Get Pro monthly
                     </a>
                   ) : (
-                    <span className="inline-flex h-11 items-center rounded-[10px] px-4 font-semibold text-[var(--page-dim)] shadow-[inset_0_0_0_1px_var(--page-edge)]">Checkout opens soon</span>
+                    <span className="inline-flex h-11 items-center rounded-[var(--btn-radius)] px-4 font-semibold text-[var(--page-dim)] shadow-[inset_0_0_0_1px_var(--page-edge)]">Checkout opens soon</span>
                   )}
                   {checkout.proYearly && (
-                    <a href={checkout.proYearly} className="inline-flex h-11 items-center rounded-[10px] px-4 font-semibold text-[var(--page-ink)] no-underline shadow-[inset_0_0_0_1px_var(--page-edge)] hover:bg-[var(--page-well)]">
+                    <a href={checkout.proYearly} className="inline-flex h-11 items-center rounded-[var(--btn-radius)] px-4 font-semibold text-[var(--page-ink)] no-underline shadow-[inset_0_0_0_1px_var(--page-edge)] hover:bg-[var(--page-well)]">
                       Yearly, $96
                     </a>
                   )}
