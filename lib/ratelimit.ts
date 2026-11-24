@@ -41,6 +41,7 @@ export const LIMITS = {
   board: { perMin: 60, globalPerMin: 600 },
   convai: { perMin: 10, globalPerMin: 120 },
   scribe: { perMin: 20, globalPerMin: 300 },
+  license: { perMin: 10, globalPerMin: 60 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

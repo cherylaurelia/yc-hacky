@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, JetBrains_Mono, Newsreader } from "next/font/google";
+import { EB_Garamond, Figtree, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const hanken = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-hanken" });
+// One type system for the whole product, site and app: EB Garamond for headings (with italic for the
+// emphasized phrase), Figtree for everything people read and click, JetBrains Mono only for commands.
+const garamond = EB_Garamond({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-serif" });
+const figtree = Figtree({ subsets: ["latin"], variable: "--font-figtree" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
-const newsreader = Newsreader({ subsets: ["latin"], variable: "--font-newsreader", axes: ["opsz"] });
 
 export const metadata: Metadata = {
   title: "Terminal 1",
@@ -13,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${hanken.variable} ${jetbrains.variable} ${newsreader.variable} h-full antialiased`}>
+    <html lang="en" className={`${garamond.variable} ${figtree.variable} ${jetbrains.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

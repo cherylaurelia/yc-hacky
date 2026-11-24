@@ -1,0 +1,159 @@
+/* The marketing site, in the same warm world as the app (app/globals.css): paper, ink, one deep green,
+   amber only for "waiting on you". The variable names are the site's; the values match the app's tokens. */
+.site {
+  --wings: #fdfcf6; /* the paper ground */
+  --wings-raise: #f6f4ea; /* a card on the paper */
+  --wings-hi: #efeddf; /* a well inside a card */
+  --rule: #e2ddcd;
+  --text: #1f1d18;
+  --dim: #4f4b43;
+  --faint: #6f6b61;
+  --page: #ffffff; /* the lit sheet */
+  --page-ink: #1f1d18;
+  --page-dim: #5c584f;
+  --page-rule: #ece8dc;
+  --page-well: #f6f4ea;
+  --page-edge: #d9d4c5;
+  --brand: #0f4a3f;
+  --sage: #e8edd2;
+  --standby: #b7791f;
+  --standby-ink: #8a5a12;
+  --stuck: #c0492f;
+  --stuck-text: #a3382a;
+  --done: #2e7d4f;
+  --tape-roger: #2f6f6a;
+  --tape-sarah: #a4473f;
+  --tape-charlie: #5e6a2a;
+  --tape-alice: #3d5f8a;
+  --tape-jessica: #7a4f86;
+  --add-bg: #e3ede0;
+  --add-ink: #2e6542;
+  --del-bg: #f6e2da;
+  --del-ink: #a3382a;
+  --pill: #1f1d18;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  background: var(--wings);
+  color: var(--text);
+  font-family: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
+}
+html:has(.site),
+body:has(.site) {
+  background: #fdfcf6;
+  color-scheme: light;
+}
+
+/* Headings: EB Garamond, regular weight; <em> inside a heading is the one italic phrase. */
+.site h1,
+.site h2,
+.site h3 {
+  font-family: var(--font-serif), ui-serif, Georgia, serif;
+  font-weight: 450;
+  text-wrap: balance;
+}
+.site h1 { letter-spacing: -0.03em; line-height: 1; }
+.site h2 { letter-spacing: -0.025em; line-height: 1.04; }
+.site h3 { letter-spacing: -0.01em; line-height: 1.2; font-weight: 500; }
+.site h1 em,
+.site h2 em { font-style: italic; }
+.site p { text-wrap: pretty; }
+.site code,
+.site .cmd { font-family: var(--font-jetbrains), ui-monospace, monospace; }
+
+.site ::selection { background: color-mix(in oklab, var(--brand) 18%, transparent); color: var(--text); }
+.site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 5px; }
+.site a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.site * { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; caret-color: var(--brand); }
+
+/* The lit sheet: white paper lifted off the warm ground. */
+.site .lit {
+  background: var(--page);
+  color: var(--page-ink);
+  box-shadow: 0 1px 2px rgb(31 29 24 / 0.06), 0 24px 48px -24px rgb(31 29 24 / 0.28);
+}
+/* The talk pill stays dark in a light world; inside it, text tokens flip to paper. */
+.site .pill {
+  --text: #fdfcf6;
+  --dim: #d9d5c7;
+  --faint: #aaa596;
+  --tape-roger: #8fd1c9;
+  --tape-sarah: #f2a89e;
+  --tape-charlie: #c9d38e;
+  --tape-alice: #a9c4ea;
+  --tape-jessica: #d2b2dc;
+  background: var(--pill);
+  color: var(--text);
+  box-shadow: 0 12px 28px -12px rgb(31 29 24 / 0.55);
+}
+.site .keycap {
+  background: var(--wings-hi);
+  box-shadow: inset 0 -1px 0 rgb(31 29 24 / 0.08), 0 0 0 1px var(--rule);
+  border-radius: 5px;
+}
+.site .pill .keycap { background: rgb(253 252 246 / 0.1); box-shadow: 0 0 0 1px rgb(253 252 246 / 0.18); }
+.site .keycap.down { background: var(--rule); transform: translateY(1px); }
+.site .pill .keycap.down { background: rgb(253 252 246 / 0.26); }
+
+/* Lamps: hollow ring while working, filled when waiting / done / stuck. */
+.site .lamp { width: 10px; height: 10px; border-radius: 999px; flex: none; transition: background 300ms var(--ease-out), box-shadow 300ms var(--ease-out); }
+.site .lamp.working { box-shadow: inset 0 0 0 2px var(--faint); }
+.site .lamp.idle { box-shadow: inset 0 0 0 2px var(--rule); }
+.site .lamp.standby { background: var(--standby); }
+.site .lamp.done { background: var(--done); }
+.site .lamp.stuck { background: var(--stuck); }
+
+/* One primary button for the whole product: ink, like the app's. */
+.site .btn-go {
+  display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px; border-radius: var(--btn-radius);
+  background: var(--text); color: var(--wings); font-weight: 600; text-decoration: none;
+  transition: background 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+.site .btn-go:hover { background: var(--brand); }
+.site .btn-go:active { transform: translateY(1px); }
+.site .btn-quiet {
+  display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: var(--btn-radius);
+  color: var(--text); font-weight: 600; text-decoration: none; box-shadow: inset 0 0 0 1px var(--page-edge);
+  transition: background 200ms var(--ease-out);
+}
+.site .btn-quiet:hover { background: var(--wings-raise); }
+.site .btn-quiet[aria-disabled="true"] { color: var(--faint); pointer-events: none; }
+
+/* The deep green band that paces the scroll; text tokens flip to paper inside it. */
+.site .band {
+  --text: #fdfcf6;
+  --dim: #d4e0d6;
+  --faint: #a9c1b3;
+  --rule: rgb(253 252 246 / 0.18);
+  background: var(--brand);
+  color: var(--text);
+}
+
+/* Inside the green band the primary button flips to paper. */
+.site .band .btn-go { background: #fdfcf6; color: #1f1d18; }
+.site .band .btn-go:hover { background: #e8edd2; }
+
+/* The wash behind the product demo (from Willow's hero): two soft fields of sage and lavender. */
+.site .wash {
+  background:
+    radial-gradient(60% 70% at 15% 20%, #edf1dc 0%, transparent 70%),
+    radial-gradient(55% 65% at 85% 80%, #efe9fb 0%, transparent 70%),
+    #f8f7f0;
+}
+
+/* The hero painting is mounted like a print: a thin paper border and a soft shadow. The brush stroke
+   behind the headline comes from scripts/site-art.py. */
+.site .mount { background: #ffffff; padding: 10px; box-shadow: 0 1px 2px rgb(31 29 24 / 0.08), 0 24px 48px -28px rgb(31 29 24 / 0.35); }
+.site .brush { background: url("/site/brush.svg") center / 100% 100% no-repeat; }
+
+/* The stage's typing caret and waveform. */
+.site .caret { display: inline-block; width: 2px; height: 1.1em; margin-left: 1px; vertical-align: -0.15em; background: var(--page-ink); animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+.site .wave i { display: block; width: 3px; border-radius: 2px; background: var(--text); height: 4px; transition: height 120ms var(--ease-out); }
+
+.site details > summary { cursor: pointer; list-style: none; }
+.site details > summary::-webkit-details-marker { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .site *, .site *::before, .site *::after { animation: none !important; transition: none !important; }
+}

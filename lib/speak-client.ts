@@ -1,3 +1,4 @@
+import { httpError, licenseHeaders } from "./license-client.ts";
 import { clip, plain } from "./spoken.ts";
 
 // One audio element for every board post. Safari only lets a page play sound from code after the
@@ -17,16 +18,17 @@ export function unlockAudio(): void {
 }
 
 // Browser helper: speak one board post in its poster's voice. Resolves when playback ends
-// (or a newer speakPost call cuts it off); rejects with a sentence you can show the user.
+// (or a newer speakPost call cuts it off); rejects with a sentence you can show the user,
+// as a LicenseError when the plan has no voices.
 export async function speakPost(poster: string, text: string): Promise<void> {
   const res = await fetch("/api/speak", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...licenseHeaders() },
     body: JSON.stringify({ poster, text: clip(plain(text), 500) }),
   });
   if (!res.ok) {
     const j = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(j.error ?? `Could not speak that (HTTP ${res.status}).`);
+    throw httpError(res.status, j.error ?? `Could not speak that (HTTP ${res.status}).`);
   }
   const url = URL.createObjectURL(await res.blob());
   cut?.();

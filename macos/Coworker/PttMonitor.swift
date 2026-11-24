@@ -81,7 +81,7 @@ enum TalkKeySetting {
 
     static var notePending: Bool { UserDefaults.standard.bool(forKey: notePendingKey) }
     static func noteShown() { UserDefaults.standard.set(false, forKey: notePendingKey) }
-    static let note = "Wispr Flow uses fn, so Coworker uses Right Option. Change in Talk key."
+    static let note = "Wispr Flow uses fn, so Terminal 1 uses Right Option. Change in Talk key."
 }
 
 enum KeyboardAccess {
@@ -111,8 +111,8 @@ enum KeyboardAccess {
         UserDefaults.standard.set(true, forKey: promptedKey)
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
-        a.messageText = "Coworker needs keyboard access to hear the \(TalkKeySetting.current.title) key"
-        a.informativeText = "Turn Coworker on in Input Monitoring and in Accessibility (System Settings > Privacy & Security), then quit and reopen Coworker once."
+        a.messageText = "Terminal 1 needs keyboard access to hear the \(TalkKeySetting.current.title) key"
+        a.informativeText = "Turn Terminal 1 on in Input Monitoring and in Accessibility (System Settings > Privacy & Security), then quit and reopen Terminal 1 once."
         a.addButton(withTitle: "Open Input Monitoring")
         a.addButton(withTitle: "Open Accessibility")
         a.addButton(withTitle: "Later")

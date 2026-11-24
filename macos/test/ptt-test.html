@@ -39,7 +39,7 @@
   // post(state), post(state, {agent, text}) for an alert, post(state, null) to clear the alert.
   function post(state, alert) {
     const h = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.coworker;
-    if (!h) return log('no webkit message handler (not inside Coworker.app)');
+    if (!h) return log('no webkit message handler (not inside Terminal 1.app)');
     const msg = {};
     if (state) msg.state = state;
     if (alert !== undefined) msg.alert = alert;

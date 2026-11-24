@@ -1,19 +1,33 @@
 @import "tailwindcss";
 
+/* Terminal 1's look, shared by the site and the app: warm paper, ink, one deep green, amber only for
+   "waiting on you". Token names are the app's; .lit is the white sheet that needs you. */
 :root {
   color-scheme: light;
-  --paper: #f3eee6;
-  --card: #fbf8f3;
-  --chip: #efe8dd;
-  --ink: #221d17;
-  --soft: #5f564b;
-  --faint: #73695d;
-  --line: #ddd3c5;
+  --paper: #fdfcf6;
+  --card: #f6f4ea;
+  --chip: #efeddf;
+  --ink: #1f1d18;
+  --soft: #4f4b43;
+  --faint: #6f6b61;
+  --line: #e5e1d3;
   --stop: #a3382a;
   --stoptint: #f6e2da;
   --add: #2e6542;
   --addtint: #e3ede0;
+  --pill: #1f1d18;
+  --brand: #0f4a3f;
+  --focus: #0f4a3f;
+  --btn-radius: 10px; /* every button, input and select on the site and in the app; only the talk pill is fully round */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The one sheet per screen that needs you: white paper lifted off the warm ground. */
+.lit {
+  --card: #ffffff;
+  --paper: #ffffff;
+  --chip: #f3f1e7;
+  color: var(--ink);
 }
 
 @theme inline {
@@ -28,20 +42,24 @@
   --color-stoptint: var(--stoptint);
   --color-add: var(--add);
   --color-addtint: var(--addtint);
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-newsreader), ui-serif, Georgia, serif;
+  --color-pill: var(--pill);
+  --color-brand: var(--brand);
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-serif), ui-serif, Georgia, serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 body {
-  background: radial-gradient(120% 80% at 50% 0%, #f7f2ea 0%, var(--paper) 60%) fixed, var(--paper);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+  font-feature-settings: "tnum";
 }
 
+/* Headings: EB Garamond, regular weight, tight tracking; italic marks the one emphasized phrase. */
 .font-display {
-  font-optical-sizing: auto;
-  font-weight: 420;
+  font-weight: 450;
+  letter-spacing: -0.02em;
 }
 
 p {
@@ -49,31 +67,34 @@ p {
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--ink) 16%, transparent);
+  background: color-mix(in oklab, var(--brand) 18%, transparent);
   color: var(--ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
-  caret-color: var(--ink);
+  caret-color: var(--focus);
 }
 
 /* The one card that needs you, and the ones queued behind it. */
 .card-rise {
-  box-shadow:
-    0 1px 2px rgb(60 40 20 / 0.06),
-    0 28px 56px -28px rgb(60 40 20 / 0.28);
   animation: rise 250ms var(--ease-out) both;
+}
+/* Only the lit sheet (and the pill and the painting's mount) cast shadows; cards and rows stay flat. */
+.lit {
+  box-shadow:
+    0 1px 2px rgb(31 29 24 / 0.06),
+    0 24px 48px -24px rgb(31 29 24 / 0.28);
 }
 .stack-layer {
   background: color-mix(in oklab, var(--card) 70%, var(--paper));
-  box-shadow: 0 12px 30px -20px rgb(60 40 20 / 0.25);
+  box-shadow: none;
 }
 .diff-open {
   animation: unfold 250ms var(--ease-out) both;
@@ -103,7 +124,7 @@ p {
 
 /* The push-to-talk pill: still at rest, a soft lift while the mic or a voice is live. */
 .pill {
-  box-shadow: 0 10px 24px -14px rgb(34 29 23 / 0.6);
+  box-shadow: 0 12px 28px -12px rgb(31 29 24 / 0.55);
   transition:
     transform 240ms var(--ease-out),
     box-shadow 240ms var(--ease-out),
@@ -112,7 +133,7 @@ p {
 }
 .pill-on {
   transform: scale(1.04);
-  box-shadow: 0 16px 34px -14px rgb(34 29 23 / 0.7);
+  box-shadow: 0 16px 34px -12px rgb(31 29 24 / 0.6);
 }
 
 @media (prefers-reduced-motion: reduce) {

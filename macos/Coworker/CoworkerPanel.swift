@@ -12,17 +12,18 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
     private let panel: NSPanel
     private let webView: WKWebView
     private var url: URL
+    private var license: LicenseGrant?
     private var retry: DispatchWorkItem?
     private var talkKey = ""
     private var pageReady = false
 
     var isVisible: Bool { panel.alphaValue > 0 }
 
-    init(url: URL) {
+    init(url: URL, license: LicenseGrant? = nil) {
         self.url = url
+        self.license = license
         let cfg = WKWebViewConfiguration()
         cfg.mediaTypesRequiringUserActionForPlayback = []  // the agent speaks without a click
-        if Probe.enabled { cfg.userContentController.addUserScript(Probe.script) }
         webView = WKWebView(frame: .zero, configuration: cfg)
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 520),
                         styleMask: [.titled, .closable, .resizable, .utilityWindow, .nonactivatingPanel],
@@ -32,7 +33,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         webView.uiDelegate = self
         webView.navigationDelegate = self
         webView.isInspectable = true
-        panel.title = "Coworker"
+        panel.title = "Terminal 1"
         panel.contentView = webView
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
@@ -46,6 +47,7 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         panel.setFrameAutosaveName("CoworkerPanel")
         panel.orderFrontRegardless()
         setVisible(UserDefaults.standard.bool(forKey: "showPanel"))  // launch arg -showPanel 1
+        installScripts()
         load()
         Probe.start(webView)
     }
@@ -56,12 +58,30 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
         onVisibilityChange?(visible)
     }
 
-    func setURL(_ new: URL) { url = new; load() }
+    func setURL(_ new: URL) { url = new; installScripts(); load() }
+
+    /// A new key and activation (or none) reach the page on its next load, so this reloads. Only Activate and Deactivate in Settings call it.
+    func setLicense(_ grant: LicenseGrant?) { license = grant; installScripts(); load() }
+
+    /// WKUserContentController can only drop every script at once, so each change rebuilds them all.
+    private func installScripts() {
+        let scripts = webView.configuration.userContentController
+        scripts.removeAllUserScripts()
+        if Probe.enabled { scripts.addUserScript(Probe.script) }
+        if let license, let origin = LicenseScript.origin(of: url) {
+            scripts.addUserScript(WKUserScript(source: LicenseScript.source(license, origin: origin), injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+    }
 
     /// A single-use dictation token, fetched by the page itself so the request carries its sign-in cookie and Origin.
     func scribeToken() async throws -> String {
         let js = """
-        const r = await fetch("/api/scribe-token", { method: "POST", credentials: "same-origin" });
+        const key = window.__T1_LICENSE__ || localStorage.getItem("terminal1.license") || "";
+        const instance = window.__T1_LICENSE__ ? window.__T1_INSTANCE__ || "" : localStorage.getItem("terminal1.instance") || "";
+        const headers = {};
+        if (key) headers["x-terminal1-license"] = key;
+        if (key && instance) headers["x-terminal1-instance"] = instance;
+        const r = await fetch("/api/scribe-token", { method: "POST", credentials: "same-origin", headers });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.token) throw new Error(j.error || `HTTP ${r.status}`);
         return j.token;
@@ -111,6 +131,12 @@ final class CoworkerPanel: NSObject, NSWindowDelegate, WKUIDelegate, WKNavigatio
             if let error { NSLog("Coworker: could not deliver ptt event: \(error.localizedDescription)") }
         }
         Probe.log("ptt \(detail)", webView)
+    }
+
+    // Links that open a new window (like See pricing) go to the browser; the panel stays on the page.
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let link = navigationAction.request.url, ["http", "https"].contains(link.scheme) { NSWorkspace.shared.open(link) }
+        return nil
     }
 
     // Hide instead of close: closing would stop the voice session.

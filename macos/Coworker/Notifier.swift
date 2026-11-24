@@ -14,7 +14,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let bundled = Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
         center = bundled ? UNUserNotificationCenter.current() : nil
         super.init()
-        if !bundled { NSLog("Coworker: notifications off; launch Coworker.app (open build/Coworker.app), not the raw binary") }
+        if !bundled { NSLog("Coworker: notifications off; launch Terminal 1.app (open \"build/Terminal 1.app\"), not the raw binary") }
         center?.delegate = self
         center?.setNotificationCategories(Set(AlertKind.allCases.map(Self.category)))
     }
@@ -23,7 +23,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     func requestAuthorization() {
         center?.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error { NSLog("Coworker: notification authorization failed: \(error.localizedDescription)") }
-            else if !granted { NSLog("Coworker: notifications denied; enable Coworker in System Settings > Notifications") }
+            else if !granted { NSLog("Coworker: notifications denied; enable Terminal 1 in System Settings > Notifications") }
             else { NSLog("Coworker: notifications authorized") }
         }
     }

@@ -16,7 +16,7 @@ People who run several AI coding agents at once (Claude Code, Codex) across a sm
 
 ## Product Purpose
 
-Coworker is a voice coworker for a team's coding agents. It watches the agents (a pinned GitHub-issue board plus Claude Code hooks) and speaks up when one is blocked, needs approval to run a command, or is stuck retrying the same failing thing. The person holds a key and answers by voice; Coworker relays the answer, approves or denies the command, or stops the agent. Success: no agent waits long on a human, and the human never has to go looking.
+Terminal 1 (formerly Coworker) is a voice coworker for a team's coding agents. It watches the agents (a pinned GitHub-issue board plus Claude Code hooks) and speaks up when one is blocked, needs approval to run a command, or is stuck retrying the same failing thing. The person holds a key and answers by voice; Terminal 1 relays the answer, approves or denies the command, or stops the agent. Success: no agent waits long on a human, and the human never has to go looking.
 
 ## Positioning
 
@@ -42,7 +42,7 @@ It interrupts you only when an agent needs you, and you answer without leaving w
 
 ## Brand Commitments
 
-- Name: Coworker.
+- Name: Terminal 1 (renamed from Coworker on 2026-11-23; "Coworker" survives only in internal names, the `coworker` CLI and ~/.coworker paths agents depend on).
 - Reference feel named by the operator: Wispr Flow (a tiny unobtrusive pill, live waveform while the key is held, calm, premium, gets out of the way). This sets the craft bar, not a look to copy.
 - The previous UI (big empty dark canvas, a large "Idle" box) was rejected and is an anti-reference.
 

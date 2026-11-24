@@ -28,10 +28,10 @@ final class OnboardingWindow: NSObject, NSWindowDelegate {
         let key = TalkKeySetting.current.title
         let page: (String, String, String?)
         switch flow.step {
-        case .welcome: page = ("Welcome to Coworker", "Hold your talk key and speak. Your words are typed into the app in front of you, or go to your agents when one is waiting on you.", nil)
-        case .microphone: page = ("Allow the microphone", "Coworker listens only while you hold the talk key.", "Allow Microphone")
-        case .accessibility: page = ("Allow Accessibility", "This lets Coworker paste what you said into the app you are using. Turn Coworker on in System Settings > Privacy & Security > Accessibility.", "Open Accessibility")
-        case .inputMonitoring: page = ("Allow Input Monitoring", "This lets Coworker see the talk key while another app is in front. Turn Coworker on, then quit and reopen it once.", "Open Input Monitoring")
+        case .welcome: page = ("Welcome to Terminal 1", "Hold your talk key and speak. Your words are typed into the app in front of you, or go to your agents when one is waiting on you.", nil)
+        case .microphone: page = ("Allow the microphone", "Terminal 1 listens only while you hold the talk key.", "Allow Microphone")
+        case .accessibility: page = ("Allow Accessibility", "This lets Terminal 1 paste what you said into the app you are using. Turn Terminal 1 on in System Settings > Privacy & Security > Accessibility.", "Open Accessibility")
+        case .inputMonitoring: page = ("Allow Input Monitoring", "This lets Terminal 1 see the talk key while another app is in front. Turn Terminal 1 on, then quit and reopen it once.", "Open Input Monitoring")
         case .talkKey: page = ("Your talk key is \(key)", "Hold it to dictate. When an agent is waiting on you, the same hold answers it. Change the key any time in Settings.", nil)
         case .agents: page = ("Connect your agents", "Run `coworker install claude` (or codex, cursor) in a terminal. Agents then reach you here when they need an approval or have a question.", nil)
         case .done: page = ("You're set", "Hold \(key) anywhere and talk.", nil)
@@ -75,7 +75,7 @@ final class OnboardingWindow: NSObject, NSWindowDelegate {
         stack.spacing = 12
 
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 240), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "Coworker"
+        w.title = "Terminal 1"
         w.isReleasedWhenClosed = false
         w.delegate = self
         let content = w.contentView!

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type Alert, type AlertState, checkAnswer, current, findAlert, markAnswered, normReq, waiting } from "@/lib/alerts";
 import { type BoardAlert, type BoardCursor, NoBoardError, alertMessage, pollBoard } from "@/lib/board";
 import { DEFAULT_INTERRUPTIONS, type Interruptions, deferQueued, expire, nextSpoken, parseInterruptions, queuedAgents, sieve } from "@/lib/interruptions";
+import { LicenseError, httpError, licenseHeaders } from "@/lib/license-client";
 import { localNow } from "@/lib/now";
 import { boardTask } from "@/lib/agents-bridge";
 import { type Said, confirmed } from "@/lib/confirm";
@@ -82,6 +83,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   const [boardState, setBoardState] = useState<BoardState>({ kind: "checking" });
   const [madeBoard, setMadeBoard] = useState<number | null>(null); // the board this page just created: GitHub's label list lags a few seconds behind
   const [error, setError] = useState<string | null>(null);
+  const [licenseError, setLicenseError] = useState<string | null>(null); // a 402: this plan has no voice
   const [canType, setCanType] = useState(false);
   const [textOnly, setTextOnly] = useState(false);
   const [held, setHeld] = useState(false);
@@ -369,7 +371,8 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
             await speakPost(a.from, headline(a.text));
             played = true;
           } catch (e) {
-            setError(e instanceof Error ? e.message : "Could not play that board post.");
+            if (e instanceof LicenseError) setLicenseError(e.message);
+            else setError(e instanceof Error ? e.message : "Could not play that board post.");
           } finally {
             console.info(`[coworker] voice end ${a.from} ${new Date().toISOString()}`);
           }
@@ -448,6 +451,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
       }
     }
     setError(null);
+    setLicenseError(null);
     setCanType(false);
     setStarting(true);
     setTextOnly(asText);
@@ -469,14 +473,15 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     }
     let session: { conversationToken: string } | { signedUrl: string; textOnly: true; connectionType: "websocket" };
     try {
-      const res = await fetch(`/api/convai-token${asText ? "?text=1" : ""}`, { cache: "no-store" });
+      const res = await fetch(`/api/convai-token${asText ? "?text=1" : ""}`, { cache: "no-store", headers: licenseHeaders() });
       const j = (await res.json().catch(() => ({}))) as { conversationToken?: string; signedUrl?: string; error?: string };
-      if (!res.ok) throw new Error(j.error ?? `Could not start a session (HTTP ${res.status}).`);
+      if (!res.ok) throw httpError(res.status, j.error ?? `Could not start a session (HTTP ${res.status}).`);
       if (j.signedUrl) session = { signedUrl: j.signedUrl, textOnly: true, connectionType: "websocket" };
       else if (j.conversationToken) session = { conversationToken: j.conversationToken };
       else throw new Error("The server sent back no session.");
     } catch (e) {
       setStarting(false);
+      if (e instanceof LicenseError) return setLicenseError(e.message);
       return setError(e instanceof Error ? e.message : "Could not start a session.");
     }
     // The agent's own voice is the default; any other choice is a per-session override (the agent must allow it, see scripts/sync-agent.ts).
@@ -705,7 +710,7 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
   }
 
   return {
-    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, board: boardState, madeBoard, gesture },
+    status: { phase, sub, hint, mic, live, connecting, textOnly, canType, error, licenseError, board: boardState, madeBoard, gesture },
     transcript: msgs,
     feed,
     alerts,
@@ -725,6 +730,6 @@ export function useCoworker({ initialRepo, board, embed }: { initialRepo: string
     focus: focused ?? null,
     repo: { current: repo, ready },
     meterSource: source,
-    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, createBoard, setInterruptions, setVoice, endSession: () => convo.endSession(), readQueued: () => setOffer(false), holdQueued: () => { setOffer(false); setAlerts(deferQueued); } },
+    actions: { start, press, send, setRepo: switchRepo, setFocus, skip, answer, dismiss, createBoard, setInterruptions, setVoice, endSession: () => convo.endSession(), licensed: () => setLicenseError(null), readQueued: () => setOffer(false), holdQueued: () => { setOffer(false); setAlerts(deferQueued); } },
   };
 }

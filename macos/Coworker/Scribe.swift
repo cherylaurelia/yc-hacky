@@ -162,7 +162,7 @@ final class ScribeClient {
 
     private func startAudio() -> Bool {
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-            fail("Microphone access is off. Turn Coworker on in System Settings > Privacy & Security > Microphone.")
+            fail("Microphone access is off. Turn Terminal 1 on in System Settings > Privacy & Security > Microphone.")
             return false
         }
         let input = engine.inputNode

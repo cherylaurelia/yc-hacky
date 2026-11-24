@@ -1,5 +1,6 @@
 import { readJson } from "@/lib/body";
 import { ElevenError, TTS_MODEL, elevenAudio } from "@/lib/eleven";
+import { licenseGate } from "@/lib/license";
 import { rateLimit } from "@/lib/ratelimit";
 import { voiceFor } from "@/lib/voices";
 
@@ -10,6 +11,8 @@ const fail = (status: number, error: string) => Response.json({ error }, { statu
 export async function POST(req: Request) {
   const limited = rateLimit(req, "speak");
   if (limited) return limited;
+  const unlicensed = await licenseGate(req);
+  if (unlicensed) return unlicensed;
   const read = await readJson(req, 4096);
   if (!read.ok) return read.res;
   const body = read.body as { text?: unknown; poster?: unknown } | null;

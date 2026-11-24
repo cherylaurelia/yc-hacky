@@ -70,7 +70,7 @@ final class PillWindow {
         panel.contentView = content
 
         content.wantsLayer = true
-        content.layer?.backgroundColor = NSColor(white: 0.08, alpha: 0.92).cgColor
+        content.layer?.backgroundColor = NSColor(srgbRed: 0.122, green: 0.114, blue: 0.094, alpha: 0.94).cgColor  // the site's ink #1f1d18
         content.layer?.borderColor = NSColor(white: 1, alpha: 0.14).cgColor
         content.layer?.borderWidth = 1
         content.layer?.masksToBounds = true  // the label is clipped while the capsule is still growing

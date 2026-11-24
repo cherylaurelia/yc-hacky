@@ -17,7 +17,7 @@ export const oauthApp = () => {
 };
 
 // A same-site path to return to after sign-in, never another site.
-export const safeNext = (s: string) => (/^\/(?![/\\])[^\r\n]{0,500}$/.test(s) ? s : "/");
+export const safeNext = (s: string) => (/^\/(?![/\\])[^\r\n]{0,500}$/.test(s) ? s : "/app");
 
 export async function sessionFrom(req: Request): Promise<Session | null> {
   const secret = sessionSecret();

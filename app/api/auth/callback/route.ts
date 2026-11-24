@@ -3,7 +3,7 @@ import { GhError, gh } from "@/lib/github";
 import { OAUTH_COOKIE, SESSION_COOKIE, SESSION_SECONDS, cookieHeader, readCookie, seal } from "@/lib/session";
 
 // GET /api/auth/callback?code&state -> sets the session cookie and returns to the page, or goes
-// back to "/?auth_error=<code>" (the codes are explained in components/AccountControl.tsx).
+// back to "/app?auth_error=<code>" (the codes are explained in components/AccountControl.tsx).
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const clearState = cookieHeader(OAUTH_COOKIE, "", 0, "/api/auth");
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   };
   const fail = (code: string, detail?: string) => {
     if (detail) console.error(`sign-in failed (${code}): ${detail}`);
-    return done(`/?auth_error=${code}`);
+    return done(`/app?auth_error=${code}`);
   };
 
   const app = oauthApp();

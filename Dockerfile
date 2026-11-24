@@ -19,6 +19,8 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
+# Standalone leaves public/ out. The /api/version route reads public/releases.json at request time.
+COPY --from=build --chown=node:node /app/public ./public
 # Maritime's init flattens the CMD into one string, so no `sh -c` and no `node -e` with quotes.
 # The VM can set HOSTNAME to its own name, and server.js would bind that instead of every interface.
 RUN printf "process.env.HOSTNAME = '0.0.0.0';\nrequire('./server.js');\n" > start.cjs

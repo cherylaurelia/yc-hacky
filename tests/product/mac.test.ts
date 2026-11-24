@@ -65,7 +65,7 @@ for (const [type, file] of WIRED) {
 
 // ---------- the built app (tests/product/run.sh runs macos/build.sh first) ----------
 
-const APP = join(ROOT, "macos/build/Coworker.app");
+const APP = join(ROOT, "macos/build/Terminal 1.app");
 const plist = (key: string) => {
   try {
     return execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, join(APP, "Contents/Info.plist")], { encoding: "utf8" }).trim();
@@ -99,8 +99,8 @@ test("mac build: the version comes from macos/VERSION and the menu shows it", ()
 
 test("mac build: a DMG installer is built", () => {
   built();
-  const dmg = join(ROOT, "macos/build/Coworker.dmg");
-  assert.ok(existsSync(dmg), "no macos/build/Coworker.dmg");
+  const dmg = join(ROOT, "macos/build/Terminal-1.dmg");
+  assert.ok(existsSync(dmg), "no macos/build/Terminal-1.dmg");
   assert.ok(statSync(dmg).mtimeMs / 1000 >= Number(process.env.PRODUCT_RUN_START ?? 0) - 1, "the DMG is stale, not from this build");
   execFileSync("hdiutil", ["imageinfo", dmg], { stdio: "ignore" });
 });
@@ -108,7 +108,7 @@ test("mac build: a DMG installer is built", () => {
 test("mac build: the bundle includes the coworker CLI for agents", () => {
   built();
   const cli = join(APP, "Contents/Resources/bin/coworker");
-  assert.ok(existsSync(cli), "Coworker.app/Contents/Resources/bin/coworker is missing");
+  assert.ok(existsSync(cli), "Terminal 1.app/Contents/Resources/bin/coworker is missing");
   assert.ok(statSync(cli).mode & 0o111, "not executable");
   assert.ok(readdirSync(join(APP, "Contents/Resources/bin")).includes("coworker"));
   const hook = join(APP, "Contents/Resources/hooks/coworker-hook.sh");
